@@ -11,6 +11,12 @@ interface Props {
   onProjectChanged?: () => void;
 }
 
+const STARTERS = [
+  "make scene 2 shorter",
+  "fix the junction between the bowl drop and the draw",
+  "what is stale in this reel?",
+];
+
 export function Chat({ onProjectChanged }: Props) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [input, setInput] = useState("");
@@ -64,13 +70,23 @@ export function Chat({ onProjectChanged }: Props) {
 
   return (
     <div className="chat" data-testid="chat">
-      <div className="chat-log" ref={scroller}>
-        {entries.length === 0 && (
-          <div className="chat-hint">
-            Ask the agent to edit this reel — e.g. "make scene 2 shorter" or
-            "fix the junction between the bowl drop and the draw".
+      <div className="chat-log" ref={scroller} aria-live="polite">
+        {entries.length === 0 && !busy ? (
+          <div className="chat-empty">
+            <div className="chat-hint">
+              Ask the agent to edit this reel — it reads reel.yaml, renders
+              through ComfyUI, and keeps junctions intact.
+            </div>
+            <div className="chat-starters">
+              {STARTERS.map((s) => (
+                <button key={s} type="button" className="chat-starter"
+                  onClick={() => setInput(s)}>
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
-        )}
+        ) : null}
         {entries.map((entry, i) => (
           <div key={i} className={`chat-entry role-${entry.role}`}>{entry.text}</div>
         ))}
@@ -80,6 +96,7 @@ export function Chat({ onProjectChanged }: Props) {
         <input
           value={input}
           placeholder={busy ? "agent is working…" : "tell the agent what to change"}
+          aria-label="message the agent"
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") void send(); }}
           disabled={busy}

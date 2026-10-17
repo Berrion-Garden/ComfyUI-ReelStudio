@@ -51,7 +51,7 @@ export function Timeline({ scenes, music, totalS, artifactUrl, onSceneClick, onR
                 {cell.kind === "missing" ? (
                   <span className="xxx" title="no render yet">XXX</span>
                 ) : (
-                  <video src={cell.url} muted preload="metadata" />
+                  <video src={`${cell.url}#t=0.1`} muted preload="metadata" />
                 )}
                 {scene.stale && (
                   <button
@@ -64,8 +64,14 @@ export function Timeline({ scenes, music, totalS, artifactUrl, onSceneClick, onR
                 )}
               </div>
               {audioRows(scene, music).map((row) => (
-                <div key={row.label} className={`slice-audio ${row.url ? "has-audio" : "missing"}`}>
-                  {row.url ? <audio src={row.url} controls preload="none" /> : (
+                <div key={row.label} className={`slice-audio ${row.url ? "has-audio" : "missing"}`}
+                  title={row.url ? "clip audio" : undefined}>
+                  {row.url ? (
+                    <>
+                      <span className="audio-tag" aria-hidden="true">♪</span>
+                      <audio src={row.url} controls preload="none" aria-label={`${id} clip audio`} />
+                    </>
+                  ) : (
                     <span className="audio-missing" title="not rendered yet">XXX {row.label}</span>
                   )}
                 </div>
