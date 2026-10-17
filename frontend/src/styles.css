@@ -23,11 +23,11 @@ body {
 .app { display: flex; flex-direction: column; height: 100vh; }
 
 .app-header {
-  display: flex; align-items: center; gap: 16px;
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
   padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--edge);
 }
-.app-header h1 { font-size: 16px; margin: 0; color: var(--accent); }
-.app-meta { color: var(--dim); flex: 1; }
+.app-header h1 { font-size: 16px; margin: 0; color: var(--accent); white-space: nowrap; }
+.app-meta { color: var(--dim); flex: 1; white-space: nowrap; }
 .app-actions { display: flex; gap: 8px; }
 
 button {
@@ -61,13 +61,15 @@ button:disabled { opacity: 0.45; cursor: default; }
 .timeline-track {
   position: relative; display: flex; min-height: 240px;
   background: var(--panel); border: 1px solid var(--edge); border-radius: 8px;
-  min-width: max-content; width: 100%;
+  /* short scenes get proportional slots; the floor keeps labels legible
+     on narrow viewports (track scrolls) instead of slices overflowing */
+  min-width: 900px; width: 100%;
 }
 .slice {
   position: absolute; top: 0; bottom: 0;
   border-right: 1px solid var(--edge);
   display: flex; flex-direction: column; padding: 6px; gap: 6px;
-  cursor: pointer; min-width: 90px;
+  cursor: pointer;
 }
 .slice:hover { background: var(--panel-2); }
 .slice.stale { outline: 2px dashed var(--warn); outline-offset: -3px; border-radius: 6px; }
@@ -158,4 +160,11 @@ button:disabled { opacity: 0.45; cursor: default; }
 .chat-input input {
   flex: 1; background: var(--panel-2); border: 1px solid var(--edge);
   color: var(--text); border-radius: 6px; padding: 8px 10px; font-size: 13px;
+}
+
+button:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 1px;
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
 }
