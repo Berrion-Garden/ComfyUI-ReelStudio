@@ -12,6 +12,9 @@ export default defineConfig({
       },
     },
   },
+  // assets must live under /reelstudio/ — absolute /assets would collide
+  // with ComfyUI's own frontend assets when served through its server
+  base: "/reelstudio/",
   build: { outDir: "dist", sourcemap: false },
   test: { environment: "jsdom", globals: true },
 });
