@@ -1,0 +1,52 @@
+meta:
+  comfy: http://localhost:8188
+  fps: 24
+  frames: 22
+  width: 160
+  height: 160
+  steps: 4
+  still_dir: /absolute/path/to/workspace/stills
+  reel_dir: /absolute/path/to/workspace/output/reel
+  final: /absolute/path/to/workspace/output/final.mp4
+  work: /absolute/path/to/workspace/work
+
+aliases:
+  fox: the pink fox boy
+
+stills:
+  opening: opening_still
+  impact: impact_still
+  end: end_still
+
+scenes:
+  - id: s1_ramen
+    next: s2_bowldrop
+    video:
+      mode: i2v
+      first: still:opening
+      last: null
+      description: |
+        The fox eats noodles. {{fox}}.
+      negative: text, watermark
+    sound_effects:
+      soundscape: slurp
+
+  - id: s2_bowldrop
+    next: s3_pinkburst
+    video:
+      mode: i2v
+      first: prev_last
+      last: null
+      description: |
+        The fox drops the bowl. {{fox}}.
+    sound_effects:
+      soundscape: clatter
+
+  - id: s3_pinkburst
+    next: null
+    video:
+      mode: fl2v
+      first: still:impact
+      last: still:end
+      description: |
+        Pink explosion. {{fox}}.
