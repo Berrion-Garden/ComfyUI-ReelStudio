@@ -13,23 +13,29 @@ Born from the Court Aftermath pipeline (`anime_reel/reel.py` + `reel.yaml`).
 ```
 ┌────────────────────────────────────────────────────────────────────┐
 │ Reel Studio                                            ⟳ Render    │
-├────────────────────────────────────────────────────────────────────┤
-│  ▏scene 1        ▕ ▏scene 2        ▕ ▏scene 3        ▕             │
+├───────────────────────────────┬────────────────────────────────────┤
+│  ▶ full-video preview         │  Assets                            │
+│    (or the selected image)    │  ▸ Characters  ▸ Scenes  ▸ Custom  │
+│                               │  ▸ LORA/Theme  ▸ Audio             │
+├───────────────────────────────┴────────────────────────────────────┤
+│ 0s      5s      10s      15s   ← scrub anywhere on the timeline    │
 │  ▏ first ▏ last  ▕ ▏ first ▏ last  ▕ ▏ first ▏ last  ▕   anchors   │
-│  ▏ ── video ──   ▕ ▏ ── video ──   ▕ ▏    XXX     ▕   video row   │
-│  ▏ ── audio ──   ▕ ▏    XXX     ▕ ▏ ── audio ──   ▕   audio rows  │
-│  ▏ ── music ──   ▕ ▏             ▕ ▏             ▕               │
-├────────────────────────────────────────────────────────────────────┤
-│  ▶ Preview chain  (seamless, nothing stitched)                     │
+│  ▏ ── video ──   ▕ ▏ ── video ──   ▕ ▏    XXX     ▕   video lane  │
+│  ▏ ══ opening ═══════▕ ▏    XXX     ▕                 music lanes │
+│  ▏ ▏ ══ battle ═════════════════════▕                               │
 ├────────────────────────────────────────────────────────────────────┤
 │  chat: "make scene 2 shorter" → YAML edit → re-render s2 (+s3)     │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Timeline** — one vertical slice per scene along a time axis; anchor
-  thumbnails on top (`prev_last` shown as `⟵ prev`), the video deliverable
-  below it, the baked clip audio and any anchored music segment under that.
-  `XXX` marks what doesn't exist yet; a dashed outline marks what is stale.
+- **Timeline** — a proportional grid of lanes: anchor thumbnails
+  (`prev_last` shown as `⟵ prev`), the video deliverable, and one lane per
+  music segment showing exactly which scenes it spans. `XXX` marks what
+  doesn't exist yet; a dashed outline marks what is stale. Click or drag
+  anywhere on the timeline to scrub the preview to that point.
+- **Assets** — the library pane groups everything by derivation (see
+  "Asset library" below). Selecting an image shows it in the player via the
+  🖼 toggle; arrow keys walk the library.
 - **Render changed** — staleness is hash-based: a scene is stale when its
   generation-relevant config changed **or** the upstream deliverable it
   anchored on (`prev_last`) was re-rendered — junctions stay frame-exact,
@@ -52,6 +58,35 @@ with `video` (mode i2v/fl2v/t2v, `first`/`last` anchors: `prev_last`,
 `post.freeze` (motion → flash → graded freeze with name credits), and
 per-scene `frames` (the scene-length lever — length is **generated**, never
 cut; off the 17n+5 H3 grid is allowed but warned).
+
+## Asset library
+
+Everything in the library is **derived, never hand-indexed** — the API response
+is the index, computed per request:
+
+- **Scenes** — the images reel.yaml's `stills:` map actually anchors on. Each
+  gets `still:<name>` plus `used_by:<scene>` for every scene that references
+  it, so a still's downstream is always visible.
+- **Characters** — pose pools under `characters/<slug>/`. Each image gets
+  `char:<slug>` and `pose:<file>`; update a pool and every label that names it
+  updates with it.
+- **Custom** — anything under `images/`.
+- **LORA / Theme** — `themes/<slug>.yaml` descriptors (`slug`, `lora`,
+  `trigger`, `labels`).
+- **Audio** — rendered music segments (newest file wins, even if it predates
+  the manifest) plus anything under `audio/`.
+
+Cross-grouping is programmatic: `assets.yaml` in the workspace attaches extra
+labels to any workspace-relative path —
+
+```yaml
+labels:
+  characters/fox_boy/run_.png: [hero, main-walk]
+```
+
+Because labels name pools and scenes rather than individual files, refreshing a
+character pool and re-deriving is the same operation for the agent as for a
+human: read the labels, regenerate what points at them.
 
 ## Install
 

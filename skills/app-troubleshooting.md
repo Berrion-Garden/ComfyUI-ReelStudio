@@ -37,6 +37,13 @@ description: Reel Studio failure modes — validation errors, missing renders, j
 - "no audio for music segment" — the segment was never generated; run
   render_music for it (or keep `flags.skip_music: true` for a sfx-only mix).
 
+## App bugs that only show in production
+
+- The PromptServer mount (server.py) must carry everything app-level with the
+  routes: state, the job-worker lifecycle hooks, and the middlewares. A 4xx
+  that appears as a 500 only through ComfyUI — but passes in tests — means a
+  piece of the standalone app didn't travel with the mount.
+
 ## Quality (renders fine, looks wrong)
 
 - Junction pop at a cut → junction-doctrine rule 5.
