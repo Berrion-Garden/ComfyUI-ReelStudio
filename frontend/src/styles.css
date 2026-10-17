@@ -58,6 +58,11 @@ button:disabled { opacity: 0.45; cursor: default; }
 
 /* ---- studio top: player + assets ---- */
 .app-top { flex: 1; display: flex; gap: 12px; min-height: 0; }
+@media (max-width: 760px) {
+  .app-top { flex-direction: column; overflow-y: auto; }
+  .assets-pane { min-width: 0; max-width: none; max-height: 300px; }
+  .stage-pane { min-height: 300px; }
+}
 .stage-pane { flex: 1.4; min-width: 0; display: flex; }
 .player { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .player-stage {
