@@ -6,6 +6,7 @@ ComfyUI's PromptServer in production. One handler set, one adapter.
 """
 
 import asyncio
+import json
 import uuid
 from pathlib import Path
 
@@ -13,13 +14,14 @@ from aiohttp import web
 
 from . import manifest as manifest_mod
 from . import render, timeline
+from .agent.loop import run as agent_run
+from .agent.tools import ToolBox
 from .assemble import assemble as run_assemble
 from .assemble import music_segments
 from .comfy_client import ComfyClient
 from .config import Config
 from .errors import NotFoundError, ReelStudioError, ValidationError
 from .project import load as load_project
-from .project import validate
 
 API = "/reelstudio/api"
 
@@ -276,6 +278,31 @@ async def get_final(request: web.Request) -> web.Response:
     return web.FileResponse(Path(final))
 
 
+async def post_agent_chat(request: web.Request) -> web.StreamResponse:
+    state = _state(request)
+    body = await request.json()
+    history = body.get("history") or []
+    user_text = (body.get("message") or "").strip()
+    if not user_text:
+        return web.json_response({"error": "message required"}, status=400)
+    history = [*history, {"role": "user", "content": user_text}]
+
+    resp = web.StreamResponse(headers={
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+    })
+    await resp.prepare(request)
+    try:
+        async for event in agent_run(state.config, history, ToolBox(state)):
+            await resp.write(f"data: {json.dumps(event, ensure_ascii=False)}\n\n".encode())
+    except Exception as e:  # noqa: BLE001 - stream the failure to the UI
+        await resp.write(f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n".encode())
+        await resp.write(b"data: {\"type\": \"done\"}\n\n")
+    await resp.write_eof()
+    return resp
+
+
 def create_app(config: Config) -> web.Application:
     app = web.Application()
 
@@ -300,6 +327,7 @@ def create_app(config: Config) -> web.Application:
     app.router.add_get(f"{API}/jobs", get_jobs)
     app.router.add_get(f"{API}/final", get_final)
     app.router.add_get(f"{API}/scene/{{scene_id}}/artifact/{{kind}}", get_scene_artifact)
+    app.router.add_post(f"{API}/agent/chat", post_agent_chat)
     app.on_startup.append(state.start)
     app.on_cleanup.append(state.close)
     return app
