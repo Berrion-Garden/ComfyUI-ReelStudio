@@ -8,6 +8,8 @@ import json
 import time
 from pathlib import Path
 
+from .assets import AUDIO_EXTS
+
 MANIFEST_NAME = ".reelstudio_manifest.json"
 
 
@@ -65,8 +67,9 @@ def record_music(reel_dir: str, name: str, segment_hash: str, audio_path: str) -
 
 
 def music_file(reel_dir: str | Path, name: str) -> str | None:
-    """Rendered audio for a music segment, newest wins."""
-    hits = sorted(Path(reel_dir).glob(f"music_{name}_*"))
+    """Rendered audio for a music segment, newest wins (audio files only)."""
+    hits = [p for p in sorted(Path(reel_dir).glob(f"music_{name}_*"))
+            if p.suffix.lower() in AUDIO_EXTS]
     return str(hits[-1]) if hits else None
 
 

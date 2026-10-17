@@ -151,13 +151,15 @@ async def get_project(request: web.Request) -> web.Response:
     music = []
     for name, m in current_music.items():
         entry = recorded_music.get(name, {})
+        # the rendered file is the deliverable — renders that predate the
+        # manifest's music tracking still count (staleness stays hash-based)
+        rendered = manifest_mod.music_file(project.meta["reel_dir"], name)
         music.append({
             "name": name, "start_s": m["start"], "duration_s": m["dur"],
             "gain": m["gain"],
             "stale": entry.get("hash") != m["hash"],
-            "present": bool(entry.get("path", {}).get("file")),
-            "url": (f"{API}/music/{name}/artifact"
-                    if manifest_mod.music_file(project.meta["reel_dir"], name) else None),
+            "present": rendered is not None,
+            "url": (f"{API}/music/{name}/artifact" if rendered else None),
         })
 
     return web.json_response({

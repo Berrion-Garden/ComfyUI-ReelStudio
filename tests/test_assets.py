@@ -67,15 +67,15 @@ async def test_asset_file_serves_within_roots_only(client, workspace):
 async def test_project_exposes_music_urls(client, workspace, fake_comfy):
     import yaml as yaml_mod
 
-    from reelstudio import manifest as manifest_mod
     from reelstudio.project import load
 
     project = load(config_of(workspace))
     reel_dir = Path(project.meta["reel_dir"])
     reel_dir.mkdir(parents=True, exist_ok=True)
-    manifest_mod.record_music(reel_dir, "opening", "hash-1",
-                              str(reel_dir / "music_opening_00001_.wav"))
+    # a render that predates the manifest entirely (no record_music call):
+    # the file on disk is still the deliverable
     (reel_dir / "music_opening_00001_.wav").write_bytes(b"wav")
+    (reel_dir / "music_opening_00001_.json").write_text("{}")  # never served
 
     # anchor a music segment on s1 so the project view advertises it
     text = (workspace / "reel.yaml").read_text()
@@ -87,8 +87,9 @@ async def test_project_exposes_music_urls(client, workspace, fake_comfy):
 
     data = await (await client.get("/reelstudio/api/project")).json()
     opening = next(m for m in data["music"] if m["name"] == "opening")
-    assert opening["url"].endswith("/api/music/opening/artifact")
     assert opening["present"] is True
+    assert opening["stale"] is True  # no manifest entry to vouch for it
+    assert opening["url"].endswith("/api/music/opening/artifact")
 
     audio = await client.get(opening["url"])
     assert audio.status == 200
