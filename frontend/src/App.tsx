@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { assemble, fetchProject, renderScenes, renderStale } from "./api";
-import { Player } from "./player/Player";
+import { Player, type SelectedAsset } from "./player/Player";
 import { Timeline } from "./timeline/Timeline";
 import { Chat } from "./chat/Chat";
+import { AssetsPane } from "./assets/AssetsPane";
 import type { ProjectView } from "./types";
 
 export function App() {
@@ -10,6 +11,8 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [playheadPct, setPlayheadPct] = useState<number | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [selectedAsset, setSelectedAsset] = useState<SelectedAsset | null>(null);
+  const [seekRequest, setSeekRequest] = useState<{ s: number; n: number } | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -50,6 +53,11 @@ export function App() {
 
   const anyJobsRunning = project.jobs.some((j) => j.status === "queued" || j.status === "running");
 
+  const seekTo = (pct: number) => {
+    if (!project || project.total_s <= 0) return;
+    setSeekRequest({ s: (pct / 100) * project.total_s, n: Date.now() });
+  };
+
   return (
     <div className="app">
       <header className="app-header">
@@ -83,17 +91,25 @@ export function App() {
       {anyJobsRunning && <div className="job-banner">jobs running…</div>}
 
       <main className="app-main">
+        <div className="app-top">
+          <section className="stage-pane" aria-label="preview">
+            <Player
+              scenes={project.scenes}
+              onPlayhead={setPlayheadPct}
+              selectedAsset={selectedAsset}
+              seekRequest={seekRequest}
+            />
+          </section>
+          <AssetsPane selected={selectedAsset} onSelect={setSelectedAsset} />
+        </div>
         <Timeline
           scenes={project.scenes}
           music={project.music}
           totalS={project.total_s}
           artifactUrl={artifactUrl}
           playheadPct={playheadPct}
+          onSeek={seekTo}
           onRenderScene={(id) => void act(`render:${id}`, () => renderScenes([id]))}
-        />
-        <Player
-          scenes={project.scenes}
-          onPlayhead={setPlayheadPct}
         />
       </main>
 

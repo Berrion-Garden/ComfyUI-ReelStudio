@@ -84,4 +84,60 @@ describe("Timeline", () => {
     );
     expect(screen.getByText("⟵ prev")).toBeTruthy();
   });
+
+  it("renders one spanning lane per music segment", () => {
+    render(
+      <Timeline
+        scenes={[
+          scene({ id: "s1", start_s: 0, duration_s: 4.5 }),
+          scene({ id: "s2", start_s: 4.5, duration_s: 4.5 }),
+        ]}
+        music={[{ name: "opening", start_s: 0, duration_s: 4.5, gain: 1, stale: false, present: true, url: "/m.wav" }]}
+        totalS={9}
+        artifactUrl={noop}
+        playheadPct={null}
+      />,
+    );
+    const lane = screen.getByTestId("lane-opening");
+    const block = lane.querySelector(".music-block") as HTMLElement;
+    expect(block).toBeTruthy();
+    // spans exactly the first scene's column
+    expect(block.style.gridColumn).toBe("1 / 2");
+    expect(lane.querySelectorAll("audio").length).toBe(1);
+  });
+
+  it("unrendered music shows its XXX placeholder, not a player", () => {
+    render(
+      <Timeline
+        scenes={[scene({ id: "s1", start_s: 0, duration_s: 4.5 })]}
+        music={[{ name: "battle", start_s: 0, duration_s: 4.5, gain: 1, stale: false, present: false, url: null }]}
+        totalS={4.5}
+        artifactUrl={noop}
+        playheadPct={null}
+      />,
+    );
+    expect(screen.getByText(/XXX battle/)).toBeTruthy();
+    expect(screen.getByTestId("lane-battle").querySelector("audio")).toBeNull();
+  });
+
+  it("pointer scrub reports the clicked position as a percentage", () => {
+    const onSeek = vi.fn();
+    const { container } = render(
+      <Timeline
+        scenes={[scene({ id: "s1", start_s: 0, duration_s: 10 })]}
+        music={[]}
+        totalS={10}
+        artifactUrl={noop}
+        playheadPct={null}
+        onSeek={onSeek}
+      />,
+    );
+    const track = container.querySelector(".timeline-track") as HTMLElement;
+    track.getBoundingClientRect = () =>
+      ({ left: 0, width: 200, top: 0, height: 100, right: 200, bottom: 100, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+    const ev = new MouseEvent("pointerdown", { clientX: 50, bubbles: true }) as PointerEvent;
+    (ev as unknown as { pointerId: number }).pointerId = 1;
+    track.dispatchEvent(ev);
+    expect(onSeek).toHaveBeenCalledWith(25);
+  });
 });

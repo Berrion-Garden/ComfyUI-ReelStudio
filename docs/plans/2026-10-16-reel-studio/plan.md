@@ -25,3 +25,31 @@ Date: 2026-10-16 · Rung: full · Source material: `llm_engine_management/anime_
 - M8 — Verification: full suites green, live smoke on the 5090 node — blocked on M1–M7
 
 Critical path M1 → M2 → M6 → M8.
+
+## Addendum — 2026-10-17: studio layout, asset library, multi-track timeline
+
+Source: operator request after hosted deployment (Corel VideoStudio as UX reference).
+
+- FR-9: Studio layout — player top-left with an asset viewer toggle, asset
+  browser top-right, timeline beneath, chat at bottom as a standard LLM surface.
+- FR-10: Timeline shows every audio track as spanning lanes: one per music
+  segment (3 on the current reel), expanding across the scenes they cover, plus
+  baked clip audio. A playhead overlay is clickable/draggable to scrub the
+  preview to any point.
+- FR-11: Asset library — top-level groups Images (Characters / Scenes / Custom),
+  LORA/Theme, Audio. Navigable by keyboard. Selecting an image shows it in the
+  player's asset viewer.
+- FR-12: Programmatic image metadata — slugs and labels derived like the YAML:
+  stills get `still:<name>` + `used_by:<scene>` from reel.yaml; character pools
+  (`characters/<slug>/`) get `char:<slug>` + `pose:<file>`; declared labels in
+  `assets.yaml` extend groups (images cross-group). Derived, never hand-copied;
+  updating a pool gives the agent everything it needs to regenerate downstream.
+
+Milestones:
+
+- M9 — Studio layout: music artifact URLs (BE, small), layout reorder, asset
+  viewer toggle in player, music lanes + scrub overlay, chat standard surface — blocked on M8
+- M10 — Asset library: BE indexer + API (`/api/assets`, sandboxed file/thumb
+  serving) + FE browser pane — blocked on M9
+- M11 — Regeneration loop: agent tooling for pool-driven still regeneration and
+  auto-tagging of newly generated images — blocked on M10 (labels land with M10)

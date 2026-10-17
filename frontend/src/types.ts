@@ -28,6 +28,7 @@ export interface MusicView {
   gain: number;
   stale: boolean;
   present: boolean;
+  url: string | null;
 }
 
 export interface JobView {

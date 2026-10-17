@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { chatStream } from "../api";
 import type { ChatEvent } from "../types";
 
@@ -23,6 +23,11 @@ export function Chat({ onProjectChanged }: Props) {
   const [busy, setBusy] = useState(false);
   const history = useRef<{ role: string; content: string }[]>([]);
   const scroller = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   const scrollBottom = () => {
     requestAnimationFrame(() => {
@@ -80,7 +85,7 @@ export function Chat({ onProjectChanged }: Props) {
             <div className="chat-starters">
               {STARTERS.map((s) => (
                 <button key={s} type="button" className="chat-starter"
-                  onClick={() => setInput(s)}>
+                  onClick={() => { setInput(s); inputRef.current?.focus(); }}>
                   {s}
                 </button>
               ))}
@@ -88,20 +93,30 @@ export function Chat({ onProjectChanged }: Props) {
           </div>
         ) : null}
         {entries.map((entry, i) => (
-          <div key={i} className={`chat-entry role-${entry.role}`}>{entry.text}</div>
+          <div key={i} className={`chat-entry role-${entry.role}`}>
+            <span className="chat-role">{entry.role === "user" ? "you" : entry.role === "agent" ? "agent" : "…"}</span>
+            <span className="chat-text">{entry.text}</span>
+          </div>
         ))}
         {busy && <div className="chat-entry role-tool">…thinking</div>}
       </div>
       <div className="chat-input">
-        <input
+        <textarea
+          ref={inputRef}
           value={input}
           placeholder={busy ? "agent is working…" : "tell the agent what to change"}
           aria-label="message the agent"
+          rows={2}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") void send(); }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              void send();
+            }
+          }}
           disabled={busy}
         />
-        <button onClick={() => void send()} disabled={busy}>Send</button>
+        <button type="button" onClick={() => void send()} disabled={busy}>Send</button>
       </div>
     </div>
   );

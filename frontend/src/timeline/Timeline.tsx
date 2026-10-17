@@ -1,5 +1,5 @@
 import type { MusicView, SceneView } from "../types";
-import { audioRows, computeSlices, videoCell } from "./layout";
+import { videoCell } from "./layout";
 
 interface Props {
   scenes: SceneView[];
@@ -9,6 +9,7 @@ interface Props {
   onSceneClick?: (sceneId: string) => void;
   onRenderScene?: (sceneId: string) => void;
   playheadPct: number | null;
+  onSeek?: (pct: number) => void;
 }
 
 function AnchorThumb({ label, kind, url }: { label: string; kind: string; url: string | null }) {
@@ -26,62 +27,103 @@ function AnchorThumb({ label, kind, url }: { label: string; kind: string; url: s
   );
 }
 
-export function Timeline({ scenes, music, totalS, artifactUrl, onSceneClick, onRenderScene, playheadPct }: Props) {
-  const slices = computeSlices(scenes, totalS);
+/** Grid line span (1-based, inclusive-exclusive) of a time span over scenes. */
+export function spanCols(scenes: SceneView[], startS: number, durationS: number) {
+  let first = scenes.findIndex((s) => s.start_s + s.duration_s > startS + 1e-6);
+  if (first === -1) first = 0;
+  let last = first;
+  for (let i = first; i < scenes.length; i++) {
+    if (scenes[i].start_s < startS + durationS - 1e-6) last = i;
+  }
+  return { start: first + 1, end: last + 2 };
+}
+
+export function Timeline({ scenes, music, totalS, artifactUrl, onSceneClick, onRenderScene, playheadPct, onSeek }: Props) {
+  const columns = scenes.map((s) => `${Math.max(s.duration_s, 0.4)}fr`).join(" ");
+  const ticks: number[] = [];
+  for (let t = 0; t < totalS - 0.01; t += 5) ticks.push(t);
+
+  const scrub = (e: React.PointerEvent) => {
+    if (!onSeek) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    onSeek(Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1) * 100);
+  };
+
   return (
     <div className="timeline" data-testid="timeline">
-      <div className="timeline-track" style={{ position: "relative" }}>
-        {slices.map(({ id, startPct, widthPct, scene }) => {
-          const cell = videoCell(scene);
+      <div
+        className="timeline-track"
+        style={{ gridTemplateColumns: columns }}
+        onPointerDown={(e) => {
+          try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* jsdom */ }
+          scrub(e);
+        }}
+        onPointerMove={(e) => { if (e.buttons & 1) scrub(e); }}
+      >
+        {ticks.length > 1 && (
+          <div className="lane lane-ruler" style={{ gridColumn: `1 / ${scenes.length + 1}` }}>
+            {ticks.map((t) => (
+              <span key={t} className="ruler-tick" style={{ left: `${(t / totalS) * 100}%` }}>
+                {t}s
+              </span>
+            ))}
+          </div>
+        )}
+
+        {scenes.map((s, i) => (
+          <div key={`${s.id}-anchors`} className="lane lane-anchors" style={{ gridColumn: `${i + 1}` }}>
+            <AnchorThumb label="first" kind={s.first.kind}
+              url={s.first.kind === "none" ? null : artifactUrl(s.id, "thumb_first")} />
+            <AnchorThumb label="last" kind={s.last.kind}
+              url={s.last.kind === "none" ? null : artifactUrl(s.id, "thumb_last")} />
+          </div>
+        ))}
+
+        {scenes.map((s, i) => {
+          const cell = videoCell(s);
           return (
-            <div
-              key={id}
-              className={`slice ${scene.stale ? "stale" : ""}`}
-              style={{ left: `${startPct}%`, width: `${widthPct}%` }}
-              data-testid={`slice-${id}`}
-              onClick={() => onSceneClick?.(id)}
-            >
-              <div className="slice-anchors">
-                <AnchorThumb label="first" kind={scene.first.kind}
-                  url={scene.first.kind === "none" ? null : artifactUrl(id, "thumb_first")} />
-                <AnchorThumb label="last" kind={scene.last.kind}
-                  url={scene.last.kind === "none" ? null : artifactUrl(id, "thumb_last")} />
-              </div>
-              <div className={`slice-video cell-${cell.kind}`}>
-                {cell.kind === "missing" ? (
-                  <span className="xxx" title="no render yet">XXX</span>
+            <div key={`${s.id}-video`} data-testid={`slice-${s.id}`}
+              className={`lane lane-video ${s.stale ? "stale" : ""}`}
+              style={{ gridColumn: `${i + 1}` }}
+              onClick={() => onSceneClick?.(s.id)}>
+              {cell.kind === "missing" ? (
+                <span className="xxx" title="no render yet">XXX</span>
+              ) : (
+                <video src={`${cell.url}#t=0.1`} muted preload="metadata" />
+              )}
+              {s.has_bell && <span className="cell-flag" title="synth bell in post">🔔</span>}
+              {s.stale && (
+                <button
+                  className="mini-render"
+                  title="re-render this scene"
+                  onClick={(e) => { e.stopPropagation(); onRenderScene?.(s.id); }}
+                >
+                  ↻ render
+                </button>
+              )}
+              <span className="cell-label">{s.id} · {s.duration_s.toFixed(2)}s{s.has_freeze ? " · freeze" : ""}</span>
+            </div>
+          );
+        })}
+
+        {music.map((m) => {
+          const span = spanCols(scenes, m.start_s, m.duration_s);
+          return (
+            <div key={m.name} data-testid={`lane-${m.name}`} className="lane lane-music"
+              style={{ gridColumn: `1 / ${scenes.length + 1}`, gridTemplateColumns: columns }}>
+              <div className={`music-block ${m.present ? "" : "missing"}`}
+                style={{ gridColumn: `${span.start} / ${span.end}` }}>
+                {m.present ? (
+                  <audio src={`${m.url}#t=0`} controls preload="none"
+                    aria-label={`music ${m.name}`} title={`${m.name} — spans scenes ${span.start}–${span.end - 1}`} />
                 ) : (
-                  <video src={`${cell.url}#t=0.1`} muted preload="metadata" />
+                  <span className="audio-missing" title="not rendered yet">XXX {m.name}</span>
                 )}
-                {scene.stale && (
-                  <button
-                    className="mini-render"
-                    title="re-render this scene"
-                    onClick={(e) => { e.stopPropagation(); onRenderScene?.(id); }}
-                  >
-                    ↻ render
-                  </button>
-                )}
-              </div>
-              {audioRows(scene, music).map((row) => (
-                <div key={row.label} className={`slice-audio ${row.url ? "has-audio" : "missing"}`}
-                  title={row.url ? "clip audio" : undefined}>
-                  {row.url ? (
-                    <>
-                      <span className="audio-tag" aria-hidden="true">♪</span>
-                      <audio src={row.url} controls preload="none" aria-label={`${id} clip audio`} />
-                    </>
-                  ) : (
-                    <span className="audio-missing" title="not rendered yet">XXX {row.label}</span>
-                  )}
-                </div>
-              ))}
-              <div className="slice-label">
-                {id} · {scene.mode} · {scene.duration_s.toFixed(2)}s{scene.has_freeze ? " · freeze" : ""}
               </div>
             </div>
           );
         })}
+
         {playheadPct !== null && (
           <div className="playhead" style={{ left: `${playheadPct}%` }} data-testid="playhead" />
         )}

@@ -64,6 +64,12 @@ def record_music(reel_dir: str, name: str, segment_hash: str, audio_path: str) -
     return manifest
 
 
+def music_file(reel_dir: str | Path, name: str) -> str | None:
+    """Rendered audio for a music segment, newest wins."""
+    hits = sorted(Path(reel_dir).glob(f"music_{name}_*"))
+    return str(hits[-1]) if hits else None
+
+
 def deliverable(reel_dir: str | Path, scene_id: str) -> str | None:
     """Newest render wins; freeze outputs sort after plain renders by name."""
     hits = sorted(Path(reel_dir).glob(f"{scene_id}_*.mp4"))

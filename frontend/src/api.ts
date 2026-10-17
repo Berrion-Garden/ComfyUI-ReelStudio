@@ -50,6 +50,24 @@ export function finalUrl(): string | null {
   return `${API}/final`;
 }
 
+export interface AssetItem {
+  path: string;
+  slug: string;
+  group: "characters" | "scenes" | "custom" | "themes" | "audio";
+  labels: string[];
+  used_by: string[];
+  url: string;
+}
+
+export interface AssetsData {
+  groups: Record<AssetItem["group"], AssetItem[]>;
+}
+
+export async function fetchAssets(): Promise<AssetsData> {
+  const resp = await fetch(`${API}/assets`);
+  return json_or_throw<AssetsData>(resp);
+}
+
 /** POST a chat message; yields SSE events as they stream. */
 export async function* chatStream(
   message: string,

@@ -7,12 +7,14 @@ ComfyUI's PromptServer in production. One handler set, one adapter.
 
 import asyncio
 import json
+import urllib.parse
 import uuid
 from pathlib import Path
 
 from aiohttp import web
 
 from . import manifest as manifest_mod
+from . import assets as assets_mod
 from . import render, timeline
 from .agent.loop import run as agent_run
 from .agent.tools import ToolBox
@@ -20,7 +22,7 @@ from .assemble import assemble as run_assemble
 from .assemble import music_segments
 from .comfy_client import ComfyClient
 from .config import Config
-from .errors import NotFoundError, ReelStudioError, ValidationError
+from .errors import ForbiddenError, NotFoundError, ReelStudioError, ValidationError
 from .project import load as load_project
 from .stub import StubComfyClient
 
@@ -116,6 +118,8 @@ def _state(request: web.Request) -> ReelStudio:
 
 def _json_error(e: ReelStudioError):
     status = 404 if isinstance(e, NotFoundError) else 400
+    if isinstance(e, ForbiddenError):
+        status = 403
     body = {"error": str(e)}
     if isinstance(e, ValidationError):
         body["problems"] = e.problems
@@ -152,6 +156,8 @@ async def get_project(request: web.Request) -> web.Response:
             "gain": m["gain"],
             "stale": entry.get("hash") != m["hash"],
             "present": bool(entry.get("path", {}).get("file")),
+            "url": (f"{API}/music/{name}/artifact"
+                    if manifest_mod.music_file(project.meta["reel_dir"], name) else None),
         })
 
     return web.json_response({
@@ -276,6 +282,38 @@ async def get_scene_artifact(request: web.Request) -> web.Response:
     raise NotFoundError(f"unknown artifact kind {kind!r}")
 
 
+async def get_music_artifact(request: web.Request) -> web.Response:
+    """Rendered audio for a music segment (range-capable FileResponse)."""
+    state = _state(request)
+    project = state.project()
+    file = manifest_mod.music_file(project.meta["reel_dir"],
+                                   request.match_info["name"])
+    if file is None:
+        raise NotFoundError("segment not rendered yet")
+    return web.FileResponse(Path(file))
+
+
+async def get_assets(request: web.Request) -> web.Response:
+    state = _state(request)
+    project = state.project()
+    data = assets_mod.index_assets(state.config.workspace, project)
+    for group in data["groups"].values():
+        for a in group:
+            a["url"] = f"{API}/asset/file?path={urllib.parse.quote(a['path'], safe='')}"
+    return web.json_response(data)
+
+
+async def get_asset_file(request: web.Request) -> web.Response:
+    state = _state(request)
+    project = state.project()
+    target = assets_mod.asset_file(request.query.get("path", ""), [
+        state.config.workspace, project.meta["still_dir"], project.meta["reel_dir"],
+    ])
+    if not target.exists():
+        raise NotFoundError(f"no such asset: {target.name}")
+    return web.FileResponse(target)
+
+
 async def get_final(request: web.Request) -> web.Response:
     state = _state(request)
     final = state.project().meta.get("final")
@@ -340,6 +378,9 @@ def create_app(config: Config) -> web.Application:
     app.router.add_post(f"{API}/assemble", post_assemble)
     app.router.add_get(f"{API}/jobs", get_jobs)
     app.router.add_get(f"{API}/final", get_final)
+    app.router.add_get(f"{API}/assets", get_assets)
+    app.router.add_get(f"{API}/asset/file", get_asset_file)
+    app.router.add_get(f"{API}/music/{{name}}/artifact", get_music_artifact)
     app.router.add_post(f"{API}/manifest/adopt", post_manifest_adopt)
     app.router.add_get(f"{API}/scene/{{scene_id}}/artifact/{{kind}}", get_scene_artifact)
     app.router.add_post(f"{API}/agent/chat", post_agent_chat)

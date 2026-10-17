@@ -1,81 +1,45 @@
 import { describe, expect, it } from "vitest";
-import { audioRows, computeSlices, videoCell } from "./layout";
+import { videoCell } from "./layout";
+import { spanCols } from "./Timeline";
 import type { SceneView } from "../types";
 
-function scene(partial: Partial<SceneView>): SceneView {
+function scene(id: string, startS: number, durationS: number, partial: Partial<SceneView> = {}): SceneView {
   return {
-    id: "s1",
-    next: null,
-    index: 0,
-    mode: "i2v",
-    frames: 107,
-    duration_s: 4.4583,
-    first: { kind: "none" },
-    last: { kind: "none" },
-    description: "",
-    has_freeze: false,
-    has_bell: false,
-    video_url: null,
-    stale: true,
-    start_s: 0,
+    id, next: null, index: 0, mode: "i2v", frames: 107,
+    duration_s: durationS, start_s: startS,
+    first: { kind: "none" }, last: { kind: "none" },
+    description: "", has_freeze: false, has_bell: false,
+    video_url: null, stale: false,
     ...partial,
   };
 }
 
-describe("computeSlices", () => {
-  it("widths are proportional to on-screen duration", () => {
-    const scenes = [
-      scene({ id: "a", start_s: 0, duration_s: 2 }),
-      scene({ id: "b", start_s: 2, duration_s: 6 }),
-    ];
-    const slices = computeSlices(scenes, 8);
-    expect(slices[0].widthPct).toBeCloseTo(25);
-    expect(slices[1].widthPct).toBeCloseTo(75);
-    expect(slices[1].startPct).toBeCloseTo(25);
-  });
-
-  it("a short scene gets a proportionally narrow slice, not a fixed one", () => {
-    const scenes = [
-      scene({ id: "a", start_s: 0, duration_s: 1.9 }),
-      scene({ id: "b", start_s: 1.9, duration_s: 3.33 }),
-    ];
-    const slices = computeSlices(scenes, 5.23);
-    expect(slices[0].widthPct).toBeCloseTo((1.9 / 5.23) * 100, 5);
-  });
-
-  it("handles empty timeline", () => {
-    expect(computeSlices([], 0)).toEqual([]);
-  });
-});
-
 describe("videoCell", () => {
-  it("XXX when no render exists", () => {
-    expect(videoCell(scene({})).kind).toBe("missing");
+  it("missing without a render", () => {
+    expect(videoCell(scene("s1", 0, 4))).toEqual({ kind: "missing" });
   });
-
-  it("stale flag marks a rendered scene as stale-video", () => {
-    expect(videoCell(scene({ video_url: "/v.mp4", stale: true })).kind).toBe("stale-video");
-    expect(videoCell(scene({ video_url: "/v.mp4", stale: false })).kind).toBe("video");
+  it("video vs stale-video", () => {
+    const s = scene("s1", 0, 4, { video_url: "/v.mp4" });
+    expect(videoCell(s).kind).toBe("video");
+    expect(videoCell({ ...s, stale: true }).kind).toBe("stale-video");
   });
 });
 
-describe("audioRows", () => {
-  it("baked clip audio row only when rendered", () => {
-    expect(audioRows(scene({}), [])).toEqual([]);
-    expect(audioRows(scene({ video_url: "/v.mp4" }), []))
-      .toEqual([{ label: "clip", url: "/v.mp4" }]);
+describe("spanCols", () => {
+  const scenes = [
+    scene("s1", 0, 4.46),
+    scene("s2", 4.46, 1.88),
+    scene("s3", 6.34, 4.46),
+    scene("s4", 10.8, 4.46),
+  ];
+  it("a segment anchored at a scene start spans to the next anchor", () => {
+    // opening: starts with s1, runs 6.34s → covers s1, s2 (ends at s3's start)
+    expect(spanCols(scenes, 0, 6.34)).toEqual({ start: 1, end: 3 });
   });
-
-  it("music segment anchored at the scene appears as a row", () => {
-    const music = [{ name: "battle", start_s: 4.46, duration_s: 13, present: false }];    const s2 = scene({ id: "s2", start_s: 4.46, duration_s: 3.33 });
-    const rows = audioRows(s2, music);
-    expect(rows).toEqual([
-      { label: "music: battle", url: null },  // not rendered yet
-    ]);
+  it("a segment running to the reel end spans to the last scene", () => {
+    expect(spanCols(scenes, 6.34, 8.92)).toEqual({ start: 3, end: 5 });
   });
-
-  it("a music segment anchored elsewhere does not appear", () => {
-    const music = [{ name: "battle", start_s: 0, duration_s: 4.4, present: true }];
-    expect(audioRows(scene({ id: "s9", start_s: 10, duration_s: 3 }), music)).toEqual([]);
+  it("degenerate zero-length span still lands in a column", () => {
+    expect(spanCols(scenes, 4.46, 0)).toEqual({ start: 2, end: 3 });
   });
 });

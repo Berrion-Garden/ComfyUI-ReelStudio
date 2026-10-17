@@ -15,3 +15,7 @@ class ValidationError(ReelStudioError):
 
 class NotFoundError(ReelStudioError):
     """A requested scene/artifact does not exist."""
+
+
+class ForbiddenError(ReelStudioError):
+    """A request is valid but outside the allow-list (e.g. asset sandbox)."""

@@ -2,17 +2,26 @@ import { useEffect, useRef, useState } from "react";
 import type { SceneView } from "../types";
 import { absoluteTime, advance, createQueue, type Clip } from "./queue";
 
+export interface SelectedAsset {
+  url: string;
+  name: string;
+}
+
 interface Props {
   scenes: SceneView[];
   onPlayhead?: (pct: number | null) => void;
+  selectedAsset?: SelectedAsset | null;
+  /** scrub requests: { s: absolute seconds, n: monotonically increasing } */
+  seekRequest?: { s: number; n: number } | null;
 }
 
 /**
  * Plays the chain seamlessly without concatenating: two <video> elements
  * trade off — while one plays, the next scene's clip preloads in the other,
  * and the swap happens at the boundary. The reel ends only at a XXX scene.
+ * Scrubbing seeks the queue to any absolute reel time.
  */
-export function Player({ scenes, onPlayhead }: Props) {
+export function Player({ scenes, onPlayhead, selectedAsset, seekRequest }: Props) {
   const playable = scenes.filter((s) => s.video_url !== null);
   const clips: Clip[] = playable.map((s) => ({
     id: s.id,
@@ -21,6 +30,7 @@ export function Player({ scenes, onPlayhead }: Props) {
   }));
   const [state, setState] = useState<{ index: number; elapsedInClip: number } | null>(null);
   const [playing, setPlaying] = useState(false);
+  const [showAsset, setShowAsset] = useState(false);
   const durations = useRef<Map<string, number>>(new Map());
   const videoA = useRef<HTMLVideoElement | null>(null);
   const videoB = useRef<HTMLVideoElement | null>(null);
@@ -80,6 +90,16 @@ export function Player({ scenes, onPlayhead }: Props) {
     onPlayhead?.(null);
   };
 
+  // scrub: jump the queue to the requested absolute time
+  useEffect(() => {
+    if (!seekRequest || playable.length === 0) return;
+    durations.current.clear();
+    playable.forEach((s) => durations.current.set(s.id, s.duration_s));
+    setState(createQueue(clipDurations(), seekRequest.s));
+    setShowAsset(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seekRequest?.n]);
+
   // keep the active <video> element in sync with the queue state
   useEffect(() => {
     const active = state?.index ?? -1;
@@ -87,13 +107,16 @@ export function Player({ scenes, onPlayhead }: Props) {
       if (!el) continue;
       if (i === active % 2) {
         el.src = current ? (current.video_url as string) : "";
+        if (current) {
+          el.currentTime = Math.min(state!.elapsedInClip, el.duration || Infinity);
+        }
         if (playing) void el.play().catch(() => setPlaying(false));
       } else {
         el.pause();
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state?.index, playing]);
+  }, [state?.index, state?.elapsedInClip, playing]);
 
   if (playable.length === 0) {
     return (
@@ -103,12 +126,16 @@ export function Player({ scenes, onPlayhead }: Props) {
     );
   }
 
+  const assetMode = showAsset && selectedAsset != null;
   return (
     <div className="player" data-testid="player">
       <div className="player-stage">
-        <video ref={videoA} className={state !== null && state.index % 2 === 0 ? "active" : ""} playsInline />
-        <video ref={videoB} className={state !== null && state.index % 2 === 1 ? "active" : ""} playsInline />
-        {state === null && (
+        <video ref={videoA} className={!assetMode && state !== null && state.index % 2 === 0 ? "active" : ""} playsInline />
+        <video ref={videoB} className={!assetMode && state !== null && state.index % 2 === 1 ? "active" : ""} playsInline />
+        {assetMode && (
+          <img className="active" src={selectedAsset!.url} alt={selectedAsset!.name} />
+        )}
+        {state === null && !assetMode && (
           <div className="player-overlay">
             <button onClick={start} title="play rendered scenes back to back">▶ Preview chain</button>
             <span className="hint">
@@ -116,8 +143,17 @@ export function Player({ scenes, onPlayhead }: Props) {
             </span>
           </div>
         )}
+        {selectedAsset != null && (
+          <button
+            className={`asset-toggle ${assetMode ? "on" : ""}`}
+            onClick={() => { setShowAsset(!assetMode); if (playing) setPlaying(false); }}
+            title={assetMode ? "back to the video" : `show ${selectedAsset.name}`}
+          >
+            {assetMode ? "🎬 video" : "🖼 asset"}
+          </button>
+        )}
       </div>
-      {state !== null && (
+      {state !== null && !assetMode && (
         <div className="player-bar">
           <span>{current?.id}</span>
           <button onClick={() => (playing ? stop() : setPlaying(true))}>
