@@ -55,6 +55,9 @@ export function App() {
       <header className="app-header">
         <h1>Reel Studio</h1>
         <div className="app-meta">
+          {project.comfy_mode === "stub" && (
+            <span className="stub-badge" title="renders are local test patterns — not delivery">STUB</span>
+          )}
           {project.scenes.length} scenes · {project.total_s.toFixed(1)}s ·{" "}
           {project.fps} fps
         </div>

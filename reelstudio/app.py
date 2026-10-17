@@ -22,6 +22,7 @@ from .comfy_client import ComfyClient
 from .config import Config
 from .errors import NotFoundError, ReelStudioError, ValidationError
 from .project import load as load_project
+from .stub import StubComfyClient
 
 API = "/reelstudio/api"
 
@@ -54,7 +55,11 @@ class ReelStudio:
     def project(self):
         return load_project(self.config)
 
-    def client(self) -> ComfyClient:
+    def client(self, project=None):
+        if self.config.comfy_mode == "stub":
+            project = project or self.project()
+            return StubComfyClient(project.meta["reel_dir"],
+                                   self.config.comfy_input_dir)
         return ComfyClient(self.config.comfy_url, self.config.comfy_input_dir)
 
     # -------------------------------------------------------------- jobs ---
@@ -81,13 +86,13 @@ class ReelStudio:
                     project = self.project()
                     path = await asyncio.to_thread(
                         render.render_scene, project, job.target,
-                        self.client(), self.config.workspace.as_posix() + "/.work")
+                        self.client(project), self.config.workspace.as_posix() + "/.work")
                     job.result = path
                 elif job.kind == "music":
                     project = self.project()
                     path = await asyncio.to_thread(
                         render.render_music, project, job.target,
-                        self.client(), self.config.workspace.as_posix() + "/.work")
+                        self.client(project), self.config.workspace.as_posix() + "/.work")
                     job.result = path
                 elif job.kind == "assemble":
                     project = self.project()
@@ -157,6 +162,7 @@ async def get_project(request: web.Request) -> web.Response:
         "total_s": timeline.total_dur(project),
         "final_path": project.meta.get("final"),
         "flags": project.raw.get("flags", {}),
+        "comfy_mode": state.config.comfy_mode,
         "scenes": scenes,
         "music": music,
         "final_url": f"{API}/final" if Path(project.meta.get("final", "")).exists() else None,

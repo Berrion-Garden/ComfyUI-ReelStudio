@@ -47,6 +47,7 @@ export interface ProjectView {
   total_s: number;
   final_path: string | null;
   flags: Record<string, unknown>;
+  comfy_mode: string;
   scenes: SceneView[];
   music: MusicView[];
   final_url: string | null;

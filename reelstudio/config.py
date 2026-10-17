@@ -25,6 +25,7 @@ class Config:
     comfy_input_dir: Path    # ComfyUI's input dir for staged anchor images
     agent_model: str         # chat agent model alias on the gateway
     agent_base_url: str      # OpenAI-compatible gateway base URL
+    comfy_mode: str = "live"  # "live" (HTTP to comfy_url) | "stub" (local ffmpeg)
 
     @property
     def yaml_path(self) -> Path:
@@ -52,4 +53,5 @@ def load_config(env: dict | None = None) -> Config:
         comfy_input_dir=Path(input_dir),
         agent_model=str(get("agent_model", "orchestrator")),
         agent_base_url=str(get("agent_base_url", "https://llms.berrion.garden/v1")),
+        comfy_mode=str(get("comfy_mode", "live")),
     )

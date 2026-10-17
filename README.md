@@ -113,3 +113,27 @@ reelstudio/
 Design rule: everything except `comfy_client.py` and `server.py` is testable
 without a server. The isolated endpoint (`8288`) exists so worktree and CI
 testing can never interfere with the live node.
+
+## Skills (agent injection)
+
+The in-app agent's system prompt is assembled from the markdown skills in
+[`skills/`](skills/) — one concern per file, open Agent Skills format:
+
+- `reel-yaml-schema` — the full YAML contract
+- `h3-prompting` — writing H3 descriptions/negatives/soundscapes
+- `junction-doctrine` — chaining, `prev_last` frame-exactness, the
+  "never show the landing" lesson
+- `agent-workflow` — the tool protocol (validate-gated `update_yaml`,
+  render only what changed)
+- `app-troubleshooting` — failure modes and fixes
+
+Edit a skill and the agent knows it on the next chat turn; nothing to rebuild.
+Override the directory with `REELSTUDIO_SKILLS_DIR`.
+
+## Stub mode (no GPU needed)
+
+Set `comfy_mode: "stub"` (or `REELSTUDIO_COMFY_MODE=stub`) and renders execute
+locally — real ffmpeg test-pattern clips written exactly where SaveVideo
+writes them. The whole flow works: chain rendering, `prev_last` extraction,
+freeze post, assembly, the agent. The UI shows a STUB badge so stub output is
+never mistaken for delivery. Live mode is the default.

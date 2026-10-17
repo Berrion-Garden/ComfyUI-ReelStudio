@@ -7,6 +7,7 @@ Event shapes: {"type": "message", "text": ...} | {"type": "tool_call", ...} |
 import json
 
 from .llm import SYSTEM_PROMPT, chat
+from .skills import system_prompt
 from .tools import TOOLS, ToolBox
 
 MAX_ITERATIONS = 8
@@ -17,7 +18,8 @@ async def run(config, history: list[dict], toolbox: ToolBox):
     so far (without the system prompt); it is copied, never mutated — the
     caller rebuilds its history from the yielded events."""
     history = list(history)
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}, *history]
+    messages = [{"role": "system", "content": system_prompt(SYSTEM_PROMPT)},
+                *history]
     for _ in range(MAX_ITERATIONS):
         message = await chat(config, messages, TOOLS)
         messages.append(message)
