@@ -23,6 +23,9 @@ def mount_on_prompt_server():
     server.app[STATE_KEY] = app[STATE_KEY]
     for route in app.router.routes():
         server.app.router.add_route(route.method, route.resource.canonical, route.handler)
+    # app-level behavior travels with the routes too: without the middleware
+    # copy, ReelStudioError 4xx responses become 500s in production
+    server.app.middlewares.extend(app.middlewares)
     server.app.on_startup.append(app[STATE_KEY].start)
     server.app.on_cleanup.append(app[STATE_KEY].close)
     if UI_DIST.exists():
@@ -43,7 +46,9 @@ def _build_hint(_request):
 def _index(_request):
     from aiohttp import web
 
-    return web.FileResponse(UI_DIST / "index.html")
+    # no-cache: a stale index.html references bundles that no longer exist
+    return web.FileResponse(UI_DIST / "index.html",
+                            headers={"Cache-Control": "no-cache"})
 
 
 def _static(request):
@@ -51,7 +56,7 @@ def _static(request):
 
     tail = request.match_info.get("tail", "")
     target = (UI_DIST / tail).resolve()
-    if not str(target).startswith(str(UI_DIST)) or not target.is_file():
+    if not target.is_relative_to(UI_DIST) or not target.is_file():
         # SPA fallback: unknown paths render the app shell
         return web.FileResponse(UI_DIST / "index.html")
     return web.FileResponse(target)
