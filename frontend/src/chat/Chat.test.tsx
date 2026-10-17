@@ -17,7 +17,7 @@ describe("Chat", () => {
 
   it("sending shows the user entry and streams the agent reply", async () => {
     async function* stream() {
-      yield { type: "message", text: "done — scene 2 is shorter now" };
+      yield { type: "message" as const, text: "done — scene 2 is shorter now" };
     }
     vi.mocked(chatStream).mockImplementation(stream);
     render(<Chat />);
