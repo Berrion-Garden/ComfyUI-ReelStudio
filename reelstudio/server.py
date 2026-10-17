@@ -7,7 +7,7 @@ built web UI served from ./web/dist.
 
 from pathlib import Path
 
-from .app import create_app
+from .app import STATE_KEY, create_app
 from .config import load_config
 
 UI_DIST = Path(__file__).resolve().parent.parent / "web" / "dist"
@@ -18,8 +18,13 @@ def mount_on_prompt_server():
 
     app = create_app(load_config())
     server = PromptServer.instance
+    # handlers read state from request.app — that is ComfyUI's app here, so
+    # the state moves with the routes (and the job worker lifecycle too)
+    server.app[STATE_KEY] = app[STATE_KEY]
     for route in app.router.routes():
         server.app.router.add_route(route.method, route.resource.canonical, route.handler)
+    server.app.on_startup.append(app[STATE_KEY].start)
+    server.app.on_cleanup.append(app[STATE_KEY].close)
     if UI_DIST.exists():
         server.app.router.add_get("/reelstudio", _index)
         server.app.router.add_get("/reelstudio/{tail:.*}", _static)
