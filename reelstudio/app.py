@@ -309,6 +309,14 @@ async def post_agent_chat(request: web.Request) -> web.StreamResponse:
     return resp
 
 
+async def post_manifest_adopt(request: web.Request) -> web.Response:
+    """Declare pre-app renders current so staleness starts from truth."""
+    state = _state(request)
+    project = state.project()
+    adopted = manifest_mod.adopt_existing(project.meta["reel_dir"], project)
+    return web.json_response({"adopted": adopted})
+
+
 def create_app(config: Config) -> web.Application:
     app = web.Application()
 
@@ -332,6 +340,7 @@ def create_app(config: Config) -> web.Application:
     app.router.add_post(f"{API}/assemble", post_assemble)
     app.router.add_get(f"{API}/jobs", get_jobs)
     app.router.add_get(f"{API}/final", get_final)
+    app.router.add_post(f"{API}/manifest/adopt", post_manifest_adopt)
     app.router.add_get(f"{API}/scene/{{scene_id}}/artifact/{{kind}}", get_scene_artifact)
     app.router.add_post(f"{API}/agent/chat", post_agent_chat)
     app.on_startup.append(state.start)

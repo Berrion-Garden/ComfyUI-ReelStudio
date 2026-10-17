@@ -23,8 +23,10 @@ description: Reel Studio failure modes — validation errors, missing renders, j
 - Comfy reports success but no render landed — `meta.reel_dir` must sit under
   ComfyUI's output dir; `SaveVideo` writes there via `filename_prefix`.
 - A scene rendered but still shows stale — its junction partner re-rendered
-  (junction identity), or the manifest predates the app (no manifest entry).
-  Re-render it once; the manifest takes over.
+  (junction identity), or the manifest predates the app. For pre-app renders
+  run the adopt action once (`POST /api/manifest/adopt`, or ask the agent) —
+  it records existing deliverables as current against the present config.
+  After adopting, only genuine config/junction drift shows stale.
 - In stub mode (`comfy_mode: stub`) renders are instant color clips — they
   are for testing the flow, NEVER for delivery.
 

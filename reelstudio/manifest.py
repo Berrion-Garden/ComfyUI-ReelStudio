@@ -68,3 +68,42 @@ def deliverable(reel_dir: str | Path, scene_id: str) -> str | None:
     """Newest render wins; freeze outputs sort after plain renders by name."""
     hits = sorted(Path(reel_dir).glob(f"{scene_id}_*.mp4"))
     return str(hits[-1]) if hits else None
+
+
+def adopt_existing(reel_dir: str | Path, project) -> int:
+    """Record renders that predate the manifest as current: each scene with a
+    deliverable and no entry gets its config chain_hash and the CURRENT
+    upstream deliverable as junction identity. Explicit user action — it
+    declares 'these renders match this config', never assumed."""
+    from .timeline import chain_hash
+
+    manifest = load(reel_dir)
+    adopted = 0
+    by_id = project.by_id()
+    for s in project.scenes:
+        sid = s["id"]
+        if sid in manifest["scenes"]:
+            continue
+        d = deliverable(reel_dir, sid)
+        if d is None:
+            continue
+        upstream = None
+        if s["video"].get("first") == "prev_last":
+            prev = project.previous(sid)
+            prev_file = (manifest["scenes"].get(prev["id"], {})
+                         .get("video", {}).get("path", {}).get("file"))
+            if prev_file:
+                upstream = (prev["id"], prev_file)
+        entry = {
+            "chain_hash": chain_hash(project, s),
+            "video": {"kind": "video", "path": {"file": Path(d).name}},
+            "frames": s.get("frames", project.default_frames),
+            "adopted": True,
+        }
+        if upstream:
+            entry["upstream"] = {"scene_id": upstream[0], "file": upstream[1]}
+        manifest["scenes"][sid] = entry
+        adopted += 1
+    if adopted:
+        save(reel_dir, manifest)
+    return adopted
