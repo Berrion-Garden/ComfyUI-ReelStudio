@@ -236,6 +236,16 @@ export async function uploadFile(file: File, dir: string): Promise<string> {
   return `asset:${body.path}`;
 }
 
+/** Grab a reference track off the web (YouTube, …) into audio/. */
+export async function importAudioFromUrl(url: string, name?: string): Promise<void> {
+  const resp = await fetch(`${API}/audio/import`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, ...(name ? { name } : {}) }),
+  });
+  await json_or_throw(resp);
+}
+
 /** How one generated file was made: its job, the request context, and the
  * prompt/seed/models embedded in the file (images). */
 export interface Provenance {

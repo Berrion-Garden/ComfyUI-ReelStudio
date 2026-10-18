@@ -23,6 +23,7 @@ from . import assets as assets_mod
 from . import generate, jobs as jobs_mod, studio as studio_mod, timeline
 from . import audio as audio_mod
 from . import reel as reel_pipeline
+from . import ytdlp as ytdlp_mod
 from .agent.loop import run as agent_run
 from .agent.tools import ToolBox
 from .config import Config
@@ -310,6 +311,23 @@ async def put_audio_track(request: web.Request) -> web.Response:
     except ValueError:
         raise NotFoundError("no such audio track")
     return web.json_response(t)
+
+
+async def post_audio_import(request: web.Request) -> web.Response:
+    """Grab a reference track off the web (YouTube, …) into the scene's
+    audio/ library: {url, name?}. The file is an ordinary asset afterwards —
+    an `audio:` entry in reel.yaml puts it on the timeline."""
+    state = _state(request)
+    body = await request.json()
+    url = body.get("url")
+    name = body.get("name")
+    if name is not None and not isinstance(name, str):
+        raise ValidationError(["name must be a string"])
+    path = await asyncio.to_thread(
+        ytdlp_mod.grab, Path(state.config.workspace), str(url or ""), name)
+    return web.json_response({
+        "path": str(path.relative_to(Path(state.config.workspace))),
+        "file": path.name})
 
 
 async def get_sfx_board(request: web.Request) -> web.Response:
@@ -666,6 +684,7 @@ def create_app(config: Config) -> web.Application:
     app.router.add_get(f"{API}/audio/{{index}}/artifact", get_audio_artifact)
     app.router.add_get(f"{API}/audio/{{index}}/peaks", get_audio_peaks)
     app.router.add_put(f"{API}/audio/{{index}}", put_audio_track)
+    app.router.add_post(f"{API}/audio/import", post_audio_import)
     app.router.add_get(f"{API}/bell/artifact", get_bell_artifact)
     app.router.add_get(f"{API}/sfx/board", get_sfx_board)
     app.router.add_post(f"{API}/sfx/board", post_sfx_event)

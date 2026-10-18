@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  deleteAsset, importAssets, setAssetLabels, uploadFile,
+  deleteAsset, importAssets, importAudioFromUrl, setAssetLabels, uploadFile,
   type AssetItem, type AssetsData, type StudioView,
 } from "../api";
 
@@ -59,6 +59,9 @@ export function AssetsPane({ assets, studio, selected, selectedPaths, onSelect, 
   const [poolName, setPoolName] = useState("unsorted");
   const [uploading, setUploading] = useState(0);
   const [charPanel, setCharPanel] = useState(false);
+  const [urlForm, setUrlForm] = useState(false);
+  const [urlValue, setUrlValue] = useState("");
+  const [grabbing, setGrabbing] = useState(false);
   const [importSrc, setImportSrc] = useState<{ scene: string; pool: string } | null>(null);
   const [importTarget, setImportTarget] = useState("");
   const fileInput = useRef<HTMLInputElement | null>(null);
@@ -120,6 +123,23 @@ export function AssetsPane({ assets, studio, selected, selectedPaths, onSelect, 
       setError(String(e));
     } finally {
       setUploading((n) => Math.max(0, n - files.length));
+    }
+  };
+
+  const grabUrl = async () => {
+    const url = urlValue.trim();
+    if (!url || grabbing) return;
+    setGrabbing(true);
+    setError(null);
+    try {
+      await importAudioFromUrl(url);
+      setUrlForm(false);
+      setUrlValue("");
+      onChanged();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setGrabbing(false);
     }
   };
 
@@ -282,6 +302,13 @@ export function AssetsPane({ assets, studio, selected, selectedPaths, onSelect, 
                 disabled={uploading > 0}
               >{uploading > 0 ? `↑${uploading}` : "+"}</button>
             )}
+            {s.title === "Audio" && (
+              <button type="button" className="section-upload" title="grab a track from a URL (YouTube, …)"
+                aria-label="grab audio from URL"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setUrlForm((v) => !v); }}
+                disabled={grabbing}
+              >{grabbing ? "↧" : "⇩"}</button>
+            )}
             {s.title === "Backgrounds" && poolForm === s.title && (
               <span className="pool-form" onClick={(e) => e.stopPropagation()}>
                 <input value={poolName} autoFocus
@@ -330,6 +357,19 @@ export function AssetsPane({ assets, studio, selected, selectedPaths, onSelect, 
                 <button type="button" onClick={() => chooseFiles("Characters")}>
                   choose files…
                 </button>
+              </span>
+            </div>
+          )}
+          {s.title === "Audio" && urlForm && (
+            <div className="char-panel" onClick={(e) => e.stopPropagation()}>
+              <span className="pool-form">
+                <input value={urlValue} autoFocus
+                  onChange={(e) => setUrlValue(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") void grabUrl(); }}
+                  placeholder="https://www.youtube.com/watch?v=…"
+                  aria-label="audio source URL" />
+                <button type="button" disabled={!urlValue.trim() || grabbing}
+                  onClick={() => void grabUrl()}>Grab</button>
               </span>
             </div>
           )}
