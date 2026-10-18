@@ -400,7 +400,7 @@ button:disabled { opacity: 0.45; cursor: default; }
 /* ---- chat ---- */
 .chat {
   border-top: 1px solid var(--edge); background: var(--panel);
-  display: flex; flex-direction: column; height: 132px;
+  display: flex; flex-direction: column; height: 150px;
 }
 .chat-log { flex: 1; overflow-y: auto; padding: 10px 16px; display: flex; flex-direction: column; gap: 10px; }
 .chat-entry { display: flex; flex-direction: column; gap: 2px; max-width: 85%; }
@@ -422,6 +422,35 @@ button:disabled { opacity: 0.45; cursor: default; }
   color: var(--text); border-radius: 6px; padding: 8px 10px; font-size: 13px;
   resize: none; font-family: inherit;
 }
+
+/* upload anchors: paperclip above Send, + per asset section, drag-and-drop */
+.chat-attach {
+  display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+  padding: 4px 16px 0; min-height: 24px;
+}
+.chat-attach:empty { display: none; }
+.attach-chip {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 11px;
+  background: var(--panel-2); border: 1px solid var(--edge); border-radius: 10px;
+  padding: 1px 8px; color: var(--text); max-width: 180px;
+}
+.attach-chip span, .attach-chip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attach-chip button {
+  border: none; background: none; padding: 0 2px; font-size: 11px; color: var(--dim);
+}
+.attach-chip button:hover { color: var(--text); }
+.attach-error { font-size: 11px; color: #ff9db0; cursor: pointer; }
+.chat-paperclip { padding: 2px 8px; font-size: 13px; line-height: 1.3; margin-left: auto; }
+.section-upload {
+  float: right; margin-right: 4px; padding: 0 7px; font-size: 13px; line-height: 1.4;
+  min-height: 0; min-width: 20px;
+}
+.pool-form { display: inline-flex; gap: 6px; margin-left: 10px; }
+.pool-form input {
+  width: 130px; background: var(--panel-2); border: 1px solid var(--edge);
+  color: var(--text); border-radius: 6px; padding: 2px 8px; font-size: 12px;
+}
+.pool-form button { font-size: 11px; padding: 2px 8px; }
 
 button:focus-visible, input:focus-visible, textarea:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 1px;

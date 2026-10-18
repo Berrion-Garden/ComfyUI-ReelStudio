@@ -6,10 +6,11 @@ import { Chat } from "./Chat";
 vi.mock("../api", () => ({ chatStream: vi.fn() }));
 
 describe("Chat", () => {
-  it("empty state is just the input — no hint, no starter chips", () => {
+  it("empty state is just the input — paperclip and Send, no hint, no starter chips", () => {
     render(<Chat />);
     expect(screen.queryByText(/Ask the agent/)).toBeNull();
-    expect(screen.queryAllByRole("button")).toHaveLength(1); // Send only
+    expect(screen.queryAllByRole("button")).toHaveLength(2); // 📎 + Send
+    expect(screen.getByLabelText("attach files")).toBeTruthy();
     const input = screen.getByLabelText("message the agent") as HTMLInputElement;
     expect(input.value).toBe("");
   });

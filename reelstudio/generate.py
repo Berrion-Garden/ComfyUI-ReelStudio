@@ -6,9 +6,10 @@ and execution. The agent's `generate` tool and the HTTP job routes derive from
 this registry, so adding a generator kind is one entry here — never edits in
 three places.
 
-Wired: scene (H3 video), music (Music3), assemble (final mix), still
-(background/location plates) and image_edit (per-shot anchor stills) — both
-delegated to the workspace reel.py's Qwen-Image-2.1 commands (`bg`/`shot`).
+Wired: scene (H3 video), music (Music3), assemble (final mix), sheet
+(character identity sheets), still (background/location plates) and
+image_edit (per-shot anchor stills) — the last three delegated to the
+workspace reel.py's Qwen-Image-2.1 commands (`sheet`/`bg`/`shot`).
 """
 
 from dataclasses import dataclass
@@ -156,6 +157,13 @@ def _execute_still(project, client, work_dir, target):
     return _last_made(out, "BG:")
 
 
+def _execute_sheet(project, client, work_dir, target):
+    from . import reel as reel_pipeline
+
+    out = reel_pipeline.run_sync(_workspace(work_dir), "sheet", [target])
+    return _last_made(out, "SHEET:")
+
+
 def _execute_image_edit(project, client, work_dir, target):
     from . import reel as reel_pipeline
 
@@ -182,6 +190,22 @@ def _validate_still(project, args):
                                "`locations:`", "add it there first — the yaml "
                                "is the pipeline's driver"])
     return [f"plate: {slug}"]
+
+
+def _validate_sheet(project, args):
+    slug = str(args.get("slug", "")).strip()
+    if not slug:
+        raise ValidationError(
+            ["a sheet (a character's multi-view identity) needs slug — the "
+             "characters/<slug>/ pool holding its reference images"])
+    pool = Path(project.config.workspace) / "characters" / slug
+    refs = sorted(pool.glob("*.png")) + sorted(pool.glob("*.jpg"))
+    if not refs:
+        raise ValidationError(
+            [f"no reference images in characters/{slug}/ — the operator "
+             "uploads references into the pool first (the + button on the "
+             "Characters section)"])
+    return [f"sheet: {slug}"]
 
 
 def _validate_image_edit(project, args):
@@ -229,6 +253,16 @@ GENERATORS: tuple[Generator, ...] = (
                           "description": "include the music bed (assemble kind)"},
         },
         validate=_validate_assemble, execute=_execute_assemble),
+    Generator(
+        kind="sheet",
+        summary="generate a character's multi-view identity sheet — 10 "
+                "seed/prompt variants into characters/<slug>/, from the "
+                "reference images the operator uploaded there",
+        args={
+            "slug": {"type": "string",
+                     "description": "character slug (sheet kind)"},
+        },
+        validate=_validate_sheet, execute=_execute_sheet),
     Generator(
         kind="still",
         summary="generate a background/location plate from a reel.yaml "

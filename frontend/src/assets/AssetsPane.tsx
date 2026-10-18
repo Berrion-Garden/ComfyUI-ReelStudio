@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { deleteAsset, setAssetLabels, type AssetItem, type AssetsData } from "../api";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { deleteAsset, setAssetLabels, uploadFile, type AssetItem, type AssetsData } from "../api";
 
 interface Props {
   assets: AssetsData | null;
@@ -23,11 +23,70 @@ function characterPools(items: AssetItem[]): { pool: string; assets: AssetItem[]
   return [...pools.entries()].map(([pool, assets]) => ({ pool: pool.slice(5), assets }));
 }
 
+// where the section's + / drag-and-drop uploads land (workspace-relative);
+// the Characters section appends the pool name at upload time
+const UPLOAD_DIRS: Record<string, string> = {
+  "Characters": "characters",
+  "Backgrounds": "backgrounds",
+  "Custom": "images",
+  "Audio": "audio",
+  "Sound FX": "sfx",
+};
+
+/** A drop on the pane background lands by extension: images in Custom,
+ * audio in Audio. Sections carry their own dir. */
+function dropTitle(files: FileList): string {
+  const audio = [".mp3", ".wav", ".ogg", ".flac", ".m4a"];
+  const one = files[0];
+  return one && audio.some((e) => one.name.toLowerCase().endsWith(e))
+    ? "Audio" : "Custom";
+}
+
 export function AssetsPane({ assets, selected, selectedPaths, onSelect, onChanged }: Props) {
   const data = assets;
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [poolForm, setPoolForm] = useState(false);
+  const [poolName, setPoolName] = useState("unsorted");
+  const [uploading, setUploading] = useState(0);
+  const fileInput = useRef<HTMLInputElement | null>(null);
+  const uploadTitle = useRef<string>("");
+
+  const pick = (title: string) => {
+    if (title === "Characters") {
+      setPoolForm((v) => !v);  // the pool needs a name before the picker
+      return;
+    }
+    uploadTitle.current = title;
+    fileInput.current?.click();
+  };
+
+  const chooseFiles = () => {
+    setPoolForm(false);
+    uploadTitle.current = "Characters";
+    fileInput.current?.click();
+  };
+
+  const upload = async (files: FileList | File[]) => {
+    const title = uploadTitle.current;
+    const base = UPLOAD_DIRS[title];
+    if (!base || files.length === 0) return;
+    const dir = title === "Characters"
+      ? `characters/${poolName.trim() || "unsorted"}` : base;
+    setUploading((n) => n + files.length);
+    setError(null);
+    try {
+      for (const f of Array.from(files)) {
+        await uploadFile(f, dir);
+      }
+      onChanged();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setUploading((n) => Math.max(0, n - files.length));
+    }
+  };
 
   useEffect(() => {
     if (!menuFor) return;
@@ -139,6 +198,13 @@ export function AssetsPane({ assets, selected, selectedPaths, onSelect, onChange
     <div className="assets-pane" data-testid="assets-pane"
       tabIndex={0}
       aria-label="asset library"
+      onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) e.preventDefault(); }}
+      onDrop={(e) => {
+        if (e.dataTransfer.files.length === 0) return;
+        e.preventDefault();
+        uploadTitle.current = dropTitle(e.dataTransfer.files);
+        void upload(e.dataTransfer.files);
+      }}
       onKeyDown={(e) => {
         if (e.key === "ArrowDown") { e.preventDefault(); move(1); }
         if (e.key === "ArrowUp") { e.preventDefault(); move(-1); }
@@ -147,8 +213,36 @@ export function AssetsPane({ assets, selected, selectedPaths, onSelect, onChange
       {!data && <div className="assets-loading">loading assets…</div>}
       {error && <div className="assets-error" onClick={() => setError(null)}>{error}</div>}
       {sections.map((s) => (
-        <details key={s.title} className="asset-section" open={s.open}>
-          <summary>{s.title} <span className="count">{s.assets.length}</span></summary>
+        <details key={s.title} className="asset-section" open={s.open}
+          onDragOver={(e) => { if (UPLOAD_DIRS[s.title]) e.preventDefault(); }}
+          onDrop={(e) => {
+            // a drop uploads into this section's library dir
+            const base = UPLOAD_DIRS[s.title];
+            if (!base || e.dataTransfer.files.length === 0) return;
+            e.preventDefault(); e.stopPropagation();
+            uploadTitle.current = s.title;
+            if (s.title === "Characters") setPoolName("unsorted");
+            void upload(e.dataTransfer.files);
+          }}>
+          <summary>
+            {s.title} <span className="count">{s.assets.length}</span>
+            {UPLOAD_DIRS[s.title] && (
+              <button type="button" className="section-upload" title="upload files here"
+                aria-label={`upload into ${s.title}`}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); pick(s.title); }}
+                disabled={uploading > 0}
+              >{uploading > 0 ? `↑${uploading}` : "+"}</button>
+            )}
+            {s.title === "Characters" && poolForm && (
+              <span className="pool-form" onClick={(e) => e.stopPropagation()}>
+                <input value={poolName} autoFocus
+                  onChange={(e) => setPoolName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") chooseFiles(); }}
+                  placeholder="pool name" aria-label="character pool name" />
+                <button type="button" onClick={chooseFiles}>choose files…</button>
+              </span>
+            )}
+          </summary>
           {s.title === "Characters" && s.assets.length > 0 ? (
             characterPools(s.assets).map(({ pool, assets }) => (
               <div key={pool} className="asset-pool">
@@ -161,6 +255,11 @@ export function AssetsPane({ assets, selected, selectedPaths, onSelect, onChange
           )}
         </details>
       ))}
+      <input ref={fileInput} type="file" multiple hidden
+        onChange={(e) => {
+          if (e.target.files?.length) void upload(e.target.files);
+          e.target.value = "";  // allow re-picking the same files
+        }} />
     </div>
   );
 }

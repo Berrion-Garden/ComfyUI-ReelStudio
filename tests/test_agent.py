@@ -99,7 +99,7 @@ async def test_toolbox_generate_queues_and_teaches(config, workspace):
     # the generate tool is derived from the registry, all kinds visible
     gen = next(t for t in TOOLS if t["function"]["name"] == "generate")
     enum = gen["function"]["parameters"]["properties"]["kind"]["enum"]
-    assert enum == ["scene", "music", "assemble", "still", "image_edit"]
+    assert enum == ["scene", "music", "assemble", "sheet", "still", "image_edit"]
     # every kind is wired — the descriptions come from the registry summaries
     assert "background" in gen["function"]["description"]  # still -> bg
     assert "shots:" in gen["function"]["description"]      # image_edit -> shot

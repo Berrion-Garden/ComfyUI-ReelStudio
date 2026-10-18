@@ -206,6 +206,19 @@ export function newScene(
   return postStudio("/scenes", { slug, title, import: imp });
 }
 
+/** Upload one file into a workspace library dir (the studio's paperclip,
+ * section + and drag-and-drop anchors). Returns the asset:<path> ref. */
+export async function uploadFile(file: File, dir: string): Promise<string> {
+  const form = new FormData();
+  form.append("file", file);
+  const resp = await fetch(`${API}/upload?dir=${encodeURIComponent(dir)}`, {
+    method: "POST",
+    body: form,
+  });
+  const body = await json_or_throw<{ path: string }>(resp);
+  return `asset:${body.path}`;
+}
+
 /** Declare renders current — the whole reel or one scene (thumbnail ✓). */
 export async function adoptScene(sceneId?: string): Promise<void> {
   const resp = await fetch(`${API}/manifest/adopt`, {

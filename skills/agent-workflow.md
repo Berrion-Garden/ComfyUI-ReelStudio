@@ -34,6 +34,13 @@ always: true
     A `location:` edit cascades only to the scenes referencing it.
   - `music` — regenerate one anchored segment (`name:`).
   - `assemble` — the final production mix; only when the user asks for it.
+  - `sheet` — generate a character's multi-view identity sheet (`slug:`) —
+    10 seed/prompt variants into `characters/<slug>/`, collapsing the whole
+    reference pool into one identity. The pool must already hold reference
+    images; the operator uploads them (the + button or drag-and-drop on the
+    Characters section — they land in `characters/<pool>/` and label
+    `char:<pool>`). Born `non-verified`; the operator ✓-picks one and tags it
+    `ref` (or you propose the label via update_yaml's assets.yaml edit).
   - `still` — render a background/location plate from a `locations:` entry
     (`slug:`) — 10 seed/prompt variants into `backgrounds/`.
   - `image_edit` — render a `shots:` entry's anchor stills (`name:`) —
@@ -60,6 +67,34 @@ always: true
    unless the user already asked for regeneration).
 5. Report: edited scenes, re-rendered scenes (and WHY a downstream scene was
    included), what stayed untouched.
+
+## Recipe: a new scene (both generation models)
+
+Two "scene" levels, never confuse them: a **reel-scene** (a `scenes:` entry in
+reel.yaml) and a **studio scene** (a directory under the studio wrapper,
+File → New scene). The full pipeline for a fresh story chunk:
+
+1. **Studio scene** — the operator does File → New scene (optionally
+   importing characters/locations from another scene). You cannot create one;
+   `get_studio` shows what exists, `import_assets` brings pools and plates
+   over when asked.
+2. **Places** — add the location to `locations:` (update_yaml), then
+   `generate kind=still` → 10 plates in `backgrounds/` → the operator ✓-picks
+   one and tags it `ref`.
+3. **Cast** — the operator drops reference images into the Characters section
+   (+ button or drag-and-drop; they label `char:<pool>`), then
+   `generate kind=sheet` → 10 identity sheets → the operator ✓-picks one and
+   tags it `ref`.
+4. **Shot anchors** — add a `shots:` entry (characters + background +
+   description), `generate kind=image_edit` → 10 variants → the operator
+   picks one → anchor it in `stills:`.
+5. **Video** — add the `scenes:` entry (reel-yaml-schema + h3-prompting),
+   `generate kind=scene` for it.
+6. **Verify** — `get_project`; the operator ✓-adopts each finished scene's
+   render on its timeline thumbnail.
+
+Each generate step is 10 variants, ~30–60s/image on the GPU — queue it, say
+so, and let the operator review while it runs.
 
 ## Rules
 

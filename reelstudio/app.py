@@ -8,6 +8,8 @@ ComfyUI's PromptServer in production. One handler set, one adapter.
 import asyncio
 import dataclasses
 import json
+import os
+import re
 import subprocess
 import urllib.parse
 import uuid
@@ -509,6 +511,68 @@ async def post_studio_import(request: web.Request) -> web.Response:
         body.get("characters") or [], body.get("backgrounds") or []))
 
 
+# -------------------------------------------------------------- upload -----
+UPLOAD_EXTS = {
+    "characters": {".png", ".jpg", ".jpeg", ".webp"},
+    "backgrounds": {".png", ".jpg", ".jpeg", ".webp"},
+    "images": {".png", ".jpg", ".jpeg", ".webp"},
+    "audio": {".mp3", ".wav", ".ogg", ".flac", ".m4a"},
+    "sfx": {".mp3", ".wav", ".ogg", ".flac", ".m4a"},
+}
+UPLOAD_MAX = 200 * 1024 * 1024
+
+
+async def post_upload(request: web.Request) -> web.Response:
+    """The studio's upload anchors (paperclip, section +, drag-and-drop):
+    one multipart file into a workspace library dir. The dir's first path
+    segment decides the extension allowlist; the asset index picks the file
+    up on the next refresh — nothing hand-indexed."""
+    state = _state(request)
+    qdir = request.query.get("dir", "images").strip("/")
+    root = Path(state.config.workspace).resolve()
+    target_dir = (root / qdir).resolve()
+    if not target_dir.is_relative_to(root) or target_dir == root:
+        raise ForbiddenError("upload dir escapes the workspace")
+    top = target_dir.relative_to(root).parts[0]
+    allowed = UPLOAD_EXTS.get(top)
+    if allowed is None:
+        raise ValidationError(
+            [f"uploads land in one of: {sorted(UPLOAD_EXTS)}"])
+
+    reader = await request.multipart()
+    field = await reader.next()
+    if field is None or field.name != "file":
+        return web.json_response(
+            {"error": "expected a multipart 'file' field"}, status=400)
+    orig = Path(field.filename or "upload").name  # basename only
+    stem, ext = os.path.splitext(orig)
+    if ext.lower() not in allowed:
+        raise ValidationError(
+            [f"{ext or '(no extension)'} does not belong in {top}/",
+             f"allowed there: {sorted(allowed)}"])
+    safe = re.sub(r"[^A-Za-z0-9_.-]", "_", stem) or "upload"
+    final, n = f"{safe}{ext.lower()}", 1
+    while (target_dir / final).exists():
+        final = f"{safe}-{n}{ext.lower()}"
+        n += 1
+    target_dir.mkdir(parents=True, exist_ok=True)
+    size = 0
+    too_big = False
+    with open(target_dir / final, "wb") as fh:
+        while chunk := await field.read_chunk(1 << 16):
+            size += len(chunk)
+            if size > UPLOAD_MAX:
+                too_big = True
+                break
+            fh.write(chunk)
+    if too_big:
+        (target_dir / final).unlink()
+        raise ValidationError(["file exceeds the 200MB upload cap"])
+    return web.json_response({
+        "path": str((target_dir / final).relative_to(root)),
+        "file": final})
+
+
 async def post_manifest_adopt(request: web.Request) -> web.Response:
     """Declare pre-app renders current so staleness starts from truth. With
     {scene_id}, adopts just that scene — the ✓ on its timeline thumbnail."""
@@ -568,6 +632,7 @@ def create_app(config: Config) -> web.Application:
     app.router.add_post(f"{API}/studio/open", post_studio_open)
     app.router.add_post(f"{API}/studio/scenes", post_studio_scenes)
     app.router.add_post(f"{API}/studio/import", post_studio_import)
+    app.router.add_post(f"{API}/upload", post_upload)
     app.router.add_get(f"{API}/scene/{{scene_id}}/artifact/{{kind}}", get_scene_artifact)
     app.router.add_post(f"{API}/agent/chat", post_agent_chat)
     app.on_startup.append(state.start)

@@ -39,6 +39,6 @@ def load_config(env: dict | None = None) -> Config:
 
     return Config(
         workspace=Path(get("workspace", Path(__file__).resolve().parent.parent / "workspace")),
-        agent_model=str(get("agent_model", "orchestrator")),
+        agent_model=str(get("agent_model", "writer")),
         agent_base_url=str(get("agent_base_url", "https://llms.berrion.garden/v1")),
     )

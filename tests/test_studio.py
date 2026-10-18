@@ -184,3 +184,56 @@ async def test_startup_resolves_a_root_configured_workspace(client, workspace):
     state2 = app2[STATE_KEY]
     assert state2.config.workspace == workspace / "scenes" / "ep2"
     assert state2.config.yaml_path == workspace / "scenes" / "ep2" / "reel.yaml"
+
+
+async def test_upload_lands_in_library_dirs(client, workspace):
+    import aiohttp
+
+    def form(name, data, ctype):
+        f = aiohttp.FormData()
+        f.add_field("file", data, filename=name, content_type=ctype)
+        return f
+
+    ok = await client.post("/reelstudio/api/upload?dir=characters/unsorted",
+                           data=form("ref-one.PNG", b"pngbytes", "image/png"))
+    assert ok.status == 200
+    body = await ok.json()
+    assert body["path"] == "characters/unsorted/ref-one.png"
+    assert (workspace / "characters/unsorted/ref-one.png").read_bytes() == b"pngbytes"
+
+    # dedupe on collision
+    dup = await client.post("/reelstudio/api/upload?dir=characters/unsorted",
+                            data=form("ref-one.png", b"y", "image/png"))
+    assert (await dup.json())["file"] == "ref-one-1.png"
+
+    # the derived library picks it up with the pool label
+    lib = await (await client.get("/reelstudio/api/assets")).json()
+    sit = next(a for a in lib["groups"]["characters"]
+               if a["path"].endswith("ref-one.png"))
+    assert "char:unsorted" in sit["labels"]
+
+
+async def test_upload_rejections(client, workspace):
+    import aiohttp
+
+    def form(name, data, ctype):
+        f = aiohttp.FormData()
+        f.add_field("file", data, filename=name, content_type=ctype)
+        return f
+
+    # an image extension does not belong in an audio dir, and vice versa
+    bad_ext = await client.post("/reelstudio/api/upload?dir=audio",
+                                data=form("tune.png", b"x", "image/png"))
+    assert bad_ext.status == 400
+    bad_dir = await client.post("/reelstudio/api/upload?dir=characters",
+                                data=form("v.mp3", b"x", "audio/mpeg"))
+    assert bad_dir.status == 400
+    # unknown root and traversal are refused outright
+    unknown = await client.post("/reelstudio/api/upload?dir=stills",
+                                data=form("a.png", b"x", "image/png"))
+    assert unknown.status == 400
+    escape = await client.post("/reelstudio/api/upload?dir=../elsewhere",
+                               data=form("a.png", b"x", "image/png"))
+    assert escape.status == 403
+    assert not list(workspace.glob("elsewhere")) and \
+        not (workspace / "stills" / "a.png").exists()

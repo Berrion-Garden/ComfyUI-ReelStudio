@@ -54,8 +54,10 @@ human: read the labels, regenerate what points at them.
    the file is missing from the pipeline's output dir.
 3. New stills come from the wired Qwen generators: `generate kind=still
    slug=<location>` renders a background plate into `backgrounds/`;
+   `generate kind=sheet slug=<character>` renders identity sheets into
+   `characters/<slug>/` (the pool needs reference images first — the
+   operator uploads them via the Characters section's + button);
    `generate kind=image_edit name=<shot>` renders a `shots:` entry's anchor
    stills (10 variants each) into the stills dir. Point `stills:` at the
-   variant the operator picks. A character needs a reference sheet first
-   (`reel.py sheet <char> <refs...>` in the workspace) — the sheet tagged
-   `ref` in `assets.yaml` is the identity every shot uses.
+   variant the operator picks. The pool member tagged `ref` in `assets.yaml`
+   is the identity every shot uses.
