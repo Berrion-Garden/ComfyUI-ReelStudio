@@ -189,7 +189,7 @@ export function App() {
               />
             </div>
             <div className={stageView === "images" ? "stage-host" : "stage-host hidden"}>
-              <AssetBrowser assets={assets} selected={selectedAsset}
+              <AssetBrowser selected={selectedAsset}
                 onSelect={setSelectedAsset} onChanged={() => void refresh()} />
             </div>
           </section>

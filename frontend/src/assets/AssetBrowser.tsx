@@ -1,22 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
-import { fetchAssets, setAssetLabels, type AssetItem, type AssetsData } from "../api";
+import { useEffect, useState } from "react";
+import { deleteAsset, fetchAssets, setAssetLabels,
+  type AssetItem } from "../api";
 
 interface Props {
-  assets: AssetsData | null;
   selected: AssetItem | null;
-  onSelect: (a: AssetItem | null) => void;
-  /** refetch the library after a label edit (labels are derived server-side) */
   onChanged: () => void;
+  /** deselect after a delete */
+  onSelect: (a: AssetItem | null) => void;
 }
-
-const GRID_GROUPS: { title: string; group: AssetItem["group"] }[] = [
-  { title: "Scenes", group: "scenes" },
-  { title: "Characters", group: "characters" },
-  { title: "Backgrounds", group: "backgrounds" },
-  { title: "Custom", group: "custom" },
-  { title: "Audio", group: "audio" },
-  { title: "Sound FX", group: "sfx" },
-];
 
 const IMAGE_EXTS = [".png", ".jpg", ".jpeg", ".webp"];
 
@@ -25,54 +16,22 @@ function isImage(a: AssetItem): boolean {
 }
 
 /**
- * The stage's asset browser: the selected asset large and interactive on the
- * left (image full-frame, audio a player), the picker grid on the right.
- * The inspector also edits the asset's declared labels — typed free-form
- * (`char:<slug>`, `scene:<slug>`, `cond:<x>`, anything) — the one place the
- * operator both sees and annotates an asset.
+ * The stage's Images view: the single highlighted asset, large and
+ * interactive — images full-frame, audio a player — with its labels and
+ * verify/delete controls. Selection lives in the Assets pane.
  */
-export function AssetBrowser({ assets, selected, onSelect, onChanged }: Props) {
-  const groups = useMemo(() => {
-    if (!assets) return [];
-    return GRID_GROUPS
-      .map(({ title, group }) => ({ title, assets: assets.groups[group] ?? [] }))
-      .filter((s) => s.assets.length > 0);
-  }, [assets]);
-
+export function AssetBrowser({ selected, onChanged, onSelect }: Props) {
   return (
-    <div className="asset-browser">
-      <div className="asset-inspector" data-testid="asset-inspector">
-        {selected ? (
-          <Inspector asset={selected} onChanged={onChanged} />
-        ) : (
-          <div className="inspector-empty">select an asset to inspect it</div>
-        )}
-      </div>
-      <div className="asset-picker">
-        {groups.map((s) => (
-          <div key={s.title} className="picker-section">
-            <div className="picker-title">{s.title}</div>
-            <div className="picker-grid">
-              {s.assets.map((a) => (
-                <button key={a.path} type="button"
-                  className={`picker-card ${selected?.path === a.path ? "selected" : ""}`}
-                  title={`${a.slug} — ${a.labels.join(", ") || "unlabeled"}`}
-                  onClick={() => onSelect(selected?.path === a.path ? null : a)}>
-                  {isImage(a)
-                    ? <img src={a.url} alt={a.slug} loading="lazy" />
-                    : <span className="picker-audio">♪</span>}
-                  <span className="picker-name">{a.slug}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
+    <div className="asset-stage" data-testid="asset-stage">
+      {selected
+        ? <Inspector asset={selected} onChanged={onChanged} onSelect={onSelect} />
+        : <div className="stage-empty">select an asset to inspect it</div>}
     </div>
   );
 }
 
-function Inspector({ asset, onChanged }: { asset: AssetItem; onChanged: () => void }) {
+function Inspector({ asset, onChanged, onSelect }:
+  { asset: AssetItem; onChanged: () => void; onSelect: (a: AssetItem | null) => void }) {
   const [labels, setLabels] = useState<string[]>(asset.labels);
   const [draft, setDraft] = useState("");
   const [known, setKnown] = useState<string[]>([]);
@@ -99,6 +58,19 @@ function Inspector({ asset, onChanged }: { asset: AssetItem; onChanged: () => vo
       await setAssetLabels(asset.path, next);
       onChanged();
       setError(null);
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const approve = () => void save(labels.filter((l) => l !== "non-verified"));
+
+  const remove = async () => {
+    try {
+      await deleteAsset(asset.path);
+      setError(null);
+      onSelect(null);
+      onChanged();
     } catch (e) {
       setError(String(e));
     }
@@ -140,6 +112,16 @@ function Inspector({ asset, onChanged }: { asset: AssetItem; onChanged: () => vo
           </datalist>
           <button type="submit" disabled={!draft.trim()}>add</button>
         </form>
+        {labels.includes("non-verified") && (
+          <span className="verify-row">
+            <button type="button" className="verify-ok" aria-label={`verify ${asset.slug}`}
+              title="keep — removes the non-verified label"
+              onClick={approve}>✓</button>
+            <button type="button" className="verify-del" aria-label={`delete ${asset.slug}`}
+              title="delete this image"
+              onClick={() => void remove()}>✕</button>
+          </span>
+        )}
         {error && <span className="tag-error">{error}</span>}
       </div>
     </div>

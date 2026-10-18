@@ -17,7 +17,7 @@ const data: AssetsData = {
       { path: "/stills/opening_still_.png", slug: "opening_still", group: "scenes",
         labels: ["still:opening"], used_by: ["s1_ramen"], url: "/f/opening.png" },
     ],
-    custom: [], themes: [], backgrounds: [],
+    custom: [], themes: [], backgrounds: [], stills: [],
     sfx: [],
     audio: [
       { path: "/out/music_opening_1.wav", slug: "music_opening_1", group: "audio",

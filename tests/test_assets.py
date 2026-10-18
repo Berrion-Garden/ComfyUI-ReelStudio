@@ -245,3 +245,42 @@ async def test_agent_currently_selected_tool(config, workspace):
 
     assert json.loads(await ToolBox(state).call("currently_selected", {}))[
         "selected"] is None
+
+
+async def test_unanchored_stills_are_candidates(config, workspace):
+    from reelstudio import assets as assets_mod
+    from reelstudio.project import load
+
+    # the fixture's stills map anchors opening_still; a stray generation in
+    # the still dir is a candidate until the operator anchors it by name
+    stray = workspace / "stills" / "tony_dunk01_00001_.png"
+    stray.write_bytes(b"x")
+    data = assets_mod.index_assets(workspace, load(config))
+    slugs = [a["slug"] for a in data["groups"]["stills"]]
+    assert "tony_dunk01_00001" in slugs
+    assert "opening_still" not in slugs  # anchored stills stay in scenes
+
+
+async def test_delete_only_non_verified(client, workspace):
+    import hashlib
+    (workspace / "images").mkdir()
+    (workspace / "images" / "gen_a_.png").write_bytes(b"x")
+    (workspace / "images" / "keep_.png").write_bytes(b"x")
+    for name, labels in [("images/gen_a_.png", ["char:tony", "non-verified"]),
+                         ("images/keep_.png", ["char:tony"])]:
+        r = await client.put("/reelstudio/api/assets/labels", json={
+            "path": str(workspace / name), "labels": labels})
+        assert r.status == 200
+
+    # a verified asset is not deletable
+    bad = await client.delete("/reelstudio/api/asset", json={
+        "path": str(workspace / "images" / "keep_.png")})
+    assert bad.status == 403
+    assert (workspace / "images" / "keep_.png").exists()
+
+    # a non-verified asset deletes the file and drops its label entry
+    ok = await client.delete("/reelstudio/api/asset", json={
+        "path": str(workspace / "images" / "gen_a_.png")})
+    assert ok.status == 200
+    assert not (workspace / "images" / "gen_a_.png").exists()
+    assert "gen_a_" not in (workspace / "assets.yaml").read_text()

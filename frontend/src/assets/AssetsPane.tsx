@@ -36,6 +36,7 @@ export function AssetsPane({ assets, selected, onSelect }: Props) {
     const out: { title: string; open: boolean; assets: AssetItem[] }[] = [
       { title: "Characters", open: true, assets: g.characters },
       { title: "Scenes", open: true, assets: g.scenes },
+      { title: "New stills", open: false, assets: g.stills ?? [] },
       { title: "Backgrounds", open: false, assets: g.backgrounds ?? [] },
       { title: "Custom", open: false, assets: g.custom },
       { title: "LORA / Theme", open: false, assets: g.themes },

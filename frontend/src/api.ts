@@ -127,8 +127,8 @@ export function finalUrl(): string | null {
 export interface AssetItem {
   path: string;
   slug: string;
-  group: "characters" | "scenes" | "custom" | "backgrounds" | "themes"
-    | "audio" | "sfx";
+  group: "characters" | "scenes" | "stills" | "custom" | "backgrounds"
+    | "themes" | "audio" | "sfx";
   labels: string[];
   used_by: string[];
   url: string;
@@ -149,6 +149,16 @@ export async function setAssetLabels(path: string, labels: string[]): Promise<vo
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path, labels }),
+  });
+  await json_or_throw(resp);
+}
+
+/** Delete a non-verified generated asset (the operator's ✗). */
+export async function deleteAsset(path: string): Promise<void> {
+  const resp = await fetch(`${API}/asset`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
   });
   await json_or_throw(resp);
 }

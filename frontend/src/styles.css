@@ -224,19 +224,17 @@ button:disabled { opacity: 0.45; cursor: default; }
   border-radius: 8px; border: 1px dashed var(--edge);
 }
 
-/* ---- asset browser (the Images toggle): inspector left, picker right ---- */
-.asset-browser { flex: 1; display: flex; gap: 10px; min-height: 0; min-width: 0; }
-.asset-inspector {
-  flex: 1.2; min-width: 0; display: flex;
-  background: var(--panel); border: 1px solid var(--edge); border-radius: 8px;
-  padding: 10px;
+/* ---- asset stage (the Images toggle): the single selected asset, large ---- */
+.asset-stage { flex: 1; display: flex; min-height: 0; min-width: 0; }
+.inspector {
+  flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 0;
+  align-items: center;
 }
-.inspector { flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
 .inspector-media {
-  flex: 1; min-height: 0; width: 100%; object-fit: contain;
+  flex: 1; min-height: 0; max-width: 100%; object-fit: contain;
   background: black; border-radius: 6px; color-scheme: dark;
 }
-.inspector-empty {
+.stage-empty {
   flex: 1; display: flex; align-items: center; justify-content: center;
   color: var(--dim); font-size: 13px;
 }
@@ -248,7 +246,7 @@ button:disabled { opacity: 0.45; cursor: default; }
 }
 .inspector-used { color: var(--ok); font-size: 11px; }
 .inspector-open { color: var(--dim); font-size: 11px; margin-left: auto; }
-.inspector-tags { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.inspector-tags { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; justify-content: center; }
 .tag {
   display: inline-flex; align-items: center; gap: 3px;
   background: var(--panel-2); border: 1px solid var(--edge); border-radius: 999px;
@@ -265,28 +263,13 @@ button:disabled { opacity: 0.45; cursor: default; }
 }
 .tag-add button { font-size: 11px; padding: 1px 8px; border-radius: 999px; }
 .tag-error { color: var(--warn); font-size: 11px; }
-.asset-picker {
-  flex: 1; min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;
+.verify-row { display: inline-flex; gap: 6px; margin-left: 8px; }
+.verify-row button {
+  width: 30px; height: 24px; border-radius: 6px; font-size: 14px; padding: 0;
+  border: 1px solid var(--edge); background: var(--panel-2); color: var(--text);
 }
-.picker-section { background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; padding: 8px; }
-.picker-title { font-size: 12px; font-weight: 600; color: var(--dim); margin-bottom: 6px; }
-.picker-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px;
-}
-.picker-card {
-  display: flex; flex-direction: column; gap: 2px; padding: 3px;
-  background: var(--panel-2); border: 1px solid var(--edge); border-radius: 6px;
-  text-align: left; min-width: 0;
-}
-.picker-card.selected { border-color: var(--accent); }
-.picker-card img {
-  width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; display: block;
-}
-.picker-audio { font-size: 18px; text-align: center; color: var(--dim); padding: 10px 0; }
-.picker-name {
-  font-size: 9px; color: var(--text); white-space: nowrap;
-  overflow: hidden; text-overflow: ellipsis;
-}
+.verify-ok:hover { border-color: var(--ok); color: var(--ok); }
+.verify-del:hover { border-color: var(--warn); color: var(--warn); }
 
 /* fullscreen: the stage fills the screen, controls stay reachable */
 .stage-pane:fullscreen {

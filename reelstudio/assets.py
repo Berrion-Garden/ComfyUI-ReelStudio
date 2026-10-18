@@ -60,8 +60,9 @@ def index_assets(workspace: str | Path, project) -> dict:
                 "group": group, "labels": merged, "used_by": used_by or []}
 
     groups: dict[str, list[dict]] = {"characters": [], "scenes": [],
-                                     "custom": [], "backgrounds": [],
-                                     "themes": [], "audio": [], "sfx": []}
+                                     "stills": [], "custom": [],
+                                     "backgrounds": [], "themes": [],
+                                     "audio": [], "sfx": []}
 
     # scenes — the stills the timeline actually anchors on
     def _still_refs(scene: dict) -> list[str]:
@@ -81,6 +82,14 @@ def index_assets(workspace: str | Path, project) -> dict:
         users = [s["id"] for s in project.scenes if name in _still_refs(s)]
         groups["scenes"].append(mk(
             p, "scenes", ["still", f"still:{name}"], users))
+
+    # stills — every other image in still_dir: generation candidates the
+    # operator picks from (the stills map then anchors the pick by name)
+    anchored = {p.resolve() for p in
+                (project.still_path(n) for n in project.stills) if p}
+    for p in sorted(still_dir.glob("*.png") if still_dir.exists() else []):
+        if p.is_file() and p.resolve() not in anchored:
+            groups["stills"].append(mk(p, "stills", ["candidate"]))
 
     # characters — pools of poses under characters/<slug>/
     for pool in sorted((ws / "characters").glob("*") if (ws / "characters").exists() else []):

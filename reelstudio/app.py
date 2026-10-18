@@ -377,6 +377,27 @@ async def put_asset_labels(request: web.Request) -> web.Response:
     return web.json_response(result)
 
 
+async def delete_asset(request: web.Request) -> web.Response:
+    """The operator's ✗ on a non-verified generation: delete the file and
+    its label entry. Only assets labelled non-verified are deletable."""
+    state = _state(request)
+    body = await request.json()
+    project = state.project()
+    target = assets_mod.asset_file(str(body.get("path", "")), [
+        state.config.workspace, project.meta["still_dir"], project.meta["reel_dir"],
+    ])
+    index = assets_mod.index_assets(state.config.workspace, project)
+    item = next((a for items in index["groups"].values() for a in items
+                 if a["path"] == str(target)), None)
+    if item is None or "non-verified" not in item["labels"]:
+        raise ForbiddenError("only assets labelled non-verified can be deleted")
+    await asyncio.to_thread(target.unlink)
+    await asyncio.to_thread(
+        assets_mod.set_labels, state.config.workspace,
+        project.meta["still_dir"], str(target), [])
+    return web.json_response({"deleted": target.name})
+
+
 async def get_final(request: web.Request) -> web.Response:
     state = _state(request)
     final = state.project().meta.get("final")
@@ -445,6 +466,7 @@ def create_app(config: Config) -> web.Application:
     app.router.add_get(f"{API}/final", get_final)
     app.router.add_get(f"{API}/assets", get_assets)
     app.router.add_put(f"{API}/assets/labels", put_asset_labels)
+    app.router.add_delete(f"{API}/asset", delete_asset)
     app.router.add_get(f"{API}/asset/file", get_asset_file)
     app.router.add_get(f"{API}/music/{{name}}/artifact", get_music_artifact)
     app.router.add_get(f"{API}/audio/{{index}}/artifact", get_audio_artifact)
