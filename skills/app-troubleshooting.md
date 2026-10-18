@@ -28,9 +28,10 @@ description: Reel Studio failure modes — validation errors, missing renders, j
   reel.py's log tail; fix the pipeline there, not in the app.
 - A scene rendered but still shows stale — its junction partner re-rendered
   (junction identity), or the manifest predates the app. For pre-app renders
-  run the adopt action once (`POST /api/manifest/adopt`, or ask the agent) —
-  it records existing deliverables as current against the present config.
-  After adopting, only genuine config/junction drift shows stale.
+  run the adopt action once (`POST /api/manifest/adopt`, or the agent's
+  `adopt_renders` tool) — it records existing deliverables as current
+  against the present config. After adopting, only genuine config/junction
+  drift shows stale.
 
 ## Assemble
 

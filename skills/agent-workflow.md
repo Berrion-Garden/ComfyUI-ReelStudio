@@ -1,6 +1,6 @@
 ---
 name: agent-workflow
-description: The Reel Studio agent tool protocol — get_project staleness reading, validate-gated update_yaml, the generate kinds (scene/music/assemble/still/image_edit, all wired), get_assets, currently_selected, get_skill, and what to report. Always on; the reference for every tool call.
+description: The Reel Studio agent tool protocol — get_project staleness reading, validate-gated update_yaml, the six generate kinds, get_assets, currently_selected, update_asset_labels, get_provenance, adopt_renders, get_skill, and what to report. Always on; the reference for every tool call.
 always: true
 ---
 # Agent workflow
@@ -24,7 +24,14 @@ always: true
   per call. ALWAYS `get_yaml` first, edit that text, submit the complete file.
   On a validation error, fix the SAME text and retry — never re-read and start
   over. The result may carry `warnings` (e.g. off-grid frames): those are
-  allowed; do not "fix" a working scene length because of one.
+  allowed; do not "fix" a working scene length because of one. It edits
+  reel.yaml ONLY — library labels (assets.yaml) go through
+  `update_asset_labels`.
+- `update_asset_labels` adds/removes labels on one library asset: tag a pick
+  `ref` (the tag `char_ref`/`plate_ref` resolve — what the next generation
+  references), remove `non-verified` to keep a generated image, add `cond:`
+  context. Derived labels (`char:`, `scene:`, `used_by`) are pipeline-owned;
+  do not restate them.
 - `generate` queues work on the single-GPU worker. Kinds:
   - `scene` — render videos. Pass `scene_ids` (queued upstream-first) or
     `stale: true` for every stale scene. NEVER render the whole chain when
@@ -40,7 +47,8 @@ always: true
     images; the operator uploads them (the + button or drag-and-drop on the
     Characters section — they land in `characters/<pool>/` and label
     `char:<pool>`). Born `non-verified`; the operator ✓-picks one and tags it
-    `ref` (or you propose the label via update_yaml's assets.yaml edit).
+    `ref` — or you tag it yourself with `update_asset_labels` when they say
+    which one.
   - `still` — render a background/location plate from a `locations:` entry
     (`slug:`) — 10 seed/prompt variants into `backgrounds/`.
   - `image_edit` — render a `shots:` entry's anchor stills (`name:`) —
@@ -56,6 +64,13 @@ always: true
   or wants a regeneration from the same seed. Every generated file carries
   its `job:<id>` label (assets.yaml) or manifest `job` field automatically;
   the journal lives in the scene's `.studio/jobs.jsonl`.
+- `adopt_renders` declares the CURRENT deliverables current so staleness
+  starts from truth — explicit operator instruction only (their ✓ adopt on
+  a timeline thumbnail does one scene).
+- `get_studio` is the scene registry (every studio scene, the current one,
+  each scene's characters/backgrounds); `import_assets` copies pools and
+  plates from another scene into the current one. Cross-scene work starts
+  here — the operator's File menu creates scenes; you cannot.
 - `get_skill` loads an on-demand skill's full body (`film-grammar`,
   `junction-doctrine`, `asset-library`, `app-troubleshooting`). The system
   prompt carries the always-on skills (this workflow, reel-yaml-schema,
@@ -86,12 +101,13 @@ File → New scene). The full pipeline for a fresh story chunk:
    `get_studio` shows what exists, `import_assets` brings pools and plates
    over when asked.
 2. **Places** — add the location to `locations:` (update_yaml), then
-   `generate kind=still` → 10 plates in `backgrounds/` → the operator ✓-picks
-   one and tags it `ref`.
+   `generate kind=still` → 10 plates in `backgrounds/` → one gets tagged
+   `ref` (the operator ✓-picks, or tags it themselves; you set the label
+   with `update_asset_labels` when they say which).
 3. **Cast** — the operator drops reference images into the Characters section
    (+ button or drag-and-drop; they label `char:<pool>`), then
-   `generate kind=sheet` → 10 identity sheets → the operator ✓-picks one and
-   tags it `ref`.
+   `generate kind=sheet` → 10 identity sheets → one gets tagged `ref`
+   (same as above).
 4. **Shot anchors** — add a `shots:` entry (characters + background +
    description), `generate kind=image_edit` → 10 variants → the operator
    picks one → anchor it in `stills:`.

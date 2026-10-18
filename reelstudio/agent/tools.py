@@ -1,13 +1,15 @@
 """Agent tools — the exact operations a human has, executed server-side.
 
 get_project / get_assets / get_yaml / update_yaml / generate /
-currently_selected / get_studio / import_assets / get_provenance /
-get_skill / get_status. update_yaml validates before saving and generate validates
-before queueing — the agent cannot save a broken chain or queue a bogus
-job, and every rejection teaches what would be valid.
+currently_selected / get_studio / import_assets / update_asset_labels /
+adopt_renders / get_provenance / get_skill / get_status. update_yaml
+validates before saving and generate validates before queueing — the agent
+cannot save a broken chain or queue a bogus job, and every rejection teaches
+what would be valid.
 """
 
 import json
+from pathlib import Path
 
 from .. import generate
 from .. import jobs as jobs_mod
@@ -57,6 +59,36 @@ TOOLS = [
                        "match the path against get_assets — never guess "
                        "filenames.",
         "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {
+        "name": "update_asset_labels",
+        "description": "Add or remove labels on one library asset in "
+                       "assets.yaml — tag a pick `ref` (the tag char_ref/"
+                       "plate_ref resolve: what the next generation "
+                       "references), remove `non-verified` to keep a "
+                       "generated image, add `cond:`/`shot:` context tags. "
+                       "Read get_assets first; pass the asset's `asset:<path>`"
+                       " path. Derived labels (char:, scene:, used_by) come "
+                       "from the pipeline and cannot be edited here.",
+        "parameters": {"type": "object",
+                       "properties": {
+                           "path": {"type": "string"},
+                           "add": {"type": "array", "items": {"type": "string"},
+                                   "description": "labels to add"},
+                           "remove": {"type": "array", "items": {"type": "string"},
+                                      "description": "labels to remove"}},
+                       "required": ["path"]}}},
+    {"type": "function", "function": {
+        "name": "adopt_renders",
+        "description": "Declare the CURRENT deliverables current so staleness "
+                       "starts from truth — the manifest records each "
+                       "existing render against the present config. Only on "
+                       "explicit operator instruction (their ✓ adopt on the "
+                       "timeline does one scene); pass scene_id to narrow it.",
+        "parameters": {"type": "object",
+                       "properties": {"scene_id": {"type": "string",
+                                                   "description": "one scene "
+                                                                  "only"}},
+                       "required": []}}},
     {"type": "function", "function": {
         "name": "get_studio",
         "description": "The scene registry: every scene in the studio, the "
@@ -188,6 +220,45 @@ class ToolBox:
             path = path[len("asset:"):]
         return json.dumps(
             jobs_mod.provenance(self.state.config, path), ensure_ascii=False)
+
+    async def _update_asset_labels(self, args):
+        """Add/remove declared labels on one asset — the same write the
+        operator's tag editor does, minus the derived labels: they come from
+        the pipeline and stay pipeline-owned."""
+        from .. import assets as assets_mod
+
+        path = str(args.get("path", ""))
+        if path.startswith("asset:"):
+            path = path[len("asset:"):]
+        add = [str(x) for x in (args.get("add") or [])]
+        remove = [str(x) for x in (args.get("remove") or [])]
+        if not add and not remove:
+            return json.dumps({"error": "nothing to do — pass add and/or remove"})
+        project = self.state.project()
+        still_dir = project.meta["still_dir"]
+        p = assets_mod.asset_file(path, [self.state.config.workspace, still_dir])
+        rel = assets_mod._rel(p, [self.state.config.workspace, Path(still_dir)])
+        declared = assets_mod._labels_file(self.state.config.workspace).get(rel, [])
+        labels = [l for l in dict.fromkeys(declared + add) if l not in remove]
+        result = assets_mod.set_labels(
+            self.state.config.workspace, still_dir, path, labels)
+        return json.dumps({"asset": result["asset"],
+                           "labels": result["labels"],
+                           "added": [l for l in add if l in result["labels"]],
+                           "removed": [l for l in remove
+                                       if l not in result["labels"]]})
+
+    async def _adopt_renders(self, args):
+        from .. import manifest as manifest_mod
+
+        project = self.state.project()
+        scene_id = str(args["scene_id"]) if args.get("scene_id") else None
+        if scene_id and scene_id not in project.by_id():
+            return json.dumps({"error": f"unknown scene {scene_id!r}",
+                               "known_scenes": list(project.by_id())})
+        adopted = manifest_mod.adopt_existing(
+            project.meta["reel_dir"], project, scene_id)
+        return json.dumps({"adopted": adopted, "scene_id": scene_id})
 
     async def _get_skill(self, args):
         name = args.get("name")

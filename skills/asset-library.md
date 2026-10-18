@@ -31,16 +31,17 @@ labels:
 ```
 
 Labels are typed free-form: `char:<slug>` (character), `scene:<slug>`
-(foreign key to a scene id), `cond:<x>` (human, were-tiger, …), or any other
-tag. The studio's inspector writes them; you can propose them in an
-update_yaml-style edit of `assets.yaml`.
+(foreign key to a scene id), `cond:<x>` (human, were-tiger, …), `ref` (the
+pick `char_ref`/`plate_ref` resolve), `job:<id>` (provenance), or any other
+tag. The studio's inspector writes them; you set them with
+`update_asset_labels` — never by hand-editing assets.yaml.
 
 Generated images are born `non-verified` (reel.py labels them as they land).
 The operator approves (✓ — the label is removed) or deletes (✕ — the file is
 gone) on the thumbnail or in the inspector; only non-verified assets are
-deletable. When the
-operator asks you to clean up a generation run, propose removing the
-`non-verified` label on the keepers — deletion is their ✕, not an edit.
+deletable. When the operator asks you to clean up a generation run, remove
+the `non-verified` label on the keepers with `update_asset_labels` — deletion
+is their ✕, not an edit.
 
 Because labels name pools and scenes rather than individual files, refreshing
 a character pool and re-deriving is the same operation for you as for a

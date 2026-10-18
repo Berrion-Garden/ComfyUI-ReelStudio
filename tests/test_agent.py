@@ -54,6 +54,60 @@ async def test_toolbox_update_yaml_and_staleness(config):
     assert "soup" in config.yaml_path.read_text()
 
 
+async def test_toolbox_labels_tag_refs_without_freezing_derived(config, workspace):
+    """The agent tags a pick `ref` and clears non-verified through the same
+    write the inspector uses — and derived labels (char:, scene:) stay
+    pipeline-owned, never copied into assets.yaml."""
+    import yaml as yaml_mod
+
+    from reelstudio.agent.tools import ToolBox
+    from reelstudio.app import ReelStudio
+
+    (workspace / "assets.yaml").write_text(
+        "labels:\n  stills/opening_still_.png: [scene:s1_ramen, non-verified]\n")
+    box = ToolBox(ReelStudio(config))
+    still = str(workspace / "stills" / "opening_still_.png")
+
+    out = json.loads(await box.call("update_asset_labels", {
+        "path": f"asset:{still}",
+        "add": ["ref"], "remove": ["non-verified"]}))
+    assert out["labels"] == ["scene:s1_ramen", "ref"]
+    text = (workspace / "assets.yaml").read_text()
+    assert "ref" in text and "non-verified" not in text
+    # only the declared labels are written back — nothing derived frozen in
+    assert "used_by" not in text
+
+    # a remove that empties the entry drops it; unknown paths are refused
+    out = json.loads(await box.call("update_asset_labels", {
+        "path": f"asset:{still}", "remove": ["ref", "scene:s1_ramen"]}))
+    assert out["labels"] == []
+    refused = json.loads(await box.call("update_asset_labels", {
+        "path": str(workspace / "stills" / "../../etc/passwd"), "add": ["x"]}))
+    assert "error" in refused
+    assert "nothing to do" in await box.call(
+        "update_asset_labels", {"path": still})
+
+
+async def test_toolbox_adopt_renders(config, workspace):
+    import shutil
+
+    from reelstudio.agent.tools import ToolBox
+    from reelstudio.app import ReelStudio
+
+    reel_dir = workspace / "output" / "reel"
+    reel_dir.mkdir(parents=True)
+    shutil.copy(workspace / "stills" / "opening_still_.png",
+                reel_dir / "s1_ramen_0001.mp4")
+
+    box = ToolBox(ReelStudio(config))
+    out = json.loads(await box.call(
+        "adopt_renders", {"scene_id": "s1_ramen"}))
+    assert out == {"adopted": 1, "scene_id": "s1_ramen"}
+
+    out = json.loads(await box.call("adopt_renders", {"scene_id": "nope"}))
+    assert "error" in out and "known_scenes" in out
+
+
 async def test_agent_loop_edits_yaml_and_streams_events(config, workspace):
     from dataclasses import replace
 
