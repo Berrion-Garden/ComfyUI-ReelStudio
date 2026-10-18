@@ -1,6 +1,6 @@
 ---
 name: agent-workflow
-description: The Reel Studio agent tool protocol — get_project staleness reading, validate-gated update_yaml, the six generate kinds, get_assets, currently_selected, update_asset_labels, get_provenance, adopt_renders, get_skill, and what to report. Always on; the reference for every tool call.
+description: The Reel Studio agent tool protocol — get_project staleness reading, validate-gated update_yaml, the six generate kinds, get_assets, currently_selected, view_image (you are visual), update_asset_labels, get_provenance, adopt_renders, get_skill, and what to report. Always on; the reference for every tool call.
 always: true
 ---
 # Agent workflow
@@ -64,6 +64,14 @@ always: true
   or wants a regeneration from the same seed. Every generated file carries
   its `job:<id>` label (assets.yaml) or manifest `job` field automatically;
   the journal lives in the scene's `.studio/jobs.jsonl`.
+- `view_image` is your eyes: you are visual. The operator's primary
+  selection arrives as a picture with their message; call `view_image` for
+  any other library image and it is delivered with the next message. LOOK
+  before judging anything visual — a generated plate's composition, whether
+  a sheet is a clean multi-view, whether a pick matches its `shot:`
+  description — and describe what you actually see, never what the filename
+  suggests. The gateway flattens tool results to text, so the picture rides
+  the next user turn; if you don't see it, call view_image again.
 - `adopt_renders` declares the CURRENT deliverables current so staleness
   starts from truth — explicit operator instruction only (their ✓ adopt on
   a timeline thumbnail does one scene).
@@ -117,7 +125,8 @@ File → New scene). The full pipeline for a fresh story chunk:
    render on its timeline thumbnail.
 
 Each generate step is 10 variants, ~30–60s/image on the GPU — queue it, say
-so, and let the operator review while it runs.
+so, and let the operator review while it runs. You can look at the variants
+yourself with view_image and recommend a pick; the operator confirms.
 
 ## Rules
 

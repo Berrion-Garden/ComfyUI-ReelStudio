@@ -108,6 +108,82 @@ async def test_toolbox_adopt_renders(config, workspace):
     assert "error" in out and "known_scenes" in out
 
 
+async def test_view_image_delivers_picture_on_next_turn(config, workspace):
+    """The agent's eyes: view_image queues the file, the loop injects it as a
+    user turn right after the tool result (the gateway flattens tool results
+    to text-only)."""
+    from conftest import make_still
+
+    from reelstudio.agent import loop as loop_mod
+    from reelstudio.agent.tools import ToolBox
+    from reelstudio.app import ReelStudio
+
+    make_still(workspace / "stills" / "new_still_.png", "red")
+    box = ToolBox(ReelStudio(config))
+    still = str(workspace / "stills" / "new_still_.png")
+
+    calls = []
+
+    def assistant(content, tool_calls=None):
+        return {"role": "assistant", "content": content,
+                "tool_calls": tool_calls}
+
+    responses = [
+        assistant(None, [{"id": "v1", "type": "function",
+                          "function": {"name": "view_image",
+                                       "arguments": json.dumps({"path": still})}}]),
+        assistant("a red 64x64 still"),
+    ]
+    state = {"n": 0}
+
+    async def fake_chat(cfg, messages, tools):
+        calls.append([dict(m) for m in messages])  # snapshot: the loop mutates
+        msg = responses[min(state["n"], len(responses) - 1)]
+        state["n"] += 1
+        return msg
+
+    real_chat = loop_mod.chat
+    loop_mod.chat = fake_chat
+    try:
+        events = [e async for e in loop_mod.run(
+            config, [{"role": "user", "content": "look at this"}], box)]
+    finally:
+        loop_mod.chat = real_chat
+
+    assert events[-1]["type"] == "done"
+    # the second model call sees the tool result AND a user turn with the image
+    second = calls[1]
+    assert [m["role"] for m in second][-2:] == ["tool", "user"]
+    image_turn = second[-1]
+    assert any(p["type"] == "image_url" and
+               p["image_url"]["url"].startswith("data:image/png;base64,")
+               for p in image_turn["content"])
+    assert any(p["type"] == "text" and "new_still_.png" in p["text"]
+               for p in image_turn["content"])
+
+
+def test_vision_content_parts_and_guards(config, workspace):
+    import pytest
+
+    from reelstudio.agent import vision
+    from reelstudio.errors import ValidationError
+
+    roots = [workspace, workspace / "stills"]
+    label, url = vision.data_url(workspace / "stills" / "opening_still_.png",
+                                 roots)
+    assert label == "opening_still_.png"
+    assert url.startswith("data:image/png;base64,")
+
+    with pytest.raises(ValidationError):
+        vision.data_url(workspace / "reel.py", roots)  # not an image
+    # plain text when no images; labelled parts when there are
+    assert vision.content_parts("hi", []) == {"role": "user", "content": "hi"}
+    parts = vision.content_parts("look", [("a.png", "data:x")])
+    assert parts["content"][0] == {"type": "text", "text": "look"}
+    assert {"type": "text", "text": "[image: a.png]"} in parts["content"]
+    assert {"type": "image_url", "image_url": {"url": "data:x"}} in parts["content"]
+
+
 async def test_agent_loop_edits_yaml_and_streams_events(config, workspace):
     from dataclasses import replace
 

@@ -13,13 +13,38 @@ from .tools import TOOLS, ToolBox
 MAX_ITERATIONS = 8
 
 
-async def run(config, history: list[dict], toolbox: ToolBox):
+async def run(config, history: list[dict], toolbox: ToolBox,
+              images: list[str] | None = None):
     """Yield SSE-able dicts for one user turn. `history` is the conversation
-    so far (without the system prompt); it is copied, never mutated — the
-    caller rebuilds its history from the yielded events."""
+    so far INCLUDING the user's new message (text-only); `images` are asset
+    paths delivered as pictures beside it — the operator's primary selection.
+    The history is copied, never mutated — the caller rebuilds its history
+    from the yielded events."""
+    from . import vision
+
     history = list(history)
-    messages = [{"role": "system", "content": system_prompt(SYSTEM_PROMPT)},
-                *history]
+    roots = None
+    try:
+        project = toolbox.state.project()
+        roots = [toolbox.state.config.workspace,
+                 project.meta["still_dir"], project.meta["reel_dir"]]
+    except Exception:  # noqa: BLE001 - a broken yaml must not blind the agent
+        pass
+    shown: list[tuple[str, str]] = []
+    for path in images or []:
+        try:
+            shown.append(vision.data_url(path, roots))
+        except Exception:  # noqa: BLE001 - a bad attachment must not kill the turn
+            pass
+
+    messages = [{"role": "system", "content": system_prompt(SYSTEM_PROMPT)}]
+    if history and history[-1].get("role") == "user" \
+            and isinstance(history[-1].get("content"), str):
+        *rest, last = history
+        messages += [*rest, vision.content_parts(last["content"], shown)]
+    else:
+        messages += history
+
     for _ in range(MAX_ITERATIONS):
         message = await chat(config, messages, TOOLS)
         messages.append(message)
@@ -32,6 +57,21 @@ async def run(config, history: list[dict], toolbox: ToolBox):
             yield {"type": "tool_result", "name": name, "result": result}
             messages.append({"role": "tool", "tool_call_id": call["id"],
                              "content": result})
+
+        # view_image deliveries: the pictures ride a user turn (the gateway
+        # flattens tool results to text-only)
+        if toolbox.image_requests:
+            pending, toolbox.image_requests = toolbox.image_requests, []
+            shots: list[tuple[str, str]] = []
+            for path in pending:
+                try:
+                    shots.append(vision.data_url(path, roots))
+                except Exception:  # noqa: BLE001 - a bad path must not kill the turn
+                    pass
+            if shots:
+                labels = ", ".join(label for label, _ in shots)
+                messages.append(vision.content_parts(
+                    f"the image(s) you requested: {labels}", shots))
 
         text = message.get("content")
         if text:

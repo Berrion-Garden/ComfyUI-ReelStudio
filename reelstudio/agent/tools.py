@@ -1,9 +1,9 @@
 """Agent tools — the exact operations a human has, executed server-side.
 
 get_project / get_assets / get_yaml / update_yaml / generate /
-currently_selected / get_studio / import_assets / update_asset_labels /
-adopt_renders / get_provenance / get_skill / get_status. update_yaml
-validates before saving and generate validates before queueing — the agent
+currently_selected / view_image / get_studio / import_assets /
+update_asset_labels / adopt_renders / get_provenance / get_skill /
+get_status. update_yaml validates before saving and generate validates before queueing — the agent
 cannot save a broken chain or queue a bogus job, and every rejection teaches
 what would be valid.
 """
@@ -90,6 +90,17 @@ TOOLS = [
                                                                   "only"}},
                        "required": []}}},
     {"type": "function", "function": {
+        "name": "view_image",
+        "description": "LOOK at an image — you are visual. The file is "
+                       "delivered to you as a picture on the next turn. Look "
+                       "before judging anything visual: check what a "
+                       "generated still actually shows, verify a pick matches "
+                       "its description, compare candidates, inspect a "
+                       "reference the operator uploaded. One image per call.",
+        "parameters": {"type": "object",
+                       "properties": {"path": {"type": "string"}},
+                       "required": ["path"]}}},
+    {"type": "function", "function": {
         "name": "get_studio",
         "description": "The scene registry: every scene in the studio, the "
                        "current one, and each scene's characters/backgrounds. "
@@ -140,6 +151,8 @@ class ToolBox:
     def __init__(self, state, selected: list[dict] | None = None):
         self.state = state  # reelstudio.app.ReelStudio
         self.selected = selected  # the operator's current selection (ordered)
+        # view_image calls waiting for the loop to deliver their pictures
+        self.image_requests: list[str] = []
 
     async def call(self, name: str, args: dict) -> str:
         handler = getattr(self, f"_{name}", None)
@@ -220,6 +233,24 @@ class ToolBox:
             path = path[len("asset:"):]
         return json.dumps(
             jobs_mod.provenance(self.state.config, path), ensure_ascii=False)
+
+    async def _view_image(self, args):
+        """The agent's eyes: resolve the path now, and hand it to the loop —
+        the picture itself goes out as a user turn (the gateway flattens
+        tool results to text)."""
+        from ..agent import vision
+
+        path = str(args.get("path", ""))
+        if path.startswith("asset:"):
+            path = path[len("asset:"):]
+        project = self.state.project()
+        roots = [self.state.config.workspace,
+                 project.meta["still_dir"], project.meta["reel_dir"]]
+        label, _ = vision.data_url(path, roots)
+        self.image_requests.append(path)
+        return json.dumps({"viewing": label,
+                           "note": "the image is delivered with the next "
+                                   "message — describe what you actually see"})
 
     async def _update_asset_labels(self, args):
         """Add/remove declared labels on one asset — the same write the

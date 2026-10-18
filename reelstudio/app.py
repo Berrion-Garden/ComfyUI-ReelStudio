@@ -459,6 +459,15 @@ async def post_agent_chat(request: web.Request) -> web.StreamResponse:
     else:
         selected = None
 
+    # the agent is visual: the operator's primary selection rides the
+    # message as a picture (when it is one)
+    images = []
+    if selected:
+        primary_path = str(selected[-1].get("path", ""))
+        if Path(primary_path).suffix.lower() in \
+                {".png", ".jpg", ".jpeg", ".webp", ".gif"}:
+            images.append(primary_path)
+
     resp = web.StreamResponse(headers={
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
@@ -467,7 +476,8 @@ async def post_agent_chat(request: web.Request) -> web.StreamResponse:
     await resp.prepare(request)
     try:
         async for event in agent_run(state.config, history,
-                                     ToolBox(state, selected=selected)):
+                                     ToolBox(state, selected=selected),
+                                     images=images):
             await resp.write(f"data: {json.dumps(event, ensure_ascii=False)}\n\n".encode())
     except Exception as e:  # noqa: BLE001 - stream the failure to the UI
         await resp.write(f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n".encode())

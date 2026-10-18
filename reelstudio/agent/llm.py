@@ -24,7 +24,13 @@ every scene, so the whole reel going stale there is correct. Shared \
 `styles:`/`locations:` blocks are merged into every prompt by the machinery; \
 scene descriptions hold only what is specific to the shot. The skills below \
 marked "on demand" load with the get_skill tool when a task matches their \
-description."""
+description.
+
+You are visual. The operator's current primary selection is delivered to you \
+as a picture with their message — look at it before saying anything about \
+how it looks. For any other image, call view_image; the picture arrives with \
+the next message. Describe what you actually see, never what the filename \
+or labels suggest."""
 
 
 async def chat(config: Config, messages: list[dict], tools: list[dict]) -> dict:
