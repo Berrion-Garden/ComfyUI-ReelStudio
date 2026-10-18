@@ -139,6 +139,11 @@ or `~/.config/reelstudio/config.json`:
 The web UI is prebuilt into `web/dist/`. To rebuild it:
 `cd frontend && npm run build && cp -r dist/* ../web/dist/`.
 
+Every knob is a `REELSTUDIO_*` env var; a repo-root `.env` (see
+`.env.example`) configures a deployment without touching the unit or shell.
+The full deploy/migration story — new machines, pointing at another remote
+LLM gateway — lives in [docs/deployment.md](docs/deployment.md).
+
 ### Standalone (no ComfyUI)
 
 The app runs without ComfyUI around it — useful for development and for

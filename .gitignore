@@ -5,3 +5,5 @@ __pycache__/
 workspace/
 *.egg-info/
 frontend/node_modules/
+.env
+.openchamber/
