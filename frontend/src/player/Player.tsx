@@ -46,6 +46,7 @@ export function Player({ scenes, onPlayhead, selectedAsset, seekRequest, mix }: 
   const videoA = useRef<HTMLVideoElement | null>(null);
   const videoB = useRef<HTMLVideoElement | null>(null);
   const raf = useRef<number | null>(null);
+  const lastTick = useRef<number | null>(null);
 
   const clipDurations = (): Clip[] =>
     playable.map((s) => ({
@@ -55,11 +56,21 @@ export function Player({ scenes, onPlayhead, selectedAsset, seekRequest, mix }: 
     }));
 
   useEffect(() => {
+    if (!playing) {
+      lastTick.current = null;
+      return;
+    }
+    // wall-clock delta, not a fixed 1/60 per rAF frame — rAF fires at the
+    // display's refresh rate, which double-speeds the reel on 120 Hz+ screens
+    lastTick.current = performance.now();
     const tick = () => {
+      const now = performance.now();
+      const dt = Math.min((now - (lastTick.current ?? now)) / 1000, 0.25);
+      lastTick.current = now;
       setState((cur) => {
         if (!cur || !playing) return cur;
         const ds = clipDurations();
-        const next = advance(ds, cur, 1 / 60);
+        const next = advance(ds, cur, dt);
         if (next === null) {
           setPlaying(false);
           onPlayhead?.(null);
@@ -71,9 +82,7 @@ export function Player({ scenes, onPlayhead, selectedAsset, seekRequest, mix }: 
       });
       raf.current = requestAnimationFrame(tick);
     };
-    if (playing) {
-      raf.current = requestAnimationFrame(tick);
-    }
+    raf.current = requestAnimationFrame(tick);
     return () => {
       if (raf.current) cancelAnimationFrame(raf.current);
     };
@@ -131,7 +140,10 @@ export function Player({ scenes, onPlayhead, selectedAsset, seekRequest, mix }: 
         if (fresh && cur) {
           el.currentTime = Math.min(cur.elapsedInClip, el.duration || Infinity);
         }
+        // both branches matter: leaving the active element un-paused on
+        // pause kept its baked audio rolling "in the background"
         if (playing) void el.play().catch(() => setPlaying(false));
+        else el.pause();
       } else {
         el.pause();
       }
@@ -154,7 +166,6 @@ export function Player({ scenes, onPlayhead, selectedAsset, seekRequest, mix }: 
   const pauseMix = () => {
     for (const el of trackEls.current.values()) el.pause();
     bellEl.current?.pause();
-    bellsFired.current.clear();
   };
 
   const applyMix = (t: number) => {
@@ -198,9 +209,26 @@ export function Player({ scenes, onPlayhead, selectedAsset, seekRequest, mix }: 
 
   useEffect(() => {
     if (!playing) pauseMix();           // pause/stop/asset-view silences the mix
+    if (seekRequest) bellsFired.current.clear();  // seeking back may re-ring a bell
     resync.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, seekRequest?.n]);
+
+  // the OS media controls (macOS Now Playing etc.) grab whichever element is
+  // audible — route their play/pause to the WHOLE preview, not one element
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    try {
+      navigator.mediaSession.setActionHandler("pause", () => setPlaying(false));
+      navigator.mediaSession.setActionHandler("play", () => setPlaying(true));
+    } catch { /* unsupported actions on some platforms */ }
+    return () => {
+      try {
+        navigator.mediaSession.setActionHandler("pause", null);
+        navigator.mediaSession.setActionHandler("play", null);
+      } catch { /* ignore */ }
+    };
+  }, []);
 
   if (playable.length === 0) {
     return (
