@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { assemble, bellUrl, fetchProject, renderScenes, renderStale, updateAudioTrack } from "./api";
+import { adoptRenders, assemble, bellUrl, fetchProject, fetchSfxBoard, renderScenes, renderStale, updateAudioTrack, placeSfxEvent, removeSfxEvent, type SfxScene } from "./api";
 import { Player, type SelectedAsset } from "./player/Player";
 import { Timeline } from "./timeline/Timeline";
 import { Chat } from "./chat/Chat";
@@ -13,10 +13,16 @@ export function App() {
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<SelectedAsset | null>(null);
   const [seekRequest, setSeekRequest] = useState<{ s: number; n: number } | null>(null);
+  const [sfxBoard, setSfxBoard] = useState<SfxScene[]>([]);
 
   const refresh = useCallback(async () => {
     try {
-      setProject(await fetchProject());
+      const [p, board] = await Promise.all([
+        fetchProject(),
+        fetchSfxBoard().catch(() => [] as SfxScene[]),
+      ]);
+      setProject(p);
+      setSfxBoard(board);
       setError(null);
     } catch (e) {
       setError(String(e));
@@ -75,6 +81,13 @@ export function App() {
             ⟳ Render changed
           </button>
           <button
+            onClick={() => void act("adopt", adoptRenders)}
+            disabled={busyAction !== null || anyJobsRunning}
+            title="declare the current renders match this config (no re-render)"
+          >
+            ✓ Adopt renders
+          </button>
+          <button
             onClick={() => void act("assemble", () => assemble(false))}
             disabled={busyAction !== null || anyJobsRunning}
             title="final production: music bed + concat + mix"
@@ -118,7 +131,25 @@ export function App() {
                 ],
                 sfxVolume: project.sfx_volume,
                 useMusic: !(project.flags as { skip_music?: boolean }).skip_music,
-                bellUrl: bellUrl(),
+                oneShots: [
+                  // placed sfx-board events, at absolute reel time
+                  ...sfxBoard.flatMap((row) => {
+                    const sc = project.scenes.find((s) => s.id === row.id);
+                    return row.assets
+                      .filter((a) => a.url)
+                      .map((a, i) => ({
+                        key: `${row.id}#${i}`, url: a.url as string,
+                        atS: (sc?.start_s ?? 0) + a.at, gain: a.gain,
+                      }));
+                  }),
+                  // the yaml bell is just a well-known one-shot asset
+                  ...project.scenes
+                    .filter((s) => s.bell_at !== null)
+                    .map((s) => ({
+                      key: `bell-${s.id}`, url: bellUrl(),
+                      atS: s.start_s + (s.bell_at as number), gain: 0.5,
+                    })),
+                ],
                 totalS: project.total_s,
               }}
             />
@@ -129,6 +160,17 @@ export function App() {
           scenes={project.scenes}
           music={project.music}
           overlays={project.overlays}
+          sfxRows={sfxBoard}
+          onPlaceSfx={(sceneId, asset, at) => {
+            void placeSfxEvent(sceneId, asset, at)
+              .then(() => refresh())
+              .catch((e) => setError(String(e)));
+          }}
+          onRemoveSfx={(sceneId, index) => {
+            void removeSfxEvent(sceneId, index)
+              .then(() => refresh())
+              .catch((e) => setError(String(e)));
+          }}
           onTrackChange={(index, fades) => {
             void updateAudioTrack(index, { fades })
               .then(() => refresh())

@@ -296,12 +296,39 @@ async def get_sfx_board(request: web.Request) -> web.Response:
             "bell_at": se.get("bell_at"),
             "split": f"{API}/scene/{sid}/artifact/sfx" if split.is_file() else None,
             "peaks": None,
+            "assets": [],
         }
+        for ev in audio_mod.sfx_events(project, sid):
+            item["assets"].append({
+                "asset": ev["asset"], "at": ev["at"], "gain": ev["gain"],
+                "url": (f"{API}/asset/file?path=sfx/{ev['file']}"
+                        if ev["file"] else None),
+            })
         if buckets and item["split"]:
             item["peaks"] = await asyncio.to_thread(
                 audio_mod.peaks_for_path, split, buckets)
         items.append(item)
     return web.json_response({"scenes": items})
+
+
+async def post_sfx_event(request: web.Request) -> web.Response:
+    """Place a sound-effect asset on the timeline: {scene_id, asset, at, gain}."""
+    state = _state(request)
+    body = await request.json()
+    return web.json_response(audio_mod.place_sfx_event(
+        state.project(), state.config, str(body.get("scene_id", "")), body))
+
+
+async def delete_sfx_event(request: web.Request) -> web.Response:
+    """Remove a placed one-shot: {scene_id, index}."""
+    state = _state(request)
+    body = await request.json()
+    try:
+        index = int(body.get("index"))
+    except (TypeError, ValueError):
+        raise ValidationError(["index must be an integer"])
+    return web.json_response(audio_mod.remove_sfx_event(
+        state.project(), state.config, str(body.get("scene_id", "")), index))
 
 
 async def get_bell_artifact(request: web.Request) -> web.Response:
@@ -408,6 +435,8 @@ def create_app(config: Config) -> web.Application:
     app.router.add_put(f"{API}/audio/{{index}}", put_audio_track)
     app.router.add_get(f"{API}/bell/artifact", get_bell_artifact)
     app.router.add_get(f"{API}/sfx/board", get_sfx_board)
+    app.router.add_post(f"{API}/sfx/board", post_sfx_event)
+    app.router.add_delete(f"{API}/sfx/board", delete_sfx_event)
     app.router.add_post(f"{API}/manifest/adopt", post_manifest_adopt)
     app.router.add_get(f"{API}/scene/{{scene_id}}/artifact/{{kind}}", get_scene_artifact)
     app.router.add_post(f"{API}/agent/chat", post_agent_chat)

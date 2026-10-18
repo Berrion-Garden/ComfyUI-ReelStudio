@@ -35,24 +35,18 @@ def save(reel_dir: str | Path, manifest: dict) -> None:
     tmp.replace(p)
 
 
-def record_scene(reel_dir: str, scene_id: str, chain_hash: str, video_path: str,
+def record_scene(reel_dir: str, scene_id: str, video_path: str,
                  frames: int, prompt_id: str = "",
-                 upstream: tuple[str, str] | None = None,
                  generation: dict | None = None) -> dict:
-    """`upstream` = (scene_id, deliverable filename) when the scene anchored on
-    prev_last — the junction identity a later upstream re-render invalidates.
-    `generation` caches the scene's collapsed generation input (reel.py's
+    """`generation` caches the scene's collapsed generation input (reel.py's
     merged prompt/anchors) — the artifact staleness diffs against."""
     manifest = load(reel_dir)
     entry = {
-        "chain_hash": chain_hash,
         "video": {"kind": "video", "path": {"file": str(Path(video_path).name)}},
         "frames": frames,
         "prompt_id": prompt_id,
         "rendered_at": time.time(),
     }
-    if upstream is not None:
-        entry["upstream"] = {"scene_id": upstream[0], "file": upstream[1]}
     if generation is not None:
         entry["generation"] = generation
     manifest["scenes"][scene_id] = entry
@@ -85,40 +79,28 @@ def deliverable(reel_dir: str | Path, scene_id: str) -> str | None:
 
 
 def adopt_existing(reel_dir: str | Path, project) -> int:
-    """Record renders that predate the manifest as current: each scene with a
-    deliverable and no entry gets the CURRENT generation input cached as its
-    provenance (and the chain hash, for workspaces that cannot collapse).
-    Explicit user action — it declares 'these renders match this config',
-    never assumed."""
+    """Declare the CURRENT deliverables current: every scene with a
+    deliverable gets its manifest entry (re)written in the collapse format —
+    the current generation input cached as its provenance. Explicit user
+    action — it declares 'these renders match this config', never assumed.
+    Existing entries adopted under older mechanisms are converted here."""
     from . import collapse as collapse_mod
-    from .timeline import chain_hash
 
     gen = collapse_mod.current(project)
     manifest = load(reel_dir)
     adopted = 0
-    by_id = project.by_id()
     for s in project.scenes:
         sid = s["id"]
-        if sid in manifest["scenes"]:
-            continue
         d = deliverable(reel_dir, sid)
         if d is None:
             continue
-        upstream = None
-        if s["video"].get("first") == "prev_last":
-            prev = project.previous(sid)
-            prev_file = (manifest["scenes"].get(prev["id"], {})
-                         .get("video", {}).get("path", {}).get("file"))
-            if prev_file:
-                upstream = (prev["id"], prev_file)
+        if sid in manifest["scenes"] and manifest["scenes"][sid].get("generation"):
+            continue  # already in the new format; renders are managed, not adopted
         entry = {
-            "chain_hash": chain_hash(project, s),
             "video": {"kind": "video", "path": {"file": Path(d).name}},
             "frames": s.get("frames", project.default_frames),
             "adopted": True,
         }
-        if upstream:
-            entry["upstream"] = {"scene_id": upstream[0], "file": upstream[1]}
         if gen and gen.get(sid):
             entry["generation"] = gen[sid]
         manifest["scenes"][sid] = entry

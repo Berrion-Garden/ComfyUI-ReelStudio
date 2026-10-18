@@ -94,81 +94,36 @@ def _fmt(value, aliases):
     return value
 
 
-def config_hash(project: Project, scene: dict) -> str:
-    blob = json.dumps(generation_view(project, scene), sort_keys=True)
-    return hashlib.sha256(blob.encode()).hexdigest()[:16]
-
-
-def chain_hash(project: Project, scene: dict, cache: dict | None = None) -> str:
-    """Config hash folded with the upstream prev_last chain, so any upstream
-    re-render cascades staleness downstream without re-rendering sideways
-    branches (still-anchored scenes keep their own hash)."""
-    cache = cache if cache is not None else {}
-    sid = scene["id"]
-    if sid in cache:
-        return cache[sid]
-    h = config_hash(project, scene)
-    if scene["video"].get("first") == "prev_last":
-        prev = project.previous(sid)
-        if prev is not None:
-            upstream = chain_hash(project, prev, cache)
-            h = hashlib.sha256(f"{h}:{upstream}".encode()).hexdigest()[:16]
-    cache[sid] = h
-    return h
-
-
 # ------------------------------------------------------------ staleness ----
 def stale_scenes(project: Project, manifest: dict, reel_dir: str = "",
                  collapse: dict | None = None) -> list[str]:
     """Scene ids whose recorded generation input no longer matches what the
     yaml would generate now.
 
-    Primary mechanism: `collapse` (reel.py's merged generation input per
-    scene) diffed against the artifact cached in the manifest at render time.
-    It subsumes junction identity — a resolved prev_last anchor carries the
+    One mechanism: `collapse` (reel.py's merged generation input per scene)
+    diffed against the artifact cached in the manifest at render time. It
+    subsumes junction identity — a resolved prev_last anchor carries the
     upstream file's content hash, so an upstream re-render cascades here
-    automatically. When the workspace cannot collapse (older reel.py), fall
-    back to the hash chain."""
+    automatically. When the workspace cannot collapse there is nothing to
+    diff against, so nothing is declared stale (a broken reel.py must not
+    trigger a whole-reel re-render)."""
     from pathlib import Path
 
-    if collapse is not None:
-        stale = []
-        for s in project.scenes:
-            sid = s["id"]
-            entry = manifest.get("scenes", {}).get(sid)
-            if entry is None:
-                stale.append(sid)
-                continue
-            if entry.get("generation") != collapse.get(sid):
-                stale.append(sid)
-                continue
-            video_file = (entry.get("video") or {}).get("path", {}).get("file")
-            if not video_file or not (Path(reel_dir) / video_file).exists():
-                stale.append(sid)
-        return stale
-
-    cache = {}
+    if collapse is None:
+        return []
     stale = []
     for s in project.scenes:
-        entry = manifest.get("scenes", {}).get(s["id"])
+        sid = s["id"]
+        entry = manifest.get("scenes", {}).get(sid)
         if entry is None:
-            stale.append(s["id"])
+            stale.append(sid)
             continue
-        if entry.get("chain_hash") != chain_hash(project, s, cache):
-            stale.append(s["id"])
+        if entry.get("generation") != collapse.get(sid):
+            stale.append(sid)
             continue
         video_file = (entry.get("video") or {}).get("path", {}).get("file")
         if not video_file or not (Path(reel_dir) / video_file).exists():
-            stale.append(s["id"])
-            continue
-        # junction identity: an upstream re-render (even same-config, new seed)
-        # invalidates a prev_last-dependent scene — the anchored frame moved
-        up = entry.get("upstream")
-        if up:
-            prev_entry = manifest.get("scenes", {}).get(up["scene_id"], {})
-            current = (prev_entry.get("video") or {}).get("path", {}).get("file")
-            if current != up.get("file"):
-                stale.append(s["id"])
+            stale.append(sid)
     return stale
 
 

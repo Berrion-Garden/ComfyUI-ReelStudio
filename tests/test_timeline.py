@@ -28,59 +28,53 @@ def test_starts_are_cumulative(config):
     assert total_dur(project) == round(3 * d, 4)
 
 
-def test_config_hash_tracks_generation_inputs(config):
-    from reelstudio.timeline import config_hash
+def test_config_edits_change_the_generation_view(config):
+    """The generation view is what collapse hashes — editing a scene's
+    description must change it (and therefore staleness downstream)."""
+    from reelstudio.timeline import generation_view
 
     project = _project(config)
     s2 = project.scene("s2_bowldrop")
-    before = config_hash(project, s2)
+    before = generation_view(project, s2)
     s2["video"]["description"] = "Changed."
-    assert config_hash(project, s2) != before
-
-
-def test_chain_hash_cascades_through_prev_last(config):
-    from reelstudio.timeline import chain_hash, config_hash
-
-    project = _project(config)
-    s1, s2, s3 = project.scenes
-
-    # s2 anchors on s1 (prev_last): s1's config change moves s2's chain hash
-    s2_before = chain_hash(project, s2)
-    s1["video"]["description"] = "Rewritten."
-    assert chain_hash(project, s2) != s2_before
-
-    # s3 anchors on stills only: upstream changes do NOT cascade into it
-    s3_before = config_hash(project, s3)
-    s1["video"]["description"] = "Rewritten again."
-    assert config_hash(project, s3) == s3_before
+    assert generation_view(project, s2) != before
 
 
 def test_staleness_reflects_manifest(config, workspace):
+    """Staleness is one mechanism: the manifest's recorded generation input
+    diffed against the fresh collapse; a missing deliverable stays stale."""
     from pathlib import Path
 
+    from reelstudio import collapse as collapse_mod
     from reelstudio.manifest import load as load_manifest
     from reelstudio.manifest import record_scene
-    from reelstudio.timeline import chain_hash, stale_scenes
+    from reelstudio.timeline import stale_scenes
 
     project = _project(config)
     reel_dir = project.meta["reel_dir"]
     Path(reel_dir).mkdir(parents=True, exist_ok=True)
-    manifest = {"scenes": {}, "music": {}}
-    assert stale_scenes(project, manifest, reel_dir) == \
+    for s in project.scenes:
+        (Path(reel_dir) / f"{s['id']}_00001_.mp4").write_bytes(b"x")
+    # the collapse (and its cache) sees the deliverables the manifest will record
+    collapse = collapse_mod.current(project)
+    assert collapse is not None
+    assert stale_scenes(project, {"scenes": {}}, reel_dir, collapse) == \
         [s["id"] for s in project.scenes]
 
     for s in project.scenes:
         (Path(reel_dir) / f"{s['id']}_00001_.mp4").write_bytes(b"x")
-        up = ("s1_ramen", "s1_ramen_00001_.mp4") if s["id"] == "s2_bowldrop" else None
-        record_scene(reel_dir, s["id"], chain_hash(project, s),
-                     f"{s['id']}_00001_.mp4", 22, upstream=up)
-    manifest = manifest_mod.load(reel_dir)
-    assert stale_scenes(project, manifest, reel_dir) == []
+        record_scene(reel_dir, s["id"], f"{s['id']}_00001_.mp4", 22,
+                     generation=collapse[s["id"]])
+    manifest = load_manifest(reel_dir)
+    assert stale_scenes(project, manifest, reel_dir, collapse) == []
 
-    # upstream re-render (new chain hash recorded) makes only the dependent stale
-    record_scene(reel_dir, "s1_ramen", "stale-hash", "s1_ramen_00002_.mp4", 22)
-    manifest = manifest_mod.load(reel_dir)
-    assert stale_scenes(project, manifest, reel_dir) == ["s1_ramen", "s2_bowldrop"]
+    # a config edit moves the fresh collapse: exactly the edited cascade stales
+    (workspace / "reel.yaml").write_text(
+        (workspace / "reel.yaml").read_text().replace(
+            "The fox eats noodles.", "The fox devours noodles."))
+    fresh = collapse_mod.fresh(_project(config))
+    assert fresh is not None
+    assert stale_scenes(project, manifest, reel_dir, fresh) == ["s1_ramen"]
 
 
 def test_generation_view_folds_shared_looks(config, workspace):

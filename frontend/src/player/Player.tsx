@@ -1,20 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { SceneView } from "../types";
 import { absoluteTime, advance, createQueue, type Clip } from "./queue";
-import { bellTimes, fadeOut, sfxVolumeAt, trackPlans, type MixSource } from "./mix";
+import { fadeOut, sfxVolumeAt, trackPlans, type Mix } from "./mix";
+
+export type { Mix, MixOneShot } from "./mix";
 
 export interface SelectedAsset {
   url: string;
   name: string;
-}
-
-/** The layers the preview mix applies on the fly (derived from reel.yaml). */
-export interface Mix {
-  sources: MixSource[];
-  sfxVolume: [number, number][];
-  useMusic: boolean;
-  bellUrl: string | null;
-  totalS: number;
 }
 
 interface Props {
@@ -154,18 +147,19 @@ export function Player({ scenes, onPlayhead, selectedAsset, seekRequest, mix }: 
 
   // ------------------------------------------------------------ the mix --
   // On-the-fly layering of everything the yaml drives: audio tracks (at
-  // seek, under their volume envelopes), the synth bell one-shots, and the
-  // sfx envelope on the baked clip audio — resynced on play/pause/seek.
+  // seek, under their volume envelopes), placed one-shots from the sfx
+  // board, and the sfx envelope on the baked clip audio — resynced on
+  // play/pause/seek.
   const trackEls = useRef<Map<string, HTMLAudioElement>>(new Map());
-  const bellEl = useRef<HTMLAudioElement | null>(null);
-  const bellsFired = useRef<Set<number>>(new Set());
+  const shotEls = useRef<Map<string, HTMLAudioElement>>(new Map());
+  const shotsFired = useRef<Set<string>>(new Set());
   const resync = useRef(true);
   const mixRef = useRef(mix);
   mixRef.current = mix;
 
   const pauseMix = () => {
     for (const el of trackEls.current.values()) el.pause();
-    bellEl.current?.pause();
+    for (const el of shotEls.current.values()) el.pause();
   };
 
   const applyMix = (t: number) => {
@@ -189,13 +183,14 @@ export function Player({ scenes, onPlayhead, selectedAsset, seekRequest, mix }: 
         el.pause();
       }
     }
-    for (const b of bellTimes(scenes)) {
-      if (bellsFired.current.has(b) || t < b || t >= b + 3) continue;
-      const el = bellEl.current;
+    for (const shot of m.oneShots) {
+      if (shotsFired.current.has(shot.key)
+        || t < shot.atS || t >= shot.atS + 0.3) continue;
+      const el = shotEls.current.get(shot.key);
       if (!el || !el.getAttribute("src")) continue;
-      bellsFired.current.add(b);
+      shotsFired.current.add(shot.key);
       el.currentTime = 0;
-      el.volume = 0.5 * fadeOut(t, m.totalS);  // the mix rings the bell at 0.5
+      el.volume = shot.gain * fadeOut(t, m.totalS);
       void el.play().catch(() => { /* autoplay-guarded */ });
     }
     resync.current = false;
@@ -209,7 +204,7 @@ export function Player({ scenes, onPlayhead, selectedAsset, seekRequest, mix }: 
 
   useEffect(() => {
     if (!playing) pauseMix();           // pause/stop/asset-view silences the mix
-    if (seekRequest) bellsFired.current.clear();  // seeking back may re-ring a bell
+    if (seekRequest) shotsFired.current.clear();  // seeking back may re-fire
     resync.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, seekRequest?.n]);
@@ -245,9 +240,10 @@ export function Player({ scenes, onPlayhead, selectedAsset, seekRequest, mix }: 
         <audio key={s.key} ref={(el) => { if (el) trackEls.current.set(s.key, el); }}
           src={s.url} preload="auto" />
       ))}
-      {mix?.bellUrl && (
-        <audio ref={(el) => { bellEl.current = el; }} src={mix.bellUrl} preload="auto" />
-      )}
+      {mix && mix.oneShots.map((s) => (
+        <audio key={s.key} ref={(el) => { if (el) shotEls.current.set(s.key, el); }}
+          src={s.url} preload="auto" />
+      ))}
       <div className="player-stage">
         <video ref={videoA} className={!assetMode && state !== null && state.index % 2 === 0 ? "active" : ""} playsInline />
         <video ref={videoB} className={!assetMode && state !== null && state.index % 2 === 1 ? "active" : ""} playsInline />

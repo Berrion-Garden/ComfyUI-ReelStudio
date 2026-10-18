@@ -114,36 +114,6 @@ def test_manifest_carries_the_collapse(config, workspace):
     assert entry["generation"]["first"]["file_hash"] != "missing"
 
 
-def test_workspaces_without_collapse_fall_back_to_hashes(config, workspace):
-    """An older workspace reel.py (no collapse subcommand) keeps the hash
-    chain working — and its manifest entries record no generation artifact."""
-    from reelstudio import collapse as collapse_mod
-    from reelstudio import manifest as manifest_mod
-    from reelstudio import timeline
-
-    # strip the collapse subcommand from the stub
-    script = workspace / "reel.py"
-    script.write_text(script.read_text().replace('elif cmd == "collapse":',
-                                                 'elif cmd == "nope":'))
-    assert collapse_mod.fresh(_project(config)) is None
-    assert collapse_mod.current(_project(config)) is None
-
-    project = _project(config)
-    _render_all_and_record(project, config)
-    entry = manifest_mod.load(project.meta["reel_dir"])["scenes"]["s1_ramen"]
-    assert "generation" not in entry
-    assert _stale(project, config) == []
-    # the hash fallback still catches config edits
-    from reelstudio.timeline import chain_hash
-
-    manifest_mod.record_scene(project.meta["reel_dir"], "s1_ramen",
-                              "stale-hash", "s1_ramen_00001_.mp4", 22)
-    assert timeline.stale_scenes(
-        project, manifest_mod.load(project.meta["reel_dir"]),
-        project.meta["reel_dir"], collapse=None) == ["s1_ramen"]
-    assert chain_hash(project, project.scenes[0])  # fallback machinery intact
-
-
 def test_adopt_vouches_with_the_collapse(config, workspace):
     """Adopting pre-app renders caches their collapse, so adopted scenes are
     current — and an edited style still invalidates them."""
@@ -157,7 +127,7 @@ def test_adopt_vouches_with_the_collapse(config, workspace):
         del manifest["scenes"][sid]["generation"]
     manifest_mod.save(project.meta["reel_dir"], manifest)
     adopted = manifest_mod.adopt_existing(project.meta["reel_dir"], project)
-    assert adopted == 0  # entries exist; adopt only fills empty ones
+    assert adopted == 3  # entries exist but lack generation — adopt converts them
 
     manifest = manifest_mod.load(project.meta["reel_dir"])
     for sid in list(manifest["scenes"]):

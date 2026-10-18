@@ -108,7 +108,7 @@ def _record_scene_render(project: Project, target: str) -> str:
     that scene's collapsed generation input — the artifact staleness diffs."""
     from . import collapse as collapse_mod
     from . import manifest as manifest_mod
-    from .timeline import chain_hash, scene_frames
+    from .timeline import scene_frames
 
     reel_dir = project.meta["reel_dir"]
     path = manifest_mod.deliverable(reel_dir, target)
@@ -116,18 +116,9 @@ def _record_scene_render(project: Project, target: str) -> str:
         raise FileNotFoundError(
             f"{target}: reel.py finished but no render landed in {reel_dir}")
     scene = project.by_id()[target]
-    upstream = None
-    if scene["video"].get("first") == "prev_last":
-        prev = project.previous(target)
-        prev_file = (manifest_mod.load(reel_dir)["scenes"]
-                     .get(prev["id"], {}).get("video", {})
-                     .get("path", {}).get("file"))
-        if prev_file:
-            upstream = (prev["id"], prev_file)
     gen = collapse_mod.current(project)
-    manifest_mod.record_scene(reel_dir, target, chain_hash(project, scene),
-                              path, scene_frames(project, scene),
-                              upstream=upstream,
+    manifest_mod.record_scene(reel_dir, target, path,
+                              scene_frames(project, scene),
                               generation=(gen or {}).get(target))
     return path
 

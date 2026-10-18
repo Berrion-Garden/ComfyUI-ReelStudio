@@ -24,8 +24,12 @@ export async function renderScenes(sceneIds: string[]): Promise<void> {
   await json_or_throw(resp);
 }
 
-export async function renderStale(): Promise<void> {
-  const resp = await fetch(`${API}/render`, {
+export async function adoptRenders(): Promise<void> {
+  const resp = await fetch(`${API}/manifest/adopt`, { method: "POST" });
+  await json_or_throw(resp);
+}
+
+export async function renderStale(): Promise<void> {  const resp = await fetch(`${API}/render`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ stale: true }),
@@ -54,6 +58,13 @@ export function bellUrl(): string {
   return `${API}/bell/artifact`;
 }
 
+export interface SfxAssetEvent {
+  asset: string;
+  at: number;
+  gain: number;
+  url: string | null;
+}
+
 export interface SfxScene {
   id: string;
   soundscape: string;
@@ -61,11 +72,34 @@ export interface SfxScene {
   bell_at: number | null;
   split: string | null;
   peaks: number[] | null;
+  assets: SfxAssetEvent[];
 }
 
 export async function fetchSfxBoard(buckets = 0): Promise<SfxScene[]> {
   const resp = await fetch(`${API}/sfx/board?peaks=${buckets}`);
   return json_or_throw<{ scenes: SfxScene[] }>(resp).then((j) => j.scenes);
+}
+
+export async function placeSfxEvent(
+  sceneId: string, asset: string, at: number, gain = 0.6,
+): Promise<void> {
+  const resp = await fetch(`${API}/sfx/board`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ scene_id: sceneId, asset, at, gain }),
+  });
+  await json_or_throw(resp);
+}
+
+export async function removeSfxEvent(
+  sceneId: string, index: number,
+): Promise<void> {
+  const resp = await fetch(`${API}/sfx/board`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ scene_id: sceneId, index }),
+  });
+  await json_or_throw(resp);
 }
 
 export async function fetchAudioPeaks(index: number, buckets = 600): Promise<number[]> {

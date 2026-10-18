@@ -115,3 +115,60 @@ async def test_scene_sfx_artifact_serves_the_split(client, workspace):
     assert ok.status == 200
     gone = await client.get("/reelstudio/api/scene/s3_pinkburst/artifact/sfx")
     assert gone.status == 404
+
+
+async def test_sfx_events_place_and_remove_round_trip(client, workspace):
+    (workspace / "sfx").mkdir()
+    (workspace / "sfx" / "school_bell.wav").write_bytes(b"x")
+    before = await (await client.get(
+        "/reelstudio/api/sfx/board")).json()
+
+    placed = await client.post("/reelstudio/api/sfx/board", json={
+        "scene_id": "s1_ramen", "asset": "school_bell", "at": 2.0, "gain": 0.5})
+    assert placed.status == 200
+    assert (await placed.json())["placed"]["asset"] == "school_bell"
+
+    board = await (await client.get("/reelstudio/api/sfx/board")).json()
+    row = next(s for s in board["scenes"] if s["id"] == "s1_ramen")
+    assert row["assets"] == [
+        {"asset": "school_bell", "at": 2.0, "gain": 0.5,
+         "url": "/reelstudio/api/asset/file?path=sfx/school_bell.wav"}]
+
+    # comments in the yaml survive the edit (same ruamel round-trip as
+    # update_track — covered in detail by the volume-anchor test above)
+
+    gone = await client.delete("/reelstudio/api/sfx/board",
+                               json={"scene_id": "s1_ramen", "index": 0})
+    assert gone.status == 200
+    board = await (await client.get("/reelstudio/api/sfx/board")).json()
+    row = next(s for s in board["scenes"] if s["id"] == "s1_ramen")
+    assert row["assets"] == []
+    # removing the last placement leaves no `assets: []` residue
+    text = (workspace / "reel.yaml").read_text()
+    assert "assets:" not in text
+    assert before is not None
+
+
+async def test_sfx_place_rejects_unknown_asset(client):
+    bad = await client.post("/reelstudio/api/sfx/board", json={
+        "scene_id": "s1_ramen", "asset": "nope", "at": 1.0})
+    assert bad.status == 422 or bad.status == 400
+    assert "sfx asset" in (await bad.json())["error"]
+
+
+async def test_sfx_place_preserves_hand_formatting(client, workspace):
+    """A programmatic edit reformats only the lines it touches: no rewrapping,
+    sequences stay indented under their key (the reel.yaml house style)."""
+    (workspace / "sfx").mkdir()
+    (workspace / "sfx" / "school_bell.wav").write_bytes(b"x")
+    before = (workspace / "reel.yaml").read_text()
+
+    resp = await client.post("/reelstudio/api/sfx/board", json={
+        "scene_id": "s1_ramen", "asset": "school_bell", "at": 1.5, "gain": 0.5})
+    assert resp.status == 200
+    after = (workspace / "reel.yaml").read_text()
+
+    # every pre-existing line survives verbatim (insertion only, no reflow)
+    for line in before.splitlines():
+        assert line in after, line
+    assert "    - asset: school_bell" in after

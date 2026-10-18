@@ -12,6 +12,9 @@ interface Props {
   onSceneClick?: (sceneId: string) => void;
   onRenderScene?: (sceneId: string) => void;
   onTrackChange?: (index: number, fades: [number, number][]) => void;
+  sfxRows?: import("../api").SfxScene[];
+  onPlaceSfx?: (sceneId: string, asset: string, at: number) => void;
+  onRemoveSfx?: (sceneId: string, index: number) => void;
   playheadPct: number | null;
   onSeek?: (pct: number) => void;
 }
@@ -31,7 +34,7 @@ function AnchorThumb({ label, kind, url }: { label: string; kind: string; url: s
   );
 }
 
-export function Timeline({ scenes, music, overlays = [], totalS, artifactUrl, onSceneClick, onRenderScene, onTrackChange, playheadPct, onSeek }: Props) {
+export function Timeline({ scenes, music, overlays = [], totalS, artifactUrl, onSceneClick, onRenderScene, onTrackChange, sfxRows, onPlaceSfx, onRemoveSfx, playheadPct, onSeek }: Props) {
   const columns = scenes.map((s) => `${Math.max(s.duration_s, 0.4)}fr`).join(" ");
   const ticks: number[] = [];
   for (let t = 0; t < totalS - 0.01; t += 5) ticks.push(t);
@@ -107,7 +110,11 @@ export function Timeline({ scenes, music, overlays = [], totalS, artifactUrl, on
         })}
 
         {scenes.some((s) => s.has_sfx) && (
-          <SfxBar scenes={scenes.map((s) => ({ id: s.id, duration_s: s.duration_s }))}
+          <SfxBar
+            scenes={scenes.map((s) => ({ id: s.id, duration_s: s.duration_s }))}
+            rows={sfxRows ?? []}
+            onPlace={onPlaceSfx}
+            onRemove={onRemoveSfx}
             columns={columns} />
         )}
 

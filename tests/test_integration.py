@@ -38,11 +38,12 @@ async def test_render_stale_chain_end_to_end(client, workspace):
     assert all(not s["stale"] for s in data["scenes"])
     assert all(s["video_url"] for s in data["scenes"])
 
-    # and the manifest vouches for the prev_last junction: s2 records its
-    # upstream (s1's deliverable) so an s1 re-render invalidates s2
+    # the manifest vouches for the prev_last junction in the new format:
+    # s2's recorded generation carries the resolved anchor, hashing s1's
+    # current deliverable — an s1 re-render invalidates s2
     manifest = json.loads((reel_dir / ".reelstudio_manifest.json").read_text())
-    upstream = manifest.get("scenes", {}).get("s2_bowldrop", {}).get("upstream")
-    assert upstream and upstream["scene_id"] == "s1_ramen"
+    first = manifest["scenes"]["s2_bowldrop"]["generation"]["first"]
+    assert first["kind"] == "prev_last" and first["file_hash"]
 
 
 async def test_yaml_edit_marks_exactly_the_affected_chain(client):

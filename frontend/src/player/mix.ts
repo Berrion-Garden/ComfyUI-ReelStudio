@@ -6,6 +6,24 @@
  * testable without media elements.
  */
 
+/** The layers the preview mix applies on the fly (derived from reel.yaml). */
+export interface Mix {
+  sources: MixSource[];
+  /** placed one-shots (sfx-board events + the bell), absolute reel time */
+  oneShots: MixOneShot[];
+  sfxVolume: [number, number][];
+  useMusic: boolean;
+  totalS: number;
+}
+
+export interface MixOneShot {
+  key: string;
+  url: string;
+  /** absolute reel time to fire at */
+  atS: number;
+  gain: number;
+}
+
 export interface MixSource {
   key: string;
   url: string;
