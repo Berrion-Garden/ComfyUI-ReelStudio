@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { deleteAsset, setAssetLabels, type AssetsData } from "../api";
+import { deleteAsset, importAssets, setAssetLabels, type AssetsData, type StudioView } from "../api";
 import { AssetsPane } from "./AssetsPane";
 
 vi.mock("../api", () => (
-  { setAssetLabels: vi.fn(), deleteAsset: vi.fn() }));
+  { setAssetLabels: vi.fn(), deleteAsset: vi.fn(), importAssets: vi.fn() }));
 
 const data: AssetsData = {
   groups: {
@@ -37,9 +37,19 @@ const data: AssetsData = {
   },
 };
 
+const studio: StudioView = {
+  title: "Test Studio", current: "ep1", saved: true, workspace: "/ws",
+  scenes: [
+    { slug: "ep1", title: "Episode 1", dir: "scenes/ep1", current: true,
+      characters: ["fox_boy"], backgrounds: ["campus_sunset"] },
+    { slug: "ep0", title: "Pilot", dir: "scenes/ep0", current: false,
+      characters: ["tony", "unsorted"], backgrounds: [] },
+  ],
+};
+
 function paneProps(over: Partial<Parameters<typeof AssetsPane>[0]> = {}) {
   return {
-    assets: data, selected: null, selectedPaths: new Set<string>(),
+    assets: data, studio, selected: null, selectedPaths: new Set<string>(),
     onSelect: vi.fn(), onChanged: vi.fn(), ...over,
   };
 }
@@ -123,6 +133,24 @@ describe("AssetsPane", () => {
     expect(screen.getByText("court_sunset")).toBeTruthy();
     expect(screen.getByTestId("asset-backgrounds-bg_campus01")).toBeTruthy();
     expect(screen.getByTestId("asset-backgrounds-bg_court01")).toBeTruthy();
+  });
+
+  it("the Characters + panel imports another scene's pool into a named pool", () => {
+    render(<AssetsPane {...paneProps()} />);
+
+    // the + opens the panel with the OTHER scenes' pools
+    fireEvent.click(screen.getByLabelText("upload into Characters"));
+    fireEvent.click(screen.getByRole("button", { name: "Pilot · unsorted" }));
+
+    // the target defaults to the source pool name; rename to merge into Amun
+    const target = screen.getByLabelText("import target pool name");
+    expect((target as HTMLInputElement).value).toBe("unsorted");
+    fireEvent.change(target, { target: { value: "Amun" } });
+    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+
+    expect(importAssets).toHaveBeenCalledWith({
+      from: "ep0", characters: ["unsorted"], backgrounds: [], as: "Amun",
+    });
   });
 
   it("the ... menu copies an asset:<path> reference and offers delete", async () => {

@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import {
   newScene, openScene, saveScene,
-  type StudioScene, type StudioView,
+  type ImportSpec, type StudioScene, type StudioView,
 } from "../api";
 
-const slugify = (s: string) =>
-  s.toLowerCase().replace(/['’]/g, "")
-    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+type PoolKind = "characters" | "backgrounds";
+const emptyPicks = (): Record<PoolKind, string[]> =>
+  ({ characters: [], backgrounds: [] });
 
 /** The top-left File menu: save the scene reference, open another scene,
- * create a new one (title-first — the slug derives from the title unless
- * overridden). */
+ * create a new one from its name alone (the slug derives server-side).
+ * Importing pools from another scene is opt-in. */
 export function FileMenu({ studio, onChanged, busy }: {
   studio: StudioView | null;
   onChanged: () => Promise<void>;
@@ -19,8 +19,10 @@ export function FileMenu({ studio, onChanged, busy }: {
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [slug, setSlug] = useState("");
   const [title, setTitle] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [source, setSource] = useState("");
+  const [picks, setPicks] = useState(emptyPicks);
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -49,11 +51,27 @@ export function FileMenu({ studio, onChanged, busy }: {
     }
   };
 
-  const create = () => {
-    const finalSlug = slug.trim() || slugify(title);
-    if (!finalSlug) return;
-    void run(() => newScene(finalSlug, title.trim() || undefined));
+  const from = studio.scenes.find((s) => s.slug === source)
+    ?? studio.scenes.find((s) => s.current);
+
+  const importSpec = (): ImportSpec | undefined => {
+    if (!importing || !from) return undefined;
+    if (!picks.characters.length && !picks.backgrounds.length) return undefined;
+    return { from: from.slug, ...picks };
   };
+
+  const create = () => {
+    if (!title.trim()) return;
+    void run(() => newScene(title.trim(), importSpec()));
+  };
+
+  const togglePool = (kind: PoolKind, pool: string) =>
+    setPicks((p) => ({
+      ...p,
+      [kind]: p[kind].includes(pool)
+        ? p[kind].filter((x) => x !== pool)
+        : [...p[kind], pool],
+    }));
 
   return (
     <div className="file-menu" ref={ref}>
@@ -84,28 +102,74 @@ export function FileMenu({ studio, onChanged, busy }: {
           {!creating && (
             <button disabled={busy} onClick={() => {
               setCreating(true);
-              setSlug("");
               setTitle("");
+              setImporting(false);
+              setSource("");
+              setPicks(emptyPicks());
             }}>
               ＋ New scene…
             </button>
           )}
           {creating && (
             <div className="file-create">
-              <label>title <input value={title} placeholder="Episode 2"
-                onChange={(e) => setTitle(e.target.value)} /></label>
-              <label>slug <input value={slug}
-                placeholder={slugify(title) || "ep2"}
-                onChange={(e) => setSlug(e.target.value)} /></label>
-              <button
-                disabled={busy || !(slug.trim() || slugify(title))}
-                onClick={create}>
+              <label>name <input value={title} placeholder="Episode 2"
+                autoFocus
+                onChange={(e) => setTitle(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && create()} /></label>
+              {studio.saved && (
+                <label className="file-import-toggle">
+                  <input type="checkbox" checked={importing}
+                    onChange={(e) => {
+                      setImporting(e.target.checked);
+                      setPicks(emptyPicks());
+                    }} />
+                  bring in characters & locations
+                </label>
+              )}
+              {importing && studio.saved && (
+                <div className="file-import">
+                  <select value={from?.slug ?? ""}
+                    onChange={(e) => {
+                      setSource(e.target.value);
+                      setPicks(emptyPicks());
+                    }}>
+                    {studio.scenes.map((s) => (
+                      <option key={s.slug} value={s.slug}>{s.title}</option>
+                    ))}
+                  </select>
+                  <PoolRow label="characters" pools={from?.characters ?? []}
+                    picked={picks.characters}
+                    onToggle={(p) => togglePool("characters", p)} />
+                  <PoolRow label="locations" pools={from?.backgrounds ?? []}
+                    picked={picks.backgrounds}
+                    onToggle={(p) => togglePool("backgrounds", p)} />
+                </div>
+              )}
+              <button disabled={busy || !title.trim()} onClick={create}>
                 Create scene
               </button>
             </div>
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function PoolRow({ label, pools, picked, onToggle }: {
+  label: string;
+  pools: string[];
+  picked: string[];
+  onToggle: (pool: string) => void;
+}) {
+  return (
+    <div className="file-pools">
+      <span>{label}</span>
+      {pools.map((p) => (
+        <button key={p} className={picked.includes(p) ? "on" : ""}
+          onClick={() => onToggle(p)}>{p}</button>
+      ))}
+      {pools.length === 0 && <span className="file-muted">none</span>}
     </div>
   );
 }

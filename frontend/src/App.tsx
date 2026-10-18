@@ -214,7 +214,8 @@ export function App() {
                 onChanged={() => void refresh()} />
             </div>
           </section>
-          <AssetsPane assets={assets} selected={selectedAsset}
+          <AssetsPane assets={assets} studio={studio}
+            selected={selectedAsset}
             selectedPaths={new Set(selectedAssets.map((a) => a.path))}
             onSelect={selectAsset} onChanged={() => void refresh()} />
         </div>

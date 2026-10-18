@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { deleteAsset, setAssetLabels, uploadFile, type AssetItem, type AssetsData } from "../api";
+import {
+  deleteAsset, importAssets, setAssetLabels, uploadFile,
+  type AssetItem, type AssetsData, type StudioView,
+} from "../api";
 
 interface Props {
   assets: AssetsData | null;
+  /** the studio registry — feeds the cross-scene import list */
+  studio: StudioView | null;
   /** the primary selection (what the stage shows) */
   selected: AssetItem | null;
   /** every picked path — shift-click multi-select */
@@ -45,7 +50,7 @@ function dropTitle(files: FileList): string {
     ? "Audio" : "Custom";
 }
 
-export function AssetsPane({ assets, selected, selectedPaths, onSelect, onChanged }: Props) {
+export function AssetsPane({ assets, studio, selected, selectedPaths, onSelect, onChanged }: Props) {
   const data = assets;
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
@@ -53,10 +58,17 @@ export function AssetsPane({ assets, selected, selectedPaths, onSelect, onChange
   const [poolForm, setPoolForm] = useState<string | null>(null);
   const [poolName, setPoolName] = useState("unsorted");
   const [uploading, setUploading] = useState(0);
+  const [charPanel, setCharPanel] = useState(false);
+  const [importSrc, setImportSrc] = useState<{ scene: string; pool: string } | null>(null);
+  const [importTarget, setImportTarget] = useState("");
   const fileInput = useRef<HTMLInputElement | null>(null);
   const uploadTitle = useRef<string>("");
 
   const pick = (title: string) => {
+    if (title === "Characters") {
+      setCharPanel((v) => !v);  // upload or import from another scene
+      return;
+    }
     if (POOL_SECTIONS.has(title)) {
       setPoolForm((v) => (v === title ? null : title));  // the pool needs a name before the picker
       return;
@@ -65,11 +77,31 @@ export function AssetsPane({ assets, selected, selectedPaths, onSelect, onChange
     fileInput.current?.click();
   };
 
-  const chooseFiles = () => {
+  const chooseFiles = (section: string) => {
     setPoolForm(null);
-    uploadTitle.current = poolForm ?? "Characters";
+    setCharPanel(false);
+    uploadTitle.current = section;
     fileInput.current?.click();
   };
+
+  const importPool = () => {
+    if (!importSrc || !importTarget.trim()) return;
+    void act(() => importAssets({
+      from: importSrc.scene,
+      characters: [importSrc.pool],
+      backgrounds: [],
+      as: importTarget.trim(),
+    }));
+    setImportSrc(null);
+    setImportTarget("");
+  };
+
+  // every character pool living in another scene, newest scene last
+  const otherPools = useMemo(() => (studio?.scenes ?? [])
+    .filter((s) => !s.current)
+    .flatMap((s) => s.characters.map((pool) => ({
+      scene: s.slug, title: s.title, pool,
+    }))), [studio]);
 
   const upload = async (files: FileList | File[]) => {
     const title = uploadTitle.current;
@@ -250,17 +282,57 @@ export function AssetsPane({ assets, selected, selectedPaths, onSelect, onChange
                 disabled={uploading > 0}
               >{uploading > 0 ? `↑${uploading}` : "+"}</button>
             )}
-            {POOL_SECTIONS.has(s.title) && poolForm === s.title && (
+            {s.title === "Backgrounds" && poolForm === s.title && (
               <span className="pool-form" onClick={(e) => e.stopPropagation()}>
                 <input value={poolName} autoFocus
                   onChange={(e) => setPoolName(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") chooseFiles(); }}
-                  placeholder="pool name"
+                  onKeyDown={(e) => { if (e.key === "Enter") chooseFiles(s.title); }}
+                  placeholder="location name"
                   aria-label={`${s.title.toLowerCase()} pool name`} />
-                <button type="button" onClick={chooseFiles}>choose files…</button>
+                <button type="button" onClick={() => chooseFiles(s.title)}>choose files…</button>
               </span>
             )}
           </summary>
+          {s.title === "Characters" && charPanel && (
+            <div className="char-panel" onClick={(e) => e.stopPropagation()}>
+              <div className="import-list">
+                {otherPools.length === 0 && (
+                  <div className="file-muted">no pools in other scenes yet</div>
+                )}
+                {otherPools.map(({ scene, title: st, pool }) => {
+                  const on = importSrc?.scene === scene && importSrc?.pool === pool;
+                  return (
+                    <button key={`${scene}/${pool}`} type="button"
+                      className={on ? "on" : ""}
+                      title={`import ${pool} from ${st}`}
+                      onClick={() => {
+                        setImportSrc({ scene, pool });
+                        setImportTarget(pool);
+                      }}>
+                      {st} · {pool}
+                    </button>
+                  );
+                })}
+              </div>
+              <span className="pool-form">
+                <input value={importTarget} placeholder="into pool"
+                  aria-label="import target pool name"
+                  onChange={(e) => setImportTarget(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") importPool(); }} />
+                <button type="button" disabled={!importSrc || !importTarget.trim()}
+                  onClick={importPool}>Import</button>
+              </span>
+              <span className="pool-form">
+                <input value={poolName}
+                  onChange={(e) => setPoolName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") chooseFiles("Characters"); }}
+                  placeholder="pool name" aria-label="character pool name" />
+                <button type="button" onClick={() => chooseFiles("Characters")}>
+                  choose files…
+                </button>
+              </span>
+            </div>
+          )}
           {POOL_SECTIONS.has(s.title) && s.assets.length > 0 ? (
             labeledPools(s.assets, s.title === "Characters" ? "char:" : "loc:")
               .map(({ pool, assets }) => (

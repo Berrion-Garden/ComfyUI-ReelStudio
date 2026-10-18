@@ -104,10 +104,30 @@ TOOLS = [
                        "required": ["path"]}}},
     {"type": "function", "function": {
         "name": "get_studio",
-        "description": "The scene registry: every scene in the studio and "
-                       "the current one. Read before cross-scene work "
-                       "(references, comparisons).",
+        "description": "The scene registry: every scene in the studio (with "
+                       "its character/location pools) and the current one. "
+                       "Read before cross-scene work (imports, references, "
+                       "comparisons).",
         "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {
+        "name": "import_assets",
+        "description": "Copy a character or location pool from another "
+                       "scene into the CURRENT one — into a new pool, or "
+                       "merged into an existing one with `as` (single-pool "
+                       "imports). Never clobbers files; declared labels "
+                       "come along (scene:* foreign keys stripped).",
+        "parameters": {"type": "object",
+                       "properties": {
+                           "from": {"type": "string",
+                                    "description": "source scene slug"},
+                           "characters": {"type": "array",
+                                          "items": {"type": "string"}},
+                           "backgrounds": {"type": "array",
+                                           "items": {"type": "string"}},
+                           "as": {"type": "string",
+                                  "description": "target pool name "
+                                                 "(single-pool imports)"}},
+                       "required": ["from"]}}},
     {"type": "function", "function": {
         "name": "get_provenance",
         "description": "How one generated file was made: its job id, the "
@@ -222,6 +242,13 @@ class ToolBox:
     async def _get_studio(self, _):
         return json.dumps(
             studio_mod.view_of(self.state.config.workspace), ensure_ascii=False)
+
+    async def _import_assets(self, args):
+        out = studio_mod.import_assets(
+            self.state.config.workspace, str(args.get("from", "")),
+            args.get("characters") or (), args.get("backgrounds") or (),
+            args.get("as"))
+        return json.dumps(out, ensure_ascii=False)
 
     async def _get_provenance(self, args):
         path = str(args.get("path", ""))

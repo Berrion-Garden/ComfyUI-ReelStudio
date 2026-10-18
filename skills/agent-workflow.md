@@ -78,9 +78,12 @@ always: true
 - `adopt_renders` declares the CURRENT deliverables current so staleness
   starts from truth — explicit operator instruction only (their ✓ adopt on
   a timeline thumbnail does one scene).
-- `get_studio` is the scene registry (every studio scene, the current one).
-  Cross-scene work starts here — the operator's File menu creates scenes;
-  you cannot.
+- `get_studio` is the scene registry (every studio scene with its character
+  and location pools, the current one). Cross-scene work starts here — the
+  operator's File menu creates scenes; you cannot.
+- `import_assets` copies a character or location pool from another scene
+  into the current one — into a new pool or merged into an existing one
+  (`as`); it never clobbers files and declared labels come along.
 - `get_skill` loads an on-demand skill's full body (`film-grammar`,
   `junction-doctrine`, `asset-library`, `app-troubleshooting`). The system
   prompt carries the always-on skills (this workflow, reel-yaml-schema,
@@ -106,8 +109,9 @@ Two "scene" levels, never confuse them: a **reel-scene** (a `scenes:` entry in
 reel.yaml) and a **studio scene** (a directory under the studio wrapper,
 File → New scene). The full pipeline for a fresh story chunk:
 
-1. **Studio scene** — the operator does File → New scene. You cannot create
-   one; `get_studio` shows what exists.
+1. **Studio scene** — the operator does File → New scene (optionally
+   importing pools from another scene). You cannot create one; `get_studio`
+   shows what exists.
 2. **Places** — add the location to `locations:` (update_yaml), then
    `generate kind=still` → 10 plates in `backgrounds/<location>/` → one gets
    tagged

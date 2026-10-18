@@ -65,9 +65,18 @@ body {
   background: var(--panel); color: var(--text);
   border: 1px solid var(--edge); border-radius: 6px; padding: 4px;
 }
-.file-picks { display: flex; flex-direction: column; gap: 2px; max-height: 160px; overflow-y: auto; }
-.file-pick { font-size: 12px; padding: 3px 6px; }
-.file-pick.on { color: var(--accent); }
+.file-import-toggle {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--dim); padding: 2px 6px; cursor: pointer;
+}
+.file-import { display: flex; flex-direction: column; gap: 6px; padding: 2px 6px; }
+.file-pools {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+  font-size: 11px; color: var(--dim);
+}
+.file-pools button { font-size: 11px; padding: 2px 8px; }
+.file-pools button.on { color: var(--accent); border-color: var(--accent); }
+.file-muted { opacity: 0.6; }
 
 button {
   background: var(--panel-2); color: var(--text);
@@ -474,6 +483,18 @@ button:disabled { opacity: 0.45; cursor: default; }
   color: var(--text); border-radius: 6px; padding: 2px 8px; font-size: 12px;
 }
 .pool-form button { font-size: 11px; padding: 2px 8px; }
+
+.char-panel {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 8px 12px; border-bottom: 1px solid var(--edge);
+}
+.char-panel .pool-form { margin-left: 0; }
+.import-list {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  max-height: 110px; overflow-y: auto;
+}
+.import-list button { font-size: 11px; padding: 2px 8px; }
+.import-list button.on { color: var(--accent); border-color: var(--accent); }
 
 button:focus-visible, input:focus-visible, textarea:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 1px;

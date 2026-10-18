@@ -8,8 +8,12 @@ configured workspace; an unmigrated workspace is an implicit one-scene
 studio that `save_as()` turns into the real nested structure.
 """
 
+from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
+import re
+import shutil
 
 import yaml
 
@@ -189,24 +193,30 @@ scenes:
 """
 
 
-def create_scene(workspace: str | Path, slug: str, title: str | None,
-                 seed_meta: dict) -> Path:
-    """Scaffold a fresh, valid scene directory and make it current.
-    seed_meta is the current scene's reel.yaml meta — the template for the
-    render defaults and the parent dir of the new scene's output paths."""
+def _slugify(name: str) -> str:
+    s = name.lower().replace("'", "").replace("’", "")
+    return re.sub(r"[^a-z0-9]+", "_", s).strip("_")
+
+
+def create_scene(workspace: str | Path, title: str, seed_meta: dict) -> Path:
+    """Scaffold a fresh, valid scene directory and make it current. The slug
+    is never supplied: title snake_cased + a timestamp — no collisions, no
+    naming burden. seed_meta is the current scene's reel.yaml meta — the
+    template for the render defaults and the parent dir of the new scene's
+    output paths."""
     studio = resolve(workspace)
     if not studio.saved:
         raise NotFoundError("save this workspace as a scene before "
                             "creating more")
-    if not (slug := str(slug).strip()) or not slug.replace("-", "").replace("_", "").isalnum():
-        raise ValidationError(["slug must be alphanumeric (-, _)"])
-    if slug in [s.slug for s in studio.scenes]:
-        raise ValidationError([f"scene {slug!r} already exists"])
+    base = _slugify(str(title or "").strip())
+    if not base:
+        raise ValidationError(["a scene needs a name"])
+    slug = f"{base}_{datetime.now():%Y%m%d_%H%M%S}"
     scene = studio.root / SCENES_DIR / slug
     scene.mkdir(parents=True)
     out = Path(seed_meta.get("still_dir", "")).parent
     text = SCAFFOLD.format(
-        title=title or slug, comfy=seed_meta.get("comfy", "http://127.0.0.1:8188"),
+        title=title, comfy=seed_meta.get("comfy", "http://127.0.0.1:8188"),
         fps=seed_meta.get("fps", 24), frames=seed_meta.get("frames", 121),
         width=seed_meta.get("width", 768), height=seed_meta.get("height", 768),
         steps=seed_meta.get("steps", 20),
@@ -214,15 +224,94 @@ def create_scene(workspace: str | Path, slug: str, title: str | None,
         final=out / f"{slug}_reel.mp4", work=scene / ".work")
     (scene / "reel.yaml").write_text(text)
     (scene / "assets.yaml").write_text("")
-    updated = (Scene(slug, title or slug, f"{SCENES_DIR}/{slug}"),)
+    updated = (Scene(slug, title, f"{SCENES_DIR}/{slug}"),)
     _write(Studio(studio.root, studio.title, True,
                   studio.scenes + updated, slug))
     return scene
 
 
 def view_of(workspace: str | Path) -> dict:
-    """The studio read model: the scene registry."""
+    """The studio read model: the registry plus each scene's character and
+    location pools — what the import pickers offer."""
     studio = resolve(workspace)
-    view = studio.view()
+
+    def pools(d: Path) -> list[str]:
+        return sorted(p.name for p in d.iterdir() if p.is_dir()) \
+            if d.is_dir() else []
+
+    def extra(scene) -> dict:
+        d = studio.dir_of(scene.slug)
+        return {"characters": pools(d / "characters"),
+                "backgrounds": pools(d / "backgrounds")}
+
+    view = studio.view(extra)
     view["workspace"] = str(studio.scene_dir)
     return view
+
+
+def import_assets(workspace: str | Path, from_slug: str,
+                  characters: Iterable[str] = (),
+                  backgrounds: Iterable[str] = (),
+                  as_name: str | None = None) -> dict:
+    """Copy character/location pools from another scene into the CURRENT
+    one. A pool lands under its own name, or — single-pool imports — under
+    `as_name`, merging into an existing pool file-by-file, never clobbering.
+    Declared labels come along (scene:* foreign keys stripped, paths
+    re-keyed to the destination)."""
+    studio = resolve(workspace)
+    if not studio.saved:
+        raise NotFoundError("importing needs a saved scene registry")
+    src_dir = studio.dir_of(from_slug)
+    dst_dir = studio.scene_dir
+    if src_dir == dst_dir:
+        raise ValidationError(["cannot import a scene into itself"])
+    src_labels = _declared_labels(src_dir)
+
+    requested = [("characters", list(characters)),
+                 ("backgrounds", list(backgrounds))]
+    total = sum(len(names) for _, names in requested)
+    imported, labels = [], {}
+    for kind, names in requested:
+        for name in names:
+            name = str(name).strip()
+            src = src_dir / kind / name
+            if not src.is_dir():
+                raise NotFoundError(f"{from_slug} has no pool "
+                                    f"{kind}/{name!r}")
+            dst_name = (str(as_name).strip() or name) \
+                if total == 1 else name
+            dst = dst_dir / kind / dst_name
+            for f in sorted(p for p in src.rglob("*") if p.is_file()):
+                target = dst / f.relative_to(src)
+                if target.exists():
+                    continue
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(f, target)
+                imported.append(target.relative_to(dst_dir).as_posix())
+                src_rel = f.relative_to(src_dir).as_posix()
+                if src_rel in src_labels:
+                    labels[imported[-1]] = _clean_labels(src_labels[src_rel])
+    if labels:
+        _merge_labels(dst_dir, labels)
+    return {"from": from_slug, "imported": sorted(imported)}
+
+
+def _declared_labels(scene_dir: Path) -> dict[str, list[str]]:
+    f = scene_dir / "assets.yaml"
+    if not f.is_file():
+        return {}
+    doc = yaml.safe_load(f.read_text()) or {}
+    return {str(k): list(v) for k, v in (doc.get("labels") or {}).items()}
+
+
+def _clean_labels(labels: list[str]) -> list[str]:
+    return [l for l in labels if not l.startswith("scene:")]
+
+
+def _merge_labels(scene_dir: Path, extra: dict[str, list[str]]) -> None:
+    f = scene_dir / "assets.yaml"
+    doc = yaml.safe_load(f.read_text()) if f.is_file() else {}
+    labels = {str(k): list(v)
+              for k, v in (doc or {}).get("labels", {}).items()}
+    labels.update(extra)
+    f.write_text(yaml.safe_dump({"labels": labels}, sort_keys=False))

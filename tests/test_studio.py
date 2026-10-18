@@ -41,13 +41,15 @@ async def test_new_scene(client, workspace):
                              json={"slug": "ep1"})
     assert save.status == 200
 
-    resp = await client.post("/reelstudio/api/studio/scenes", json={
-        "slug": "ep2", "title": "Episode 2"})
+    # the name is the only input — the slug derives (snake_case + timestamp)
+    resp = await client.post("/reelstudio/api/studio/scenes",
+                             json={"title": "Episode 2"})
     assert resp.status == 200
     v = await resp.json()
-    assert v["current"] == "ep2"
+    assert v["current"].startswith("episode_2_")
+    slug = v["current"]
 
-    scene = workspace / "scenes" / "ep2"
+    scene = workspace / "scenes" / slug
     assert (scene / "reel.yaml").is_file()
     assert (scene / "assets.yaml").exists()
 
@@ -56,6 +58,75 @@ async def test_new_scene(client, workspace):
     assert proj.status == 200
     scenes = (await proj.json())["scenes"]
     assert [s["id"] for s in scenes] == ["s1_open"]
+
+    # the registry read model carries each scene's pools (the pickers)
+    v = await get_studio(client)
+    ep1 = next(s for s in v["scenes"] if s["slug"] == "ep1")
+    assert ep1["characters"] == []
+
+
+async def test_new_scene_imports_pools(client, workspace):
+    await client.post("/reelstudio/api/studio/save", json={"slug": "ep1"})
+    (workspace / "scenes" / "ep1" / "characters" / "fox_boy").mkdir(parents=True)
+    (workspace / "scenes" / "ep1" / "characters" / "fox_boy" / "sit_.png") \
+        .write_bytes(b"x")
+    (workspace / "scenes" / "ep1" / "backgrounds" / "campus_sunset") \
+        .mkdir(parents=True)
+    (workspace / "scenes" / "ep1" / "backgrounds" / "campus_sunset" / "bg_.png") \
+        .write_bytes(b"y")
+    (workspace / "scenes" / "ep1" / "assets.yaml").write_text(
+        "labels:\n"
+        "  characters/fox_boy/sit_.png: [char:fox_boy, scene:s1_ramen]\n"
+        "  backgrounds/campus_sunset/bg_.png: [background]\n")
+
+    resp = await client.post("/reelstudio/api/studio/scenes", json={
+        "title": "Episode 2",
+        "import": {"from": "ep1", "characters": ["fox_boy"],
+                   "backgrounds": ["campus_sunset"]}})
+    assert resp.status == 200
+    slug = (await resp.json())["current"]
+    scene = workspace / "scenes" / slug
+    assert (scene / "characters" / "fox_boy" / "sit_.png").is_file()
+    assert (scene / "backgrounds" / "campus_sunset" / "bg_.png").is_file()
+    labels = yaml.safe_load((scene / "assets.yaml").read_text())["labels"]
+    # foreign scene keys are stripped, paths re-keyed to this scene
+    assert labels["characters/fox_boy/sit_.png"] == ["char:fox_boy"]
+    assert labels["backgrounds/campus_sunset/bg_.png"] == ["background"]
+
+
+async def test_import_merges_into_an_existing_pool(client, workspace):
+    await client.post("/reelstudio/api/studio/save", json={"slug": "ep1"})
+    ep1 = workspace / "scenes" / "ep1"
+    (ep1 / "characters" / "unsorted").mkdir(parents=True)
+    (ep1 / "characters" / "unsorted" / "a_.png").write_bytes(b"a")
+    (ep1 / "characters" / "unsorted" / "b_.png").write_bytes(b"b")
+    (ep1 / "assets.yaml").write_text(
+        "labels:\n  characters/unsorted/a_.png: [char:unsorted]\n")
+
+    # switch to a second scene whose Amun pool already holds one of the
+    # names — the import must merge into it without clobbering
+    resp = await client.post("/reelstudio/api/studio/scenes",
+                             json={"title": "Episode 2"})
+    assert resp.status == 200
+    scene = workspace / "scenes" / (await resp.json())["current"]
+    (scene / "characters" / "Amun").mkdir(parents=True)
+    (scene / "characters" / "Amun" / "b_.png").write_bytes(b"original")
+
+    resp = await client.post("/reelstudio/api/studio/import", json={
+        "from": "ep1", "characters": ["unsorted"], "as": "Amun"})
+    assert resp.status == 200
+    out = await resp.json()
+    assert out["imported"] == ["characters/Amun/a_.png"]  # b_.png not clobbered
+    assert (scene / "characters" / "Amun" / "b_.png").read_bytes() == b"original"
+    assert (scene / "characters" / "Amun" / "a_.png").read_bytes() == b"a"
+
+    # the agent's import tool resolves through the same path
+    from reelstudio.app import STATE_KEY
+    from reelstudio.agent.tools import ToolBox
+    state = client.app[STATE_KEY]
+    out = json.loads(await ToolBox(state).call(
+        "import_assets", {"from": "ep1", "characters": ["nope"]}))
+    assert "error" in out
 
 
 async def test_save_as_a_scene_dir_does_not_re_migrate(client, workspace):
@@ -159,14 +230,17 @@ async def test_startup_resolves_a_root_configured_workspace(client, workspace):
     from reelstudio.app import STATE_KEY
 
     await client.post("/reelstudio/api/studio/save", json={"slug": "ep1"})
-    await client.post("/reelstudio/api/studio/scenes", json={"slug": "ep2"})
+    resp = await client.post("/reelstudio/api/studio/scenes",
+                             json={"title": "ep2"})
+    current = (await resp.json())["current"]
 
     # a fresh app, configured the way config.json looks after a restart
     from reelstudio.app import create_app
     app2 = create_app(make_config(workspace))
     state2 = app2[STATE_KEY]
-    assert state2.config.workspace == workspace / "scenes" / "ep2"
-    assert state2.config.yaml_path == workspace / "scenes" / "ep2" / "reel.yaml"
+    assert state2.config.workspace == workspace / "scenes" / current
+    assert state2.config.yaml_path == \
+        workspace / "scenes" / current / "reel.yaml"
 
 
 async def test_upload_lands_in_library_dirs(client, workspace):

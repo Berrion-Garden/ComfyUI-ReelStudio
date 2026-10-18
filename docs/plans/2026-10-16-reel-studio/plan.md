@@ -190,19 +190,27 @@ Critical path M14a → M14b → M14d → M14e (M14c parallel).
 
 Requirements:
 
-- FR-29: Scene creation is title-first: the dialog needs only a title; the
-  slug derives from it (slugify) and the slug field is an optional override
-  shown as the input's placeholder. A filled title always enables Create.
+- FR-29: Scene creation is name-only: the dialog needs only a name; the
+  slug derives server-side (snake_case of the name + a timestamp — no
+  collisions, no slug field anywhere). A filled name always enables Create.
+  (Revised 2026-10-18, later the same day: the operator wants NO slug input
+  at all and a collision-proof derivation — snake_case + timestamp.)
 - FR-30: `save_as()` never re-migrates: a workspace that resolves to a SAVED
   studio through an ancestor updates that studio's registry, whatever
   directory is configured. (Regression: 2026-10-18 12:18 — a Save click with
   the scene dir configured re-migrated, moving the scene into
   `scenes/court_aftermath/scenes/court_aftermath/`; the live workspace was
   repaired by hand.)
-- FR-31: Import is removed by operator decision (2026-10-18): no import UI in
-  scene creation, no `import` param on POST /studio/scenes, no
-  `import_assets` (studio.py, route, agent tool), no per-scene
-  characters/backgrounds lists in the studio view. Git history keeps it.
+- FR-31: Import is OPTIONAL, never forced (revised 2026-10-18, overturning
+  the same-day removal): scene creation has an opt-in "bring in characters &
+  locations" toggle (source scene + pool picks); POST /studio/scenes carries
+  the optional `import` spec; `import_assets` is restored (studio.py, route,
+  agent tool) with location-pool semantics — a pool copies under its own
+  name or merges into an existing pool via `as`, never clobbering files;
+  the studio view exposes each scene's character/location pools.
+- FR-31b: The Characters section's "+" opens the cross-scene import panel:
+  every other scene's character pools, an editable target-pool name
+  (defaulting to the source pool's name), and the upload path unchanged.
 - FR-32: Backgrounds are location pools, modeled exactly like characters:
   `backgrounds/<location>/*.png`, derived `loc:<location>` labels, the Assets
   pane groups Backgrounds by location, uploads into Backgrounds ask for the

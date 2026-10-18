@@ -16,8 +16,10 @@ function studio(partial: Partial<StudioView> = {}): StudioView {
     saved: true,
     workspace: "/w/scenes/ep1",
     scenes: [
-      { slug: "ep1", title: "Episode 1", dir: "scenes/ep1", current: true },
-      { slug: "ep2", title: "Episode 2", dir: "scenes/ep2", current: false },
+      { slug: "ep1", title: "Episode 1", dir: "scenes/ep1", current: true,
+        characters: ["fox_boy"], backgrounds: ["campus_sunset"] },
+      { slug: "ep2", title: "Episode 2", dir: "scenes/ep2", current: false,
+        characters: [], backgrounds: [] },
     ],
     ...partial,
   };
@@ -43,37 +45,53 @@ describe("FileMenu", () => {
     await waitFor(() => expect(onChanged).toHaveBeenCalled());
   });
 
-  it("creates a scene from a title alone — the slug derives", async () => {
+  it("creates a scene from the name alone — the slug derives server-side", async () => {
     vi.mocked(newScene).mockResolvedValue(studio());
     render(<FileMenu studio={studio()} onChanged={vi.fn()} busy={false} />);
     fireEvent.click(screen.getByText(/^File/));
     fireEvent.click(screen.getByText(/New scene…/));
     fireEvent.change(screen.getByPlaceholderText("Episode 2"),
       { target: { value: "Amun's Reveal" } });
-    // the slug field previews the derived slug before anything is typed
-    expect(screen.getByPlaceholderText("amuns-reveal")).toBeTruthy();
     const create = screen.getByText("Create scene") as HTMLButtonElement;
     expect(create.disabled).toBe(false);
     fireEvent.click(create);
     await waitFor(() =>
-      expect(newScene).toHaveBeenCalledWith("amuns-reveal", "Amun's Reveal"));
+      expect(newScene).toHaveBeenCalledWith("Amun's Reveal", undefined));
   });
 
-  it("an explicit slug overrides the derived one", async () => {
+  it("importing pools is opt-in and rides the create call", async () => {
     vi.mocked(newScene).mockResolvedValue(studio());
     render(<FileMenu studio={studio()} onChanged={vi.fn()} busy={false} />);
     fireEvent.click(screen.getByText(/^File/));
     fireEvent.click(screen.getByText(/New scene…/));
+
+    // off by default: no picker is shown, create carries no import spec
+    expect(screen.queryByText("fox_boy")).toBeNull();
     fireEvent.change(screen.getByPlaceholderText("Episode 2"),
-      { target: { value: "Amun's Reveal" } });
-    fireEvent.change(screen.getByPlaceholderText("amuns-reveal"),
-      { target: { value: "ep2" } });
+      { target: { value: "Episode 3" } });
     fireEvent.click(screen.getByText("Create scene"));
     await waitFor(() =>
-      expect(newScene).toHaveBeenCalledWith("ep2", "Amun's Reveal"));
+      expect(newScene).toHaveBeenCalledWith("Episode 3", undefined));
   });
 
-  it("Create stays disabled with no title and no slug", () => {
+  it("the import toggle reveals the pools of the chosen source scene", async () => {
+    vi.mocked(newScene).mockResolvedValue(studio());
+    render(<FileMenu studio={studio()} onChanged={vi.fn()} busy={false} />);
+    fireEvent.click(screen.getByText(/^File/));
+    fireEvent.click(screen.getByText(/New scene…/));
+    fireEvent.click(screen.getByLabelText("bring in characters & locations"));
+
+    fireEvent.click(screen.getByRole("button", { name: "fox_boy" }));
+    fireEvent.click(screen.getByRole("button", { name: "campus_sunset" }));
+    fireEvent.change(screen.getByPlaceholderText("Episode 2"),
+      { target: { value: "Episode 3" } });
+    fireEvent.click(screen.getByText("Create scene"));
+    await waitFor(() => expect(newScene).toHaveBeenCalledWith("Episode 3", {
+      from: "ep1", characters: ["fox_boy"], backgrounds: ["campus_sunset"],
+    }));
+  });
+
+  it("Create stays disabled with no name", () => {
     render(<FileMenu studio={studio()} onChanged={vi.fn()} busy={false} />);
     fireEvent.click(screen.getByText(/^File/));
     fireEvent.click(screen.getByText(/New scene…/));

@@ -165,6 +165,15 @@ export interface StudioScene {
   title: string;
   dir: string;
   current: boolean;
+  characters: string[];
+  backgrounds: string[];
+}
+
+export interface ImportSpec {
+  from: string;
+  characters: string[];
+  backgrounds: string[];
+  as?: string;
 }
 
 export interface StudioView {
@@ -197,8 +206,21 @@ export function openScene(slug: string): Promise<StudioView> {
   return postStudio("/open", { slug });
 }
 
-export function newScene(slug: string, title?: string): Promise<StudioView> {
-  return postStudio("/scenes", { slug, title });
+/** New scene from its name alone — the backend derives the slug
+ * (snake_case + timestamp). `imp` optionally brings pools over from
+ * another scene. */
+export function newScene(title: string, imp?: ImportSpec): Promise<StudioView> {
+  return postStudio("/scenes", { title, import: imp });
+}
+
+/** Copy character/location pools from another scene into the current one. */
+export async function importAssets(spec: ImportSpec): Promise<void> {
+  const resp = await fetch(`${API}/studio/import`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(spec),
+  });
+  await json_or_throw(resp);
 }
 
 /** Upload one file into a workspace library dir (the studio's paperclip,
