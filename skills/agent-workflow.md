@@ -15,6 +15,11 @@ always: true
 - `get_assets` is the derived library: character pose pools (`char:`/`pose:`),
   custom images, themes, audio, and `used_by` per still. Find anchor images by
   label here — never guess filenames (see asset-library).
+- `currently_selected` is the request-scoped selection: every asset the
+  operator picked in the studio (shift-click multi-selects), the last one
+  being the `primary` they are looking at. The operator may also paste
+  `asset:<path>` references — produced by an asset thumbnail's
+  copy-reference menu — those paths match `get_assets` entries exactly.
 - `update_yaml` replaces the WHOLE file and is validate-gated: one atomic edit
   per call. ALWAYS `get_yaml` first, edit that text, submit the complete file.
   On a validation error, fix the SAME text and retry — never re-read and start

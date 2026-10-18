@@ -236,12 +236,22 @@ async def test_agent_currently_selected_tool(config, workspace):
 
     # the tool answers from the request-scoped selection the FE sends,
     # with labels refreshed from the index (the FE copy can be stale)
-    box = ToolBox(state, selected={
+    box = ToolBox(state, selected=[{
         "path": str(workspace / "characters" / "tony" / "face_.png"),
-        "slug": "face", "group": "characters"})
+        "slug": "face", "group": "characters"}])
     out = json.loads(await box.call("currently_selected", {}))
-    assert out["selected"]["slug"] == "face"
-    assert out["selected"]["labels"] == ["char:tony", "pose:face"]
+    assert out["selected"][0]["slug"] == "face"
+    assert out["selected"][0]["labels"] == ["char:tony", "pose:face"]
+    assert out["primary"]["slug"] == "face" and out["count"] == 1
+
+    # multi-select: every picked asset comes back, last = primary
+    box = ToolBox(state, selected=[
+        {"path": str(workspace / "characters" / "tony" / "face_.png"),
+         "slug": "face", "group": "characters"},
+        {"path": "/out/x.png", "slug": "x", "group": "stills"}])
+    out = json.loads(await box.call("currently_selected", {}))
+    assert [a["slug"] for a in out["selected"]] == ["face", "x"]
+    assert out["primary"]["slug"] == "x"
 
     assert json.loads(await ToolBox(state).call("currently_selected", {}))[
         "selected"] is None

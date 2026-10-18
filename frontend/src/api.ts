@@ -24,11 +24,6 @@ export async function renderScenes(sceneIds: string[]): Promise<void> {
   await json_or_throw(resp);
 }
 
-export async function adoptRenders(): Promise<void> {
-  const resp = await fetch(`${API}/manifest/adopt`, { method: "POST" });
-  await json_or_throw(resp);
-}
-
 export async function renderStale(): Promise<void> {  const resp = await fetch(`${API}/render`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -211,11 +206,21 @@ export function newScene(
   return postStudio("/scenes", { slug, title, import: imp });
 }
 
+/** Declare renders current — the whole reel or one scene (thumbnail ✓). */
+export async function adoptScene(sceneId?: string): Promise<void> {
+  const resp = await fetch(`${API}/manifest/adopt`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(sceneId ? { scene_id: sceneId } : {}),
+  });
+  await json_or_throw(resp);
+}
+
 /** POST a chat message; yields SSE events as they stream. */
 export async function* chatStream(
   message: string,
   history: { role: string; content: string }[],
-  selected?: { slug: string; path: string; group: string; labels: string[] } | null,
+  selected?: { slug: string; path: string; group: string; labels: string[] }[] | null,
 ): AsyncGenerator<ChatEvent> {
   const resp = await fetch(`${API}/agent/chat`, {
     method: "POST",

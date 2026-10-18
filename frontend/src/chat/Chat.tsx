@@ -10,7 +10,7 @@ interface Entry {
 interface Props {
   onProjectChanged?: () => void;
   /** the operator's current asset selection — the agent's "this one" */
-  selected?: { slug: string; path: string; group: string; labels: string[] } | null;
+  selected?: { slug: string; path: string; group: string; labels: string[] }[] | null;
 }
 
 export function Chat({ onProjectChanged, selected }: Props) {

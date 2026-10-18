@@ -419,7 +419,14 @@ async def post_agent_chat(request: web.Request) -> web.StreamResponse:
     if not user_text:
         return web.json_response({"error": "message required"}, status=400)
     history = [*history, {"role": "user", "content": user_text}]
-    selected = body.get("selected") if isinstance(body.get("selected"), dict) else None
+    sel = body.get("selected")
+    # one asset (legacy shape) or several — shift-click multi-select
+    if isinstance(sel, dict):
+        selected: list[dict] | None = [sel]
+    elif isinstance(sel, list):
+        selected = [s for s in sel if isinstance(s, dict)] or None
+    else:
+        selected = None
 
     resp = web.StreamResponse(headers={
         "Content-Type": "text/event-stream",
@@ -503,10 +510,14 @@ async def post_studio_import(request: web.Request) -> web.Response:
 
 
 async def post_manifest_adopt(request: web.Request) -> web.Response:
-    """Declare pre-app renders current so staleness starts from truth."""
+    """Declare pre-app renders current so staleness starts from truth. With
+    {scene_id}, adopts just that scene — the ✓ on its timeline thumbnail."""
     state = _state(request)
+    body = await request.json() if request.can_read_body else {}
     project = state.project()
-    adopted = manifest_mod.adopt_existing(project.meta["reel_dir"], project)
+    adopted = manifest_mod.adopt_existing(
+        project.meta["reel_dir"], project,
+        str(body.get("scene_id")) if body.get("scene_id") else None)
     return web.json_response({"adopted": adopted})
 
 

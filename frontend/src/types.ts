@@ -20,6 +20,8 @@ export interface SceneView {
   has_sfx: boolean;
   video_url: string | null;
   stale: boolean;
+  /** a deliverable exists on disk but no manifest record vouches for it */
+  adoptable?: boolean;
   start_s: number;
 }
 

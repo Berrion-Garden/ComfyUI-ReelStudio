@@ -35,6 +35,11 @@ def project_view(state, api: str = "/reelstudio/api") -> dict:
                              if video_file else None)
         view["rendered"] = bool(video_file)
         view["stale"] = s["id"] in stale
+        # an unmanaged render (deliverable on disk, no manifest record) can
+        # be adopted — the operator declares it matches this config
+        on_disk = manifest_mod.deliverable(reel_dir, s["id"]) is not None
+        view["adoptable"] = on_disk and not (
+            bool(video_file) and entry.get("generation"))
         view["start_s"] = starts[i]
         scenes.append(view)
 

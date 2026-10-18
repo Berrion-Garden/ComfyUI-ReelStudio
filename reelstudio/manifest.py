@@ -78,12 +78,14 @@ def deliverable(reel_dir: str | Path, scene_id: str) -> str | None:
     return str(hits[-1]) if hits else None
 
 
-def adopt_existing(reel_dir: str | Path, project) -> int:
+def adopt_existing(reel_dir: str | Path, project,
+                   scene_id: str | None = None) -> int:
     """Declare the CURRENT deliverables current: every scene with a
     deliverable gets its manifest entry (re)written in the collapse format —
     the current generation input cached as its provenance. Explicit user
     action — it declares 'these renders match this config', never assumed.
-    Existing entries adopted under older mechanisms are converted here."""
+    Existing entries adopted under older mechanisms are converted here.
+    scene_id narrows the adoption to one scene (the ✓ on its thumbnail)."""
     from . import collapse as collapse_mod
 
     gen = collapse_mod.current(project)
@@ -91,6 +93,8 @@ def adopt_existing(reel_dir: str | Path, project) -> int:
     adopted = 0
     for s in project.scenes:
         sid = s["id"]
+        if scene_id is not None and sid != scene_id:
+            continue
         d = deliverable(reel_dir, sid)
         if d is None:
             continue

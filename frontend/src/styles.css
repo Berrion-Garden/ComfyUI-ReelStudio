@@ -267,6 +267,19 @@ button:disabled { opacity: 0.45; cursor: default; }
   flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 0;
   align-items: center;
 }
+.inspector-wrap { position: relative; flex: 1; display: flex; min-height: 0; width: 100%; }
+.carousel-nav {
+  position: absolute; top: 45%; z-index: 3; transform: translateY(-50%);
+  width: 34px; height: 52px; font-size: 22px; line-height: 1;
+  background: var(--panel); opacity: 0.85;
+}
+.carousel-nav.prev { left: 10px; }
+.carousel-nav.next { right: 10px; }
+.carousel-count {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  z-index: 3; padding: 2px 10px; font-size: 12px; color: var(--text);
+  background: var(--panel); border: 1px solid var(--edge); border-radius: 999px;
+}
 .inspector-media {
   flex: 1; min-height: 0; max-width: 100%; object-fit: contain;
   background: black; border-radius: 6px; color-scheme: dark;
@@ -352,6 +365,37 @@ button:disabled { opacity: 0.45; cursor: default; }
   overflow: hidden; text-overflow: ellipsis;
 }
 .asset-card .usedby { font-size: 9px; color: var(--ok); }
+.asset-card { position: relative; cursor: pointer; }
+.asset-card.picked:not(.selected) { border-color: var(--accent); border-style: dashed; }
+.asset-card .card-verify {
+  position: absolute; top: 6px; left: 6px; right: 24px; z-index: 2;
+  display: flex; gap: 4px; justify-content: flex-end;
+}
+.asset-card .card-verify button {
+  width: 22px; height: 22px; padding: 0; font-size: 13px; line-height: 1;
+  border-radius: 50%; background: var(--panel); opacity: 0.92;
+}
+.asset-card .card-verify .verify-ok { color: var(--ok); border-color: var(--ok); }
+.asset-card .card-verify .verify-del { color: #ff7a90; border-color: #a03050; }
+.asset-card .card-menu-btn {
+  position: absolute; top: 6px; right: 6px; z-index: 2;
+  width: 20px; height: 20px; padding: 0; font-size: 12px; line-height: 1;
+  border-radius: 50%; background: var(--panel); opacity: 0.75;
+}
+.asset-card .card-menu {
+  position: absolute; top: 28px; right: 6px; z-index: 5;
+  display: flex; flex-direction: column; min-width: 130px;
+  background: var(--panel-2); border: 1px solid var(--edge); border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); overflow: hidden;
+}
+.asset-card .card-menu button {
+  border: none; border-radius: 0; font-size: 12px; padding: 6px 10px;
+  background: var(--panel-2);
+}
+.assets-error {
+  margin: 4px 12px; padding: 6px 8px; font-size: 12px; color: #ff9db0;
+  background: #4a1d2a; border-radius: 6px; cursor: pointer;
+}
 
 /* ---- chat ---- */
 .chat {
@@ -385,3 +429,5 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+.mini-render.adopt { color: var(--ok); border-color: var(--ok); }

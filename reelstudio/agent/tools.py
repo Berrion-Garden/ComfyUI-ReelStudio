@@ -1,7 +1,7 @@
 """Agent tools — the exact operations a human has, executed server-side.
 
-get_project / get_assets / get_yaml / update_yaml / generate / get_skill /
-get_status. update_yaml validates before saving and generate validates
+get_project / get_assets / get_yaml / update_yaml / generate /
+currently_selected / get_studio / import_assets / get_skill / get_status. update_yaml validates before saving and generate validates
 before queueing — the agent cannot save a broken chain or queue a bogus
 job, and every rejection teaches what would be valid.
 """
@@ -45,11 +45,15 @@ TOOLS = [
     generate.tool(),
     {"type": "function", "function": {
         "name": "currently_selected",
-        "description": "The asset the operator is currently looking at in the "
-                       "studio (the one highlighted in the asset browser): "
-                       "slug, path, group, labels (char:/scene:/cond: tags), "
-                       "used_by scenes. When the operator says 'this one' or "
-                       "'the selected asset', call this instead of guessing.",
+        "description": "The asset(s) the operator is currently looking at in "
+                       "the studio — every picked one (shift-click "
+                       "multi-selects), the last being the primary shown on "
+                       "the stage. Each: slug, path, group, labels (char:/"
+                       "scene:/cond: tags), used_by scenes. When the operator "
+                       "says 'this one' or pastes an `asset:<path>` reference "
+                       "(from an asset's copy-reference menu), call this or "
+                       "match the path against get_assets — never guess "
+                       "filenames.",
         "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {
         "name": "get_studio",
@@ -89,9 +93,9 @@ TOOLS = [
 
 
 class ToolBox:
-    def __init__(self, state, selected: dict | None = None):
+    def __init__(self, state, selected: list[dict] | None = None):
         self.state = state  # reelstudio.app.ReelStudio
-        self.selected = selected  # the operator's current asset selection
+        self.selected = selected  # the operator's current selection (ordered)
 
     async def call(self, name: str, args: dict) -> str:
         handler = getattr(self, f"_{name}", None)
@@ -107,22 +111,31 @@ class ToolBox:
             return json.dumps({"error": f"{type(e).__name__}: {e}"})
 
     async def _currently_selected(self, _) -> str:
-        """The request-scoped selection, with labels refreshed from the
-        index (the FE's copy can be stale after an edit)."""
+        """The request-scoped selection — every asset the operator has
+        picked (shift-click multi-selects), labels refreshed from the
+        index. The last one is the primary (what the stage shows)."""
         if not self.selected:
             return json.dumps({"selected": None,
                                "hint": "nothing is selected in the studio — "
                                        "ask the operator to click an asset"})
         index = readmodel.asset_view(self.state)
-        path = str(self.selected.get("path", ""))
-        fresh = next((a for items in index["groups"].values() for a in items
-                      if a["path"] == path), None)
-        return json.dumps({"selected": {**self.selected,
-                                        "labels": (fresh or {}).get(
-                                            "labels", self.selected.get("labels", [])),
-                                        "used_by": (fresh or {}).get(
-                                            "used_by", [])}},
-                          ensure_ascii=False)
+        fresh_items = [a for items in index["groups"].values() for a in items]
+        picked = []
+        for sel in self.selected:
+            path = str(sel.get("path", ""))
+            fresh = next((a for a in fresh_items if a["path"] == path), None)
+            picked.append({**sel,
+                           "labels": (fresh or {}).get(
+                               "labels", sel.get("labels", [])),
+                           "used_by": (fresh or {}).get("used_by", [])})
+        primary = picked[-1] if picked else None
+        return json.dumps(
+            {"selected": picked, "primary": primary,
+             "count": len(picked),
+             "hint": (f"{len(picked)} assets selected; the operator is "
+                      f"looking at {primary.get('slug', '')}"
+                      if len(picked) > 1 else "")},
+            ensure_ascii=False)
 
     async def _get_project(self, _):
         return json.dumps(readmodel.project_view(self.state), ensure_ascii=False)

@@ -21,10 +21,17 @@ const data: AssetsData = {
   },
 };
 
+function browserProps(over: Partial<Parameters<typeof AssetBrowser>[0]> = {}) {
+  return {
+    assets: data, selected: null, selectedList: [],
+    onSelect: vi.fn(), onPrimary: vi.fn(), onChanged: vi.fn(), ...over,
+  };
+}
+
 describe("AssetBrowser", () => {
   it("shows the single selected asset, large, with its label editor", async () => {
-    render(<AssetBrowser assets={data} selected={data.groups.characters[0]}
-      onSelect={vi.fn()} onChanged={vi.fn()} />);
+    render(<AssetBrowser {...browserProps(
+      { selected: data.groups.characters[0] })} />);
 
     const media = await screen.findByAltText("face");
     expect(media.getAttribute("src")).toBe("/f/face.png");
@@ -43,8 +50,8 @@ describe("AssetBrowser", () => {
 
   it("non-verified assets get a check (approve) and an x (delete)", async () => {
     const onSelect = vi.fn();
-    render(<AssetBrowser assets={data} selected={data.groups.stills[0]}
-      onSelect={onSelect} onChanged={vi.fn()} />);
+    render(<AssetBrowser {...browserProps(
+      { selected: data.groups.stills[0], onSelect })} />);
 
     // ✓ removes only the non-verified label — and with it, the buttons
     vi.mocked(setAssetLabels).mockResolvedValue(undefined);
@@ -58,8 +65,8 @@ describe("AssetBrowser", () => {
 
   it("✕ on a non-verified asset deletes the file and deselects", async () => {
     const onSelect = vi.fn();
-    render(<AssetBrowser assets={data} selected={data.groups.stills[0]}
-      onSelect={onSelect} onChanged={vi.fn()} />);
+    render(<AssetBrowser {...browserProps(
+      { selected: data.groups.stills[0], onSelect })} />);
 
     vi.mocked(deleteAsset).mockResolvedValue(undefined);
     fireEvent.click(screen.getByLabelText("delete tony_dunk01"));
@@ -69,9 +76,27 @@ describe("AssetBrowser", () => {
   });
 
   it("nothing selected: an empty hint, no inspector", () => {
-    render(<AssetBrowser assets={data} selected={null}
-      onSelect={vi.fn()} onChanged={vi.fn()} />);
+    render(<AssetBrowser {...browserProps()} />);
     expect(screen.getByTestId("asset-stage").textContent)
       .toContain("select an asset");
+  });
+
+  it("a multi-selection turns the display into a carousel", () => {
+    const picked = [data.groups.characters[0], data.groups.stills[0]];
+    const onPrimary = vi.fn();
+    const { rerender } = render(<AssetBrowser {...browserProps(
+      { selected: picked[1], selectedList: picked, onPrimary })} />);
+
+    expect(screen.getByText("2 / 2")).toBeTruthy();
+    // › wraps to the other picked asset, keeping the selection intact
+    fireEvent.click(screen.getByLabelText("next picked asset"));
+    expect(onPrimary).toHaveBeenCalledWith(picked[0]);
+    fireEvent.click(screen.getByLabelText("previous picked asset"));
+    expect(onPrimary).toHaveBeenCalledWith(picked[0]);
+
+    // a single selection shows no carousel chrome
+    rerender(<AssetBrowser {...browserProps(
+      { selected: picked[0], selectedList: [picked[0]], onPrimary })} />);
+    expect(screen.queryByLabelText("next picked asset")).toBeNull();
   });
 });

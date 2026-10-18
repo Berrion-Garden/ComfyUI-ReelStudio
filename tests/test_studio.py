@@ -137,3 +137,32 @@ async def test_render_runs_from_a_migrated_scene(client):
     assert resp.status == 200
     jobs = await wait_for_jobs(client)
     assert all(j["status"] == "done" for j in jobs), [j["error"] for j in jobs]
+
+
+async def test_per_scene_adopt_and_adoptable_flag(client, workspace):
+    """An unmanaged render on disk: adoptable on the read model, ✓ adopts
+    just that scene, and the manifest then vouches for it."""
+    import shutil
+
+    from reelstudio.app import STATE_KEY
+
+    state = client.app[STATE_KEY]
+    reel_dir = workspace / "output" / "reel"
+    reel_dir.mkdir(parents=True)
+    shutil.copy(workspace / "stills" / "opening_still_.png",
+                reel_dir / "s1_ramen_0001.mp4")  # a deliverable nobody recorded
+
+    view = await (await client.get("/reelstudio/api/project")).json()
+    scene = next(s for s in view["scenes"] if s["id"] == "s1_ramen")
+    assert scene["adoptable"] is True and scene["stale"] is True
+
+    resp = await client.post("/reelstudio/api/manifest/adopt",
+                             json={"scene_id": "s1_ramen"})
+    assert resp.status == 200
+
+    view = await (await client.get("/reelstudio/api/project")).json()
+    scene = next(s for s in view["scenes"] if s["id"] == "s1_ramen")
+    assert scene["adoptable"] is False
+    assert scene["video_url"] is not None
+    other = next(s for s in view["scenes"] if s["id"] != "s1_ramen")
+    assert other["adoptable"] is False and other["video_url"] is None

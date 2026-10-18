@@ -37,7 +37,8 @@ update_yaml-style edit of `assets.yaml`.
 
 Generated images are born `non-verified` (reel.py labels them as they land).
 The operator approves (✓ — the label is removed) or deletes (✕ — the file is
-gone) in the inspector; only non-verified assets are deletable. When the
+gone) on the thumbnail or in the inspector; only non-verified assets are
+deletable. When the
 operator asks you to clean up a generation run, propose removing the
 `non-verified` label on the keepers — deletion is their ✕, not an edit.
 

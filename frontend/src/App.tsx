@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { adoptRenders, assemble, bellUrl, fetchAssets, fetchProject, fetchSfxBoard, renderScenes, renderStale, updateAudioTrack, placeSfxEvent, removeSfxEvent, type AssetItem, type AssetsData, type SfxScene } from "./api";
+import { adoptScene, assemble, bellUrl, fetchAssets, fetchProject, fetchSfxBoard, renderScenes, renderStale, updateAudioTrack, placeSfxEvent, removeSfxEvent, type AssetItem, type AssetsData, type SfxScene } from "./api";
 import { Player } from "./player/Player";
 import { AssetBrowser } from "./assets/AssetBrowser";
 import { Timeline } from "./timeline/Timeline";
@@ -15,7 +15,7 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [playheadPct, setPlayheadPct] = useState<number | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
-  const [selectedAsset, setSelectedAsset] = useState<AssetItem | null>(null);
+  const [selectedAssets, setSelectedAssets] = useState<AssetItem[]>([]);
   const [assets, setAssets] = useState<AssetsData | null>(null);
   const [seekRequest, setSeekRequest] = useState<{ s: number; n: number } | null>(null);
   const [sfxBoard, setSfxBoard] = useState<SfxScene[]>([]);
@@ -37,8 +37,8 @@ export function App() {
         setAssets(lib);
         // keep the selection in step with the library (labels refresh, and a
         // regenerated asset may have been replaced on disk)
-        setSelectedAsset((sel) =>
-          sel ? lib.groups[sel.group]?.find((a) => a.path === sel.path) ?? null : null);
+        setSelectedAssets((sel) => sel.flatMap((s) =>
+          lib.groups[s.group]?.find((a) => a.path === s.path) ?? []));
       }
       setError(null);
     } catch (e) {
@@ -51,6 +51,28 @@ export function App() {
     const timer = setInterval(() => { void refresh(); }, 3000);
     return () => clearInterval(timer);
   }, [refresh]);
+
+  // multi-select: plain click picks one, shift-click adds/toggles; the last
+  // picked is the primary (what the stage shows, what the agent focuses on)
+  const selectedAsset = selectedAssets[selectedAssets.length - 1] ?? null;
+  const selectAsset = useCallback(
+    (a: AssetItem | null, additive?: boolean) => {
+      setSelectedAssets((prev) => {
+        if (!a) return [];
+        if (!additive) return [a];
+        if (prev.some((x) => x.path === a.path)) {
+          return prev.filter((x) => x.path !== a.path);
+        }
+        return [...prev, a];
+      });
+    }, []);
+  const setPrimary = useCallback((a: AssetItem) => {
+    setSelectedAssets((prev) => {
+      if (!prev.some((x) => x.path === a.path)) return [a];
+      const rest = prev.filter((x) => x.path !== a.path);
+      return [...rest, a];  // primary lives at the end
+    });
+  }, []);
 
   const act = async (name: string, fn: () => Promise<void>) => {
     setBusyAction(name);
@@ -108,13 +130,6 @@ export function App() {
             title="re-render every changed scene (and its prev_last chain)"
           >
             ⟳ Render changed
-          </button>
-          <button
-            onClick={() => void act("adopt", adoptRenders)}
-            disabled={busyAction !== null || anyJobsRunning}
-            title="declare the current renders match this config (no re-render)"
-          >
-            ✓ Adopt renders
           </button>
           <button
             onClick={() => void act("assemble", () => assemble(false))}
@@ -194,11 +209,14 @@ export function App() {
             </div>
             <div className={stageView === "images" ? "stage-host" : "stage-host hidden"}>
               <AssetBrowser assets={assets} selected={selectedAsset}
-                onSelect={setSelectedAsset} onChanged={() => void refresh()} />
+                selectedList={selectedAssets}
+                onSelect={selectAsset} onPrimary={setPrimary}
+                onChanged={() => void refresh()} />
             </div>
           </section>
           <AssetsPane assets={assets} selected={selectedAsset}
-            onSelect={setSelectedAsset} />
+            selectedPaths={new Set(selectedAssets.map((a) => a.path))}
+            onSelect={selectAsset} onChanged={() => void refresh()} />
         </div>
         <Timeline
           scenes={project.scenes}
@@ -225,14 +243,13 @@ export function App() {
           playheadPct={playheadPct}
           onSeek={seekTo}
           onRenderScene={(id) => void act(`render:${id}`, () => renderScenes([id]))}
+          onAdoptScene={(id) => void act(`adopt:${id}`, () => adoptScene(id))}
         />
       </main>
 
       <Chat onProjectChanged={() => void refresh()}
-        selected={selectedAsset
-          ? { slug: selectedAsset.slug, path: selectedAsset.path,
-              group: selectedAsset.group, labels: selectedAsset.labels }
-          : null} />
+        selected={selectedAssets.map((a) => (
+          { slug: a.slug, path: a.path, group: a.group, labels: a.labels }))} />
     </div>
   );
 }

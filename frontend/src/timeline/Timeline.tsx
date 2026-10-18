@@ -11,6 +11,7 @@ interface Props {
   artifactUrl: (sceneId: string, kind: string) => string;
   onSceneClick?: (sceneId: string) => void;
   onRenderScene?: (sceneId: string) => void;
+  onAdoptScene?: (sceneId: string) => void;
   onTrackChange?: (index: number, fades: [number, number][]) => void;
   sfxRows?: import("../api").SfxScene[];
   onPlaceSfx?: (sceneId: string, asset: string, at: number) => void;
@@ -34,7 +35,7 @@ function AnchorThumb({ label, kind, url }: { label: string; kind: string; url: s
   );
 }
 
-export function Timeline({ scenes, music, overlays = [], totalS, artifactUrl, onSceneClick, onRenderScene, onTrackChange, sfxRows, onPlaceSfx, onRemoveSfx, playheadPct, onSeek }: Props) {
+export function Timeline({ scenes, music, overlays = [], totalS, artifactUrl, onSceneClick, onRenderScene, onAdoptScene, onTrackChange, sfxRows, onPlaceSfx, onRemoveSfx, playheadPct, onSeek }: Props) {
   const columns = scenes.map((s) => `${Math.max(s.duration_s, 0.4)}fr`).join(" ");
   const ticks: number[] = [];
   for (let t = 0; t < totalS - 0.01; t += 5) ticks.push(t);
@@ -102,6 +103,15 @@ export function Timeline({ scenes, music, overlays = [], totalS, artifactUrl, on
                   onClick={(e) => { e.stopPropagation(); onRenderScene?.(s.id); }}
                 >
                   ↻ render
+                </button>
+              )}
+              {s.adoptable && (
+                <button
+                  className="mini-render adopt"
+                  title="declare this render matches the current config — adopt it without re-rendering"
+                  onClick={(e) => { e.stopPropagation(); onAdoptScene?.(s.id); }}
+                >
+                  ✓ adopt
                 </button>
               )}
               <span className="cell-label">{s.id} · {s.duration_s.toFixed(2)}s{s.has_freeze ? " · freeze" : ""}</span>
