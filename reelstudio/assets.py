@@ -60,8 +60,8 @@ def index_assets(workspace: str | Path, project) -> dict:
                 "group": group, "labels": merged, "used_by": used_by or []}
 
     groups: dict[str, list[dict]] = {"characters": [], "scenes": [],
-                                     "custom": [], "themes": [], "audio": [],
-                                     "sfx": []}
+                                     "custom": [], "backgrounds": [],
+                                     "themes": [], "audio": [], "sfx": []}
 
     # scenes — the stills the timeline actually anchors on
     def _still_refs(scene: dict) -> list[str]:
@@ -98,6 +98,13 @@ def index_assets(workspace: str | Path, project) -> dict:
         for p in sorted(custom_root.rglob("*")):
             if p.is_file() and p.suffix.lower() in IMAGE_EXTS:
                 groups["custom"].append(mk(p, "custom", ["custom"]))
+
+    # backgrounds — location/environment plates for the Qwen reference flow
+    bg_root = ws / "backgrounds"
+    if bg_root.exists():
+        for p in sorted(bg_root.rglob("*")):
+            if p.is_file() and p.suffix.lower() in IMAGE_EXTS:
+                groups["backgrounds"].append(mk(p, "backgrounds", ["background"]))
 
     # themes — LORA/style descriptors as yaml: {slug, lora, trigger, labels}
     themes_root = ws / "themes"
@@ -143,3 +150,32 @@ def asset_file(path: str, allowed_roots: list[str | Path]) -> Path:
         if r == p or r in p.parents:
             return p
     raise ForbiddenError(f"path outside the asset roots: {path}")
+
+
+def set_labels(workspace: str | Path, still_dir: str | Path, path: str,
+               labels: list[str]) -> dict:
+    """Rewrite one asset's declared labels in assets.yaml — the single owner
+    of declared labels — comment- and format-preserving. Labels are typed
+    free-form: `char:<slug>`, `scene:<slug>` (foreign key to the scene id),
+    `cond:<x>`, or any other tag. An empty list removes the entry."""
+    from ruamel.yaml import YAML
+
+    roots = [Path(workspace), Path(still_dir)]
+    p = asset_file(path, roots)
+    rel = _rel(p, roots)
+
+    f = Path(workspace) / "assets.yaml"
+    doc = YAML()
+    doc.preserve_quotes = True
+    doc.width = 4096
+    declared = {}
+    if f.exists():
+        declared = doc.load(f) or {}
+    labels_map = declared.setdefault("labels", {})
+    if labels:
+        labels_map[rel] = [str(x) for x in labels]
+    else:
+        labels_map.pop(rel, None)
+    with open(f, "w") as fh:
+        doc.dump(declared, fh)
+    return {"asset": rel, "labels": labels_map.get(rel, [])}

@@ -9,9 +9,13 @@ interface Entry {
 
 interface Props {
   onProjectChanged?: () => void;
+  /** the operator's current asset selection — the agent's "this one" */
+  selected?: { slug: string; path: string; group: string; labels: string[] } | null;
 }
 
-export function Chat({ onProjectChanged }: Props) {
+export function Chat({ onProjectChanged, selected }: Props) {
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
   const [entries, setEntries] = useState<Entry[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -37,7 +41,7 @@ export function Chat({ onProjectChanged }: Props) {
     setEntries((e) => [...e, { role: "user", text: message }]);
     scrollBottom();
     try {
-      for await (const ev of chatStream(message, history.current)) {
+      for await (const ev of chatStream(message, history.current, selectedRef.current)) {
         handleEvent(ev);
       }
     } catch (e) {

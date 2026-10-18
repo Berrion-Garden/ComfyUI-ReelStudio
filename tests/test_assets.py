@@ -1,5 +1,7 @@
 """Asset library: group/label derivation, sandboxed serving, music URLs."""
 
+import json
+
 import yaml
 from pathlib import Path
 
@@ -174,3 +176,72 @@ async def test_sfx_assets_get_their_own_group_and_label(config, workspace):
     bell = next(a for a in data["groups"]["sfx"] if a["slug"] == "school_bell")
     assert bell["labels"] == ["sfx", "sfx:school_bell"]
     assert "sfx" not in {a["slug"]: a for a in data["groups"]["audio"]}
+
+
+async def test_backgrounds_are_their_own_group(config, workspace):
+    from reelstudio import assets as assets_mod
+    from reelstudio.project import load
+
+    (workspace / "backgrounds").mkdir()
+    (workspace / "backgrounds" / "campus_sunset.png").write_bytes(b"x")
+    data = assets_mod.index_assets(workspace, load(config))
+    bg = data["groups"]["backgrounds"]
+    assert [a["slug"] for a in bg] == ["campus_sunset"]
+    assert bg[0]["labels"] == ["background"]
+
+
+async def test_put_labels_round_trips_through_assets_yaml(client, workspace):
+    (workspace / "images").mkdir()
+    (workspace / "images" / "tony_face_.png").write_bytes(b"x")
+    (workspace / "assets.yaml").write_text(
+        "# declared labels — the one owner\nlabels: {}\n")
+
+    resp = await client.put("/reelstudio/api/assets/labels", json={
+        "path": str(workspace / "images" / "tony_face_.png"),
+        "labels": ["char:tony", "scene:s1_ramen", "cond:human"]})
+    assert resp.status == 200
+
+    # the yaml keeps its comment and gains the typed labels
+    text = (workspace / "assets.yaml").read_text()
+    assert "# declared labels" in text
+    assert "char:tony" in text
+
+    # the index merges the declared labels in
+    data = await (await client.get("/reelstudio/api/assets")).json()
+    items = [a for g in data["groups"].values() for a in g
+             if a["slug"].startswith("tony_face")]
+    assert items, "asset indexed"
+    assert {"char:tony", "scene:s1_ramen", "cond:human"} <= set(items[0]["labels"])
+
+    # clearing the list removes the entry (no [] residue)
+    resp = await client.put("/reelstudio/api/assets/labels", json={
+        "path": str(workspace / "images" / "tony_face_.png"), "labels": []})
+    assert resp.status == 200
+    assert "char:tony" not in (workspace / "assets.yaml").read_text()
+
+
+async def test_put_labels_rejects_paths_outside_the_roots(client):
+    bad = await client.put("/reelstudio/api/assets/labels", json={
+        "path": "/etc/passwd", "labels": ["nope"]})
+    assert bad.status == 403
+
+
+async def test_agent_currently_selected_tool(config, workspace):
+    from reelstudio.agent.tools import ToolBox
+    from reelstudio.app import ReelStudio
+
+    (workspace / "characters" / "tony").mkdir(parents=True)
+    (workspace / "characters" / "tony" / "face_.png").write_bytes(b"x")
+    state = ReelStudio(config)
+
+    # the tool answers from the request-scoped selection the FE sends,
+    # with labels refreshed from the index (the FE copy can be stale)
+    box = ToolBox(state, selected={
+        "path": str(workspace / "characters" / "tony" / "face_.png"),
+        "slug": "face", "group": "characters"})
+    out = json.loads(await box.call("currently_selected", {}))
+    assert out["selected"]["slug"] == "face"
+    assert out["selected"]["labels"] == ["char:tony", "pose:face"]
+
+    assert json.loads(await ToolBox(state).call("currently_selected", {}))[
+        "selected"] is None

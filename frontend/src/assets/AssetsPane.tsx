@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchAssets, type AssetItem, type AssetsData } from "../api";
-import type { SelectedAsset } from "../player/Player";
 
 interface Props {
-  selected: SelectedAsset | null;
-  onSelect: (asset: SelectedAsset | null) => void;
+  assets?: AssetsData | null;
+  selected: AssetItem | null;
+  onSelect: (asset: AssetItem | null) => void;
 }
 
 /** Groups characters by their `char:<slug>` label into per-pool subsections. */
@@ -18,14 +18,17 @@ function characterPools(items: AssetItem[]): { pool: string; assets: AssetItem[]
   return [...pools.entries()].map(([pool, assets]) => ({ pool: pool.slice(5), assets }));
 }
 
-export function AssetsPane({ selected, onSelect }: Props) {
-  const [data, setData] = useState<AssetsData | null>(null);
+export function AssetsPane({ assets, selected, onSelect }: Props) {
+  const [fetched, setFetched] = useState<AssetsData | null>(null);
 
   useEffect(() => {
-    void fetchAssets().then(setData).catch(() => setData({ groups: {
-      characters: [], scenes: [], custom: [], themes: [], audio: [], sfx: [],
-    }}));
-  }, []);
+    if (assets) return;  // data provided by the app — no own fetch
+    let alive = true;
+    void fetchAssets().then((d) => { if (alive) setFetched(d); }).catch(() => {});
+    return () => { alive = false; };
+  }, [assets]);
+
+  const data = assets ?? fetched;
 
   const sections = useMemo(() => {
     if (!data) return [];
@@ -33,6 +36,7 @@ export function AssetsPane({ selected, onSelect }: Props) {
     const out: { title: string; open: boolean; assets: AssetItem[] }[] = [
       { title: "Characters", open: true, assets: g.characters },
       { title: "Scenes", open: true, assets: g.scenes },
+      { title: "Backgrounds", open: false, assets: g.backgrounds ?? [] },
       { title: "Custom", open: false, assets: g.custom },
       { title: "LORA / Theme", open: false, assets: g.themes },
       { title: "Audio", open: false, assets: g.audio },
@@ -48,18 +52,18 @@ export function AssetsPane({ selected, onSelect }: Props) {
     if (flat.length === 0) return;
     const idx = selected ? flat.findIndex((a) => a.url === selected.url) : -1;
     const next = flat[Math.min(Math.max(idx + dir, 0), flat.length - 1)];
-    if (next) onSelect({ url: next.url, name: next.slug });
+    if (next) onSelect(next);
   };
 
   const card = (a: AssetItem) => {
     const isImage = !a.url.endsWith(".mp3") && !a.url.endsWith(".wav");
-    const isSel = selected?.url === a.url;
+    const isSel = selected?.path === a.path;
     return (
       <button
         key={a.path}
         type="button"
         className={`asset-card ${isSel ? "selected" : ""}`}
-        onClick={() => onSelect(isSel ? null : { url: a.url, name: a.slug })}
+        onClick={() => onSelect(isSel ? null : a)}
         title={`${a.slug}\n${a.labels.join(" · ")}${a.used_by.length ? `\nused by: ${a.used_by.join(", ")}` : ""}`}
         data-testid={`asset-${a.group}-${a.slug}`}
       >

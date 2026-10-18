@@ -17,7 +17,7 @@ const data: AssetsData = {
       { path: "/stills/opening_still_.png", slug: "opening_still", group: "scenes",
         labels: ["still:opening"], used_by: ["s1_ramen"], url: "/f/opening.png" },
     ],
-    custom: [], themes: [],
+    custom: [], themes: [], backgrounds: [],
     sfx: [],
     audio: [
       { path: "/out/music_opening_1.wav", slug: "music_opening_1", group: "audio",
@@ -38,7 +38,7 @@ describe("AssetsPane", () => {
     const card = screen.getByTestId("asset-scenes-opening_still");
     expect(card.textContent).toContain("in 1 scene");
     fireEvent.click(card);
-    expect(onSelect).toHaveBeenCalledWith({ url: "/f/opening.png", name: "opening_still" });
+    expect(onSelect).toHaveBeenCalledWith(data.groups.scenes[0]);
   });
 
   it("arrow keys walk the flat asset order", async () => {
@@ -49,13 +49,13 @@ describe("AssetsPane", () => {
 
     const pane = screen.getByTestId("assets-pane");
     fireEvent.keyDown(pane, { key: "ArrowDown" });
-    expect(onSelect).toHaveBeenLastCalledWith({ url: "/f/sit.png", name: "sit" });
+    expect(onSelect).toHaveBeenLastCalledWith(data.groups.characters[0]);
 
     // with the first asset selected, ArrowDown moves to the next in order
-    rerender(<AssetsPane selected={{ url: "/f/sit.png", name: "sit" }} onSelect={onSelect} />);
+    rerender(<AssetsPane selected={data.groups.characters[0]} onSelect={onSelect} />);
     fireEvent.keyDown(pane, { key: "ArrowDown" });
-    expect(onSelect).toHaveBeenLastCalledWith({ url: "/f/run.png", name: "run" });
+    expect(onSelect).toHaveBeenLastCalledWith(data.groups.characters[1]);
     fireEvent.keyDown(pane, { key: "ArrowUp" });
-    expect(onSelect).toHaveBeenLastCalledWith({ url: "/f/sit.png", name: "sit" });
+    expect(onSelect).toHaveBeenLastCalledWith(data.groups.characters[0]);
   });
 });

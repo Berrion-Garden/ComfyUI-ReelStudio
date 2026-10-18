@@ -43,6 +43,14 @@ TOOLS = [
                        "required": ["text"]}}},
     generate.tool(),
     {"type": "function", "function": {
+        "name": "currently_selected",
+        "description": "The asset the operator is currently looking at in the "
+                       "studio (the one highlighted in the asset browser): "
+                       "slug, path, group, labels (char:/scene:/cond: tags), "
+                       "used_by scenes. When the operator says 'this one' or "
+                       "'the selected asset', call this instead of guessing.",
+        "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {
         "name": "get_skill",
         "description": "Load an on-demand skill's full body by name. The "
                        "system prompt's 'Skills on demand' index lists the "
@@ -59,8 +67,9 @@ TOOLS = [
 
 
 class ToolBox:
-    def __init__(self, state):
+    def __init__(self, state, selected: dict | None = None):
         self.state = state  # reelstudio.app.ReelStudio
+        self.selected = selected  # the operator's current asset selection
 
     async def call(self, name: str, args: dict) -> str:
         handler = getattr(self, f"_{name}", None)
@@ -74,6 +83,24 @@ class ToolBox:
                                "problems": getattr(e, "problems", None)})
         except Exception as e:  # noqa: BLE001 - surfaced to the agent
             return json.dumps({"error": f"{type(e).__name__}: {e}"})
+
+    async def _currently_selected(self, _) -> str:
+        """The request-scoped selection, with labels refreshed from the
+        index (the FE's copy can be stale after an edit)."""
+        if not self.selected:
+            return json.dumps({"selected": None,
+                               "hint": "nothing is selected in the studio — "
+                                       "ask the operator to click an asset"})
+        index = readmodel.asset_view(self.state)
+        path = str(self.selected.get("path", ""))
+        fresh = next((a for items in index["groups"].values() for a in items
+                      if a["path"] == path), None)
+        return json.dumps({"selected": {**self.selected,
+                                        "labels": (fresh or {}).get(
+                                            "labels", self.selected.get("labels", [])),
+                                        "used_by": (fresh or {}).get(
+                                            "used_by", [])}},
+                          ensure_ascii=False)
 
     async def _get_project(self, _):
         return json.dumps(readmodel.project_view(self.state), ensure_ascii=False)

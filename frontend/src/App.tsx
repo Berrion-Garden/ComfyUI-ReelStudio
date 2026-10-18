@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { adoptRenders, assemble, bellUrl, fetchProject, fetchSfxBoard, renderScenes, renderStale, updateAudioTrack, placeSfxEvent, removeSfxEvent, type SfxScene } from "./api";
-import { Player, type SelectedAsset } from "./player/Player";
-import { Stills } from "./player/Stills";
+import { adoptRenders, assemble, bellUrl, fetchAssets, fetchProject, fetchSfxBoard, renderScenes, renderStale, updateAudioTrack, placeSfxEvent, removeSfxEvent, type AssetItem, type AssetsData, type SfxScene } from "./api";
+import { Player } from "./player/Player";
+import { AssetBrowser } from "./assets/AssetBrowser";
 import { Timeline } from "./timeline/Timeline";
 import { Chat } from "./chat/Chat";
 import { AssetsPane } from "./assets/AssetsPane";
@@ -12,7 +12,8 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [playheadPct, setPlayheadPct] = useState<number | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
-  const [selectedAsset, setSelectedAsset] = useState<SelectedAsset | null>(null);
+  const [selectedAsset, setSelectedAsset] = useState<AssetItem | null>(null);
+  const [assets, setAssets] = useState<AssetsData | null>(null);
   const [seekRequest, setSeekRequest] = useState<{ s: number; n: number } | null>(null);
   const [sfxBoard, setSfxBoard] = useState<SfxScene[]>([]);
   const [stageView, setStageView] = useState<"player" | "images">("player");
@@ -20,12 +21,20 @@ export function App() {
 
   const refresh = useCallback(async () => {
     try {
-      const [p, board] = await Promise.all([
+      const [p, board, lib] = await Promise.all([
         fetchProject(),
         fetchSfxBoard().catch(() => [] as SfxScene[]),
+        fetchAssets().catch(() => null),
       ]);
       setProject(p);
       setSfxBoard(board);
+      if (lib) {
+        setAssets(lib);
+        // keep the selection in step with the library (labels refresh, and a
+        // regenerated asset may have been replaced on disk)
+        setSelectedAsset((sel) =>
+          sel ? lib.groups[sel.group]?.find((a) => a.path === sel.path) ?? null : null);
+      }
       setError(null);
     } catch (e) {
       setError(String(e));
@@ -129,7 +138,9 @@ export function App() {
               <Player
                 scenes={project.scenes}
                 onPlayhead={setPlayheadPct}
-                selectedAsset={selectedAsset}
+                selectedAsset={selectedAsset
+                  ? { url: selectedAsset.url, name: selectedAsset.slug }
+                  : null}
                 seekRequest={seekRequest}
               mix={{
                 // the real tracks always; the Music3 bed only when the mix
@@ -178,10 +189,12 @@ export function App() {
               />
             </div>
             <div className={stageView === "images" ? "stage-host" : "stage-host hidden"}>
-              <Stills scenes={project.scenes} artifactUrl={artifactUrl} />
+              <AssetBrowser assets={assets} selected={selectedAsset}
+                onSelect={setSelectedAsset} onChanged={() => void refresh()} />
             </div>
           </section>
-          <AssetsPane selected={selectedAsset} onSelect={setSelectedAsset} />
+          <AssetsPane assets={assets} selected={selectedAsset}
+            onSelect={setSelectedAsset} />
         </div>
         <Timeline
           scenes={project.scenes}
@@ -211,7 +224,11 @@ export function App() {
         />
       </main>
 
-      <Chat onProjectChanged={() => void refresh()} />
+      <Chat onProjectChanged={() => void refresh()}
+        selected={selectedAsset
+          ? { slug: selectedAsset.slug, path: selectedAsset.path,
+              group: selectedAsset.group, labels: selectedAsset.labels }
+          : null} />
     </div>
   );
 }

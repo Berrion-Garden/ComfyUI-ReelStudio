@@ -127,7 +127,8 @@ export function finalUrl(): string | null {
 export interface AssetItem {
   path: string;
   slug: string;
-  group: "characters" | "scenes" | "custom" | "themes" | "audio" | "sfx";
+  group: "characters" | "scenes" | "custom" | "backgrounds" | "themes"
+    | "audio" | "sfx";
   labels: string[];
   used_by: string[];
   url: string;
@@ -142,15 +143,26 @@ export async function fetchAssets(): Promise<AssetsData> {
   return json_or_throw<AssetsData>(resp);
 }
 
+/** Rewrite one asset's declared labels in the workspace assets.yaml. */
+export async function setAssetLabels(path: string, labels: string[]): Promise<void> {
+  const resp = await fetch(`${API}/assets/labels`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path, labels }),
+  });
+  await json_or_throw(resp);
+}
+
 /** POST a chat message; yields SSE events as they stream. */
 export async function* chatStream(
   message: string,
   history: { role: string; content: string }[],
+  selected?: { slug: string; path: string; group: string; labels: string[] } | null,
 ): AsyncGenerator<ChatEvent> {
   const resp = await fetch(`${API}/agent/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, history }),
+    body: JSON.stringify({ message, history, selected: selected ?? null }),
   });
   if (!resp.ok || !resp.body) {
     throw new Error(`chat failed: HTTP ${resp.status}`);

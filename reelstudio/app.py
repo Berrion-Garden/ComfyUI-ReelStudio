@@ -363,6 +363,20 @@ async def get_asset_file(request: web.Request) -> web.Response:
     return web.FileResponse(target)
 
 
+async def put_asset_labels(request: web.Request) -> web.Response:
+    """Rewrite one asset's declared labels: {path, labels: [..]}."""
+    state = _state(request)
+    body = await request.json()
+    labels = body.get("labels")
+    if not isinstance(labels, list) or not all(isinstance(x, str) for x in labels):
+        raise ValidationError(["labels must be a list of strings"])
+    project = state.project()
+    result = await asyncio.to_thread(
+        assets_mod.set_labels, state.config.workspace,
+        project.meta["still_dir"], str(body.get("path", "")), labels)
+    return web.json_response(result)
+
+
 async def get_final(request: web.Request) -> web.Response:
     state = _state(request)
     final = state.project().meta.get("final")
@@ -379,6 +393,7 @@ async def post_agent_chat(request: web.Request) -> web.StreamResponse:
     if not user_text:
         return web.json_response({"error": "message required"}, status=400)
     history = [*history, {"role": "user", "content": user_text}]
+    selected = body.get("selected") if isinstance(body.get("selected"), dict) else None
 
     resp = web.StreamResponse(headers={
         "Content-Type": "text/event-stream",
@@ -387,7 +402,8 @@ async def post_agent_chat(request: web.Request) -> web.StreamResponse:
     })
     await resp.prepare(request)
     try:
-        async for event in agent_run(state.config, history, ToolBox(state)):
+        async for event in agent_run(state.config, history,
+                                     ToolBox(state, selected=selected)):
             await resp.write(f"data: {json.dumps(event, ensure_ascii=False)}\n\n".encode())
     except Exception as e:  # noqa: BLE001 - stream the failure to the UI
         await resp.write(f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n".encode())
@@ -428,6 +444,7 @@ def create_app(config: Config) -> web.Application:
     app.router.add_get(f"{API}/jobs", get_jobs)
     app.router.add_get(f"{API}/final", get_final)
     app.router.add_get(f"{API}/assets", get_assets)
+    app.router.add_put(f"{API}/assets/labels", put_asset_labels)
     app.router.add_get(f"{API}/asset/file", get_asset_file)
     app.router.add_get(f"{API}/music/{{name}}/artifact", get_music_artifact)
     app.router.add_get(f"{API}/audio/{{index}}/artifact", get_audio_artifact)

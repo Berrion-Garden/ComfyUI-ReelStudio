@@ -224,25 +224,69 @@ button:disabled { opacity: 0.45; cursor: default; }
   border-radius: 8px; border: 1px dashed var(--edge);
 }
 
-/* ---- stills view (the Images toggle) ---- */
-.stills {
-  flex: 1; overflow-y: auto; align-content: start;
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px;
+/* ---- asset browser (the Images toggle): inspector left, picker right ---- */
+.asset-browser { flex: 1; display: flex; gap: 10px; min-height: 0; min-width: 0; }
+.asset-inspector {
+  flex: 1.2; min-width: 0; display: flex;
+  background: var(--panel); border: 1px solid var(--edge); border-radius: 8px;
+  padding: 10px;
 }
-.still {
-  position: relative; border-radius: 6px; overflow: hidden;
-  border: 1px solid var(--edge); display: block; background: #17141f;
+.inspector { flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.inspector-media {
+  flex: 1; min-height: 0; width: 100%; object-fit: contain;
+  background: black; border-radius: 6px; color-scheme: dark;
 }
-.still img {
-  width: 100%; aspect-ratio: 1; object-fit: cover; display: block;
+.inspector-empty {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  color: var(--dim); font-size: 13px;
 }
-.still:hover { border-color: var(--accent); }
-.still span {
-  position: absolute; bottom: 0; left: 0; right: 0; padding: 2px 6px;
-  font-size: 9px; color: var(--text); background: rgba(0, 0, 0, 0.65);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.inspector-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.inspector-slug { font-weight: 600; }
+.inspector-group {
+  font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--dim); border: 1px solid var(--edge); border-radius: 4px; padding: 1px 6px;
 }
-.stills-empty { color: var(--dim); font-size: 12px; padding: 16px; }
+.inspector-used { color: var(--ok); font-size: 11px; }
+.inspector-open { color: var(--dim); font-size: 11px; margin-left: auto; }
+.inspector-tags { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.tag {
+  display: inline-flex; align-items: center; gap: 3px;
+  background: var(--panel-2); border: 1px solid var(--edge); border-radius: 999px;
+  font-size: 11px; padding: 1px 4px 1px 8px;
+}
+.tag button {
+  border: none; background: none; color: var(--dim); padding: 0 3px; font-size: 10px;
+}
+.tag button:hover { color: var(--accent); }
+.tag-add { display: inline-flex; gap: 4px; }
+.tag-add input {
+  background: var(--panel-2); border: 1px solid var(--edge); border-radius: 999px;
+  color: var(--text); font-size: 11px; padding: 2px 8px; width: 110px;
+}
+.tag-add button { font-size: 11px; padding: 1px 8px; border-radius: 999px; }
+.tag-error { color: var(--warn); font-size: 11px; }
+.asset-picker {
+  flex: 1; min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;
+}
+.picker-section { background: var(--panel); border: 1px solid var(--edge); border-radius: 8px; padding: 8px; }
+.picker-title { font-size: 12px; font-weight: 600; color: var(--dim); margin-bottom: 6px; }
+.picker-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px;
+}
+.picker-card {
+  display: flex; flex-direction: column; gap: 2px; padding: 3px;
+  background: var(--panel-2); border: 1px solid var(--edge); border-radius: 6px;
+  text-align: left; min-width: 0;
+}
+.picker-card.selected { border-color: var(--accent); }
+.picker-card img {
+  width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; display: block;
+}
+.picker-audio { font-size: 18px; text-align: center; color: var(--dim); padding: 10px 0; }
+.picker-name {
+  font-size: 9px; color: var(--text); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
 
 /* fullscreen: the stage fills the screen, controls stay reachable */
 .stage-pane:fullscreen {
@@ -251,7 +295,6 @@ button:disabled { opacity: 0.45; cursor: default; }
 .stage-pane:fullscreen .player-stage {
   height: calc(100% - 44px); width: auto; aspect-ratio: 1; margin: 0 auto;
 }
-.stage-pane:fullscreen .stills { height: 100%; }
 
 /* ---- assets pane ---- */
 .assets-pane {
