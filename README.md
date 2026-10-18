@@ -45,8 +45,10 @@ Born from the Court Aftermath pipeline (`anime_reel/reel.py` + `reel.yaml`).
 - **Final production** — the only step that stitches: music bed, synth bell,
   concat, fade, mix → `meta.final`.
 - **Agent** — chats over the Berrion garden gateway (OpenAI-compatible);
-  tools: read/edit YAML (validate-gated), render scenes/stale, music,
-  assemble, status.
+  tools: the shared read model (`get_project`), the derived asset library
+  (`get_assets`), validate-gated YAML read/edit, one `generate` seam over
+  every generator (scene / music / assemble wired; still / image_edit
+  declared but unwired), and job status.
 
 ## The YAML
 
@@ -159,7 +161,8 @@ The in-app agent's system prompt is assembled from the markdown skills in
 - `junction-doctrine` — chaining, `prev_last` frame-exactness, the
   "never show the landing" lesson
 - `agent-workflow` — the tool protocol (validate-gated `update_yaml`,
-  render only what changed)
+  the `generate` kinds, render only what changed)
+- `asset-library` — the derived library: groups, labels, `used_by`
 - `app-troubleshooting` — failure modes and fixes
 
 Edit a skill and the agent knows it on the next chat turn; nothing to rebuild.

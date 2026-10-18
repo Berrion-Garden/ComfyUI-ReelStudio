@@ -19,7 +19,7 @@ description: Reel Studio failure modes — validation errors, missing renders, j
 
 - "upstream X has no render — render it first" — a `prev_last` scene was
   queued before its upstream existed. Render upstream-first or use
-  `{stale: true}`.
+  `generate` with `stale: true`.
 - Comfy reports success but no render landed — `meta.reel_dir` must sit under
   ComfyUI's output dir; `SaveVideo` writes there via `filename_prefix`.
 - A scene rendered but still shows stale — its junction partner re-rendered
@@ -35,7 +35,8 @@ description: Reel Studio failure modes — validation errors, missing renders, j
 - "scene X has no render — cannot assemble" — every scene needs a deliverable
   before the mix; render the XXX slices first.
 - "no audio for music segment" — the segment was never generated; run
-  render_music for it (or keep `flags.skip_music: true` for a sfx-only mix).
+  `generate` with kind `music` for it (or keep `flags.skip_music: true` for a
+  sfx-only mix).
 
 ## App bugs that only show in production
 
