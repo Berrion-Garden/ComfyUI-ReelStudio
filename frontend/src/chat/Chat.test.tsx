@@ -6,13 +6,12 @@ import { Chat } from "./Chat";
 vi.mock("../api", () => ({ chatStream: vi.fn() }));
 
 describe("Chat", () => {
-  it("empty state offers starter prompts that fill the input", () => {
+  it("empty state is just the input — no hint, no starter chips", () => {
     render(<Chat />);
-    const starters = screen.getAllByRole("button", { name: /scene|junction|stale/ });
-    expect(starters.length).toBe(3);
-    fireEvent.click(starters[0]);
+    expect(screen.queryByText(/Ask the agent/)).toBeNull();
+    expect(screen.queryAllByRole("button")).toHaveLength(1); // Send only
     const input = screen.getByLabelText("message the agent") as HTMLInputElement;
-    expect(input.value).toBe(starters[0].textContent);
+    expect(input.value).toBe("");
   });
 
   it("sending shows the user entry and streams the agent reply", async () => {

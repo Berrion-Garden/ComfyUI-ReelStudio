@@ -11,12 +11,6 @@ interface Props {
   onProjectChanged?: () => void;
 }
 
-const STARTERS = [
-  "make scene 2 shorter",
-  "fix the junction between the bowl drop and the draw",
-  "what is stale in this reel?",
-];
-
 export function Chat({ onProjectChanged }: Props) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [input, setInput] = useState("");
@@ -79,22 +73,6 @@ export function Chat({ onProjectChanged }: Props) {
   return (
     <div className="chat" data-testid="chat">
       <div className="chat-log" ref={scroller} aria-live="polite">
-        {entries.length === 0 && !busy ? (
-          <div className="chat-empty">
-            <div className="chat-hint">
-              Ask the agent to edit this reel — it reads reel.yaml, renders
-              through ComfyUI, and keeps junctions intact.
-            </div>
-            <div className="chat-starters">
-              {STARTERS.map((s) => (
-                <button key={s} type="button" className="chat-starter"
-                  onClick={() => { setInput(s); inputRef.current?.focus(); }}>
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
         {entries.map((entry, i) => (
           <div key={i} className={`chat-entry role-${entry.role}`}>
             <span className="chat-role">{entry.role === "user" ? "you" : entry.role === "agent" ? "agent" : "…"}</span>

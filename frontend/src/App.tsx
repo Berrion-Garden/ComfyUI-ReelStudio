@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { adoptRenders, assemble, bellUrl, fetchProject, fetchSfxBoard, renderScenes, renderStale, updateAudioTrack, placeSfxEvent, removeSfxEvent, type SfxScene } from "./api";
 import { Player, type SelectedAsset } from "./player/Player";
+import { Stills } from "./player/Stills";
 import { Timeline } from "./timeline/Timeline";
 import { Chat } from "./chat/Chat";
 import { AssetsPane } from "./assets/AssetsPane";
@@ -14,6 +15,8 @@ export function App() {
   const [selectedAsset, setSelectedAsset] = useState<SelectedAsset | null>(null);
   const [seekRequest, setSeekRequest] = useState<{ s: number; n: number } | null>(null);
   const [sfxBoard, setSfxBoard] = useState<SfxScene[]>([]);
+  const [stageView, setStageView] = useState<"player" | "images">("player");
+  const stageRef = useRef<HTMLElement | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -64,6 +67,16 @@ export function App() {
     setSeekRequest({ s: (pct / 100) * project.total_s, n: Date.now() });
   };
 
+  const toggleFullscreen = () => {
+    const el = stageRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) {
+      void document.exitFullscreen();
+    } else {
+      void el.requestFullscreen().catch((e) => setError(String(e)));
+    }
+  };
+
   return (
     <div className="app">
       <header className="app-header">
@@ -102,12 +115,22 @@ export function App() {
 
       <main className="app-main">
         <div className="app-top">
-          <section className="stage-pane" aria-label="preview">
-            <Player
-              scenes={project.scenes}
-              onPlayhead={setPlayheadPct}
-              selectedAsset={selectedAsset}
-              seekRequest={seekRequest}
+          <section className="stage-pane" aria-label="preview" ref={stageRef}>
+            <div className="stage-tabs">
+              <button type="button" className={stageView === "player" ? "tab on" : "tab"}
+                onClick={() => setStageView("player")}>▶ Player</button>
+              <button type="button" className={stageView === "images" ? "tab on" : "tab"}
+                onClick={() => setStageView("images")}>🖼 Images</button>
+              <span className="stage-tabs-spacer" />
+              <button type="button" onClick={toggleFullscreen}
+                title="fullscreen the player">⛶</button>
+            </div>
+            <div className={stageView === "player" ? "stage-host" : "stage-host hidden"}>
+              <Player
+                scenes={project.scenes}
+                onPlayhead={setPlayheadPct}
+                selectedAsset={selectedAsset}
+                seekRequest={seekRequest}
               mix={{
                 // the real tracks always; the Music3 bed only when the mix
                 // uses it (skip_music: false) — mirrors reel.py assemble
@@ -152,7 +175,11 @@ export function App() {
                 ],
                 totalS: project.total_s,
               }}
-            />
+              />
+            </div>
+            <div className={stageView === "images" ? "stage-host" : "stage-host hidden"}>
+              <Stills scenes={project.scenes} artifactUrl={artifactUrl} />
+            </div>
           </section>
           <AssetsPane selected={selectedAsset} onSelect={setSelectedAsset} />
         </div>
