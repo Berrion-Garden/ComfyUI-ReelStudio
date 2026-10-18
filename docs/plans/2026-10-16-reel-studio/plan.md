@@ -144,3 +144,44 @@ Milestones:
   blocked on M13b..e
 
 Critical path M13a → M13c → M13d → M13e → M13f.
+
+## M14 addendum — Multi-scene studio: wrapper YAML, File menu, cross-scene import (2026-10-18)
+
+Requirements:
+
+- FR-23: The workspace gains a wrapper layer ABOVE reel.yaml: a `studio.yaml`
+  at the studio root — `{title, current, scenes: {slug: {title, dir}}}` — one
+  entry per scene. Each scene is a self-contained directory (reel.yaml,
+  assets.yaml, characters/, backgrounds/, sfx/, audio/, images/); `reel.py`
+  stays ONE shared file at the studio root (the pipeline is never duplicated)
+  and resolves its scene from the cwd it is invoked with (reel.yaml's home).
+- FR-24: "Save reference to this scene": on a workspace with no studio.yaml,
+  Save performs the migration — moves the project into `scenes/<slug>/`,
+  writes the wrapper, and rebinds the app to the scene dir. On a migrated
+  workspace it persists `current`/`title`.
+- FR-25: The app resolves the studio by walking up from `config.workspace`
+  (root-or-scene both accepted); scene switching rebinds config.workspace —
+  `project()` already reloads from disk per call.
+- FR-26: Import characters (pools) and locations (backgrounds) from another
+  scene into the current one: copies the files and re-keys their declared
+  labels, stripping `scene:*` foreign keys (they point at the source
+  project's scenes); name collisions are refused.
+- FR-27: Top-left File menu (chevron dropdown): Save, Open scene… (list,
+  current checked), New scene… (slug + title + optional import of
+  characters/locations from a chosen source scene).
+- FR-28: The execution seam finds reel.py beside reel.yaml OR one level up
+  (studio root) and keeps running it with cwd = the scene dir.
+
+Milestones:
+
+- M14a — `reelstudio/studio.py`: resolve/load/save/create/import + migration
+  (save-as) — blocked on nothing
+- M14b — Studio routes (GET /api/studio, POST open/save/scenes/import) +
+  `get_studio`/`import_assets` agent tools — blocked on M14a
+- M14c — reel.py cwd-aware scene resolution + seam walk-up (workspace repo) —
+  blocked on nothing
+- M14d — FE File menu (top-left) + new-scene dialog — blocked on M14b
+- M14e — Migrate the live workspace, deploy + live verify — blocked on
+  M14a..d
+
+Critical path M14a → M14b → M14d → M14e (M14c parallel).

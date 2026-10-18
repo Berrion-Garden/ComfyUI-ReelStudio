@@ -101,7 +101,10 @@ import sys
 import yaml
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-CFG = yaml.safe_load(open(os.path.join(HERE, "reel.yaml")))
+# Same scene contract as the real reel.py: the scene is the cwd when it
+# holds reel.yaml (the studio runs the shared script from the scene dir).
+SCENE = os.getcwd() if os.path.isfile(os.path.join(os.getcwd(), "reel.yaml")) else HERE
+CFG = yaml.safe_load(open(os.path.join(SCENE, "reel.yaml")))
 M = CFG["meta"]
 FF = "/usr/bin/ffmpeg"
 

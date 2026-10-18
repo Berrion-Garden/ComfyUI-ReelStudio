@@ -10,6 +10,7 @@ import json
 
 from .. import generate
 from .. import readmodel
+from .. import studio as studio_mod
 from ..errors import ReelStudioError
 from .skills import load_skills
 
@@ -50,6 +51,27 @@ TOOLS = [
                        "used_by scenes. When the operator says 'this one' or "
                        "'the selected asset', call this instead of guessing.",
         "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {
+        "name": "get_studio",
+        "description": "The scene registry: every scene in the studio, the "
+                       "current one, and each scene's characters/backgrounds. "
+                       "Read before cross-scene work (imports, references).",
+        "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {
+        "name": "import_assets",
+        "description": "Import character pools and background plates from "
+                       "another scene into the CURRENT one (copies files + "
+                       "labels, scene: foreign keys stripped). Name "
+                       "collisions are refused.",
+        "parameters": {"type": "object",
+                       "properties": {
+                           "from": {"type": "string",
+                                    "description": "source scene slug"},
+                           "characters": {"type": "array",
+                                          "items": {"type": "string"}},
+                           "backgrounds": {"type": "array",
+                                           "items": {"type": "string"}}},
+                       "required": ["from"]}}},
     {"type": "function", "function": {
         "name": "get_skill",
         "description": "Load an on-demand skill's full body by name. The "
@@ -123,6 +145,16 @@ class ToolBox:
         specs = generate.plan(project, args.get("kind"), args)
         jobs = [self.state.enqueue(kind, target) for kind, target in specs]
         return json.dumps({"queued": [j.view() for j in jobs]})
+
+    async def _get_studio(self, _):
+        return json.dumps(
+            studio_mod.view_of(self.state.config.workspace), ensure_ascii=False)
+
+    async def _import_assets(self, args):
+        result = studio_mod.import_assets(
+            self.state.config.workspace, str(args.get("from", "")),
+            args.get("characters") or [], args.get("backgrounds") or [])
+        return json.dumps(result, ensure_ascii=False)
 
     async def _get_skill(self, args):
         name = args.get("name")

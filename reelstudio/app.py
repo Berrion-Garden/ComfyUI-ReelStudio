@@ -6,6 +6,7 @@ ComfyUI's PromptServer in production. One handler set, one adapter.
 """
 
 import asyncio
+import dataclasses
 import json
 import subprocess
 import urllib.parse
@@ -16,7 +17,7 @@ from aiohttp import web
 
 from . import manifest as manifest_mod
 from . import assets as assets_mod
-from . import generate, timeline
+from . import generate, studio as studio_mod, timeline
 from . import audio as audio_mod
 from . import reel as reel_pipeline
 from .agent.loop import run as agent_run
@@ -56,6 +57,11 @@ class ReelStudio:
     # ------------------------------------------------------------ project --
     def project(self):
         return load_project(self.config)
+
+    def reopen(self, workspace: Path) -> None:
+        """Point the app at another scene dir. project() reloads from disk
+        per call, so this rebinding is the whole scene switch."""
+        self.config = dataclasses.replace(self.config, workspace=Path(workspace))
 
     # -------------------------------------------------------------- jobs ---
     async def start(self, app):
@@ -432,6 +438,70 @@ async def post_agent_chat(request: web.Request) -> web.StreamResponse:
     return resp
 
 
+# --------------------------------------------------------------- studio ----
+def _studio_view(state: ReelStudio) -> dict:
+    return studio_mod.view_of(state.config.workspace)
+
+
+async def get_studio(request: web.Request) -> web.Response:
+    return web.json_response(_studio_view(_state(request)))
+
+
+async def post_studio_save(request: web.Request) -> web.Response:
+    """Save the reference to the current scene: on an implicit workspace
+    this performs the studio migration; on a saved studio it persists."""
+    state = _state(request)
+    body = await request.json()
+    slug = str(body.get("slug") or
+               studio_mod.resolve(state.config.workspace).current)
+    scene = studio_mod.save_as(state.config.workspace, slug,
+                               body.get("title"))
+    state.reopen(scene)
+    return web.json_response(_studio_view(state))
+
+
+async def post_studio_open(request: web.Request) -> web.Response:
+    state = _state(request)
+    body = await request.json()
+    scene = studio_mod.open_scene(state.config.workspace,
+                                  str(body.get("slug", "")))
+    state.reopen(scene)
+    return web.json_response(_studio_view(state))
+
+
+async def post_studio_scenes(request: web.Request) -> web.Response:
+    """New scene: (implicitly saving an implicit workspace first), scaffold,
+    switch to it, optionally importing characters/locations from a source."""
+    state = _state(request)
+    body = await request.json()
+    ws = state.config.workspace
+    if not studio_mod.resolve(ws).saved:
+        state.reopen(studio_mod.save_as(ws, studio_mod.resolve(ws).current, None))
+    project = state.project()
+    scene = studio_mod.create_scene(state.config.workspace,
+                                    str(body.get("slug", "")),
+                                    body.get("title"), project.meta)
+    state.reopen(scene)
+    imp = body.get("import") or {}
+    imported = None
+    if imp.get("from"):
+        imported = studio_mod.import_assets(
+            state.config.workspace, str(imp["from"]),
+            imp.get("characters") or [], imp.get("backgrounds") or [])
+    view = _studio_view(state)
+    view["import"] = imported
+    return web.json_response(view)
+
+
+async def post_studio_import(request: web.Request) -> web.Response:
+    """Import characters/locations from another scene into the current one."""
+    state = _state(request)
+    body = await request.json()
+    return web.json_response(studio_mod.import_assets(
+        state.config.workspace, str(body.get("from", "")),
+        body.get("characters") or [], body.get("backgrounds") or []))
+
+
 async def post_manifest_adopt(request: web.Request) -> web.Response:
     """Declare pre-app renders current so staleness starts from truth."""
     state = _state(request)
@@ -476,6 +546,11 @@ def create_app(config: Config) -> web.Application:
     app.router.add_post(f"{API}/sfx/board", post_sfx_event)
     app.router.add_delete(f"{API}/sfx/board", delete_sfx_event)
     app.router.add_post(f"{API}/manifest/adopt", post_manifest_adopt)
+    app.router.add_get(f"{API}/studio", get_studio)
+    app.router.add_post(f"{API}/studio/save", post_studio_save)
+    app.router.add_post(f"{API}/studio/open", post_studio_open)
+    app.router.add_post(f"{API}/studio/scenes", post_studio_scenes)
+    app.router.add_post(f"{API}/studio/import", post_studio_import)
     app.router.add_get(f"{API}/scene/{{scene_id}}/artifact/{{kind}}", get_scene_artifact)
     app.router.add_post(f"{API}/agent/chat", post_agent_chat)
     app.on_startup.append(state.start)

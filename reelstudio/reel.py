@@ -16,13 +16,16 @@ class ReelScriptError(RuntimeError):
 
 
 def workspace_script(workspace: Path) -> Path:
-    """The workspace's reel.py; the operator's pipeline lives beside reel.yaml."""
-    script = workspace / "reel.py"
-    if not script.is_file():
-        raise FileNotFoundError(
-            f"reel.py not found in the workspace ({workspace}) — the pipeline "
-            "script must sit beside reel.yaml")
-    return script
+    """reel.py beside reel.yaml, or the ONE shared copy at the studio root
+    (scene dirs carry data; the pipeline is never duplicated)."""
+    for dir in (workspace, workspace.parent, workspace.parent.parent):
+        script = dir / "reel.py"
+        if script.is_file():
+            return script
+    raise FileNotFoundError(
+        f"reel.py not found beside reel.yaml or at the studio root "
+        f"(looked from {workspace}) — the pipeline script is the single "
+        "source of truth for the pipeline")
 
 
 async def run_async(workspace: Path, cmd: str, args: list[str] | None = None) -> str:

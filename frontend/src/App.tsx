@@ -5,10 +5,13 @@ import { AssetBrowser } from "./assets/AssetBrowser";
 import { Timeline } from "./timeline/Timeline";
 import { Chat } from "./chat/Chat";
 import { AssetsPane } from "./assets/AssetsPane";
+import { FileMenu } from "./studio/FileMenu";
+import { fetchStudio, type StudioView } from "./api";
 import type { ProjectView } from "./types";
 
 export function App() {
   const [project, setProject] = useState<ProjectView | null>(null);
+  const [studio, setStudio] = useState<StudioView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [playheadPct, setPlayheadPct] = useState<number | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -21,12 +24,14 @@ export function App() {
 
   const refresh = useCallback(async () => {
     try {
-      const [p, board, lib] = await Promise.all([
+      const [p, board, lib, st] = await Promise.all([
         fetchProject(),
         fetchSfxBoard().catch(() => [] as SfxScene[]),
         fetchAssets().catch(() => null),
+        fetchStudio().catch(() => null),
       ]);
       setProject(p);
+      setStudio(st);
       setSfxBoard(board);
       if (lib) {
         setAssets(lib);
@@ -89,6 +94,8 @@ export function App() {
   return (
     <div className="app">
       <header className="app-header">
+        <FileMenu studio={studio} onChanged={refresh}
+          busy={busyAction !== null || anyJobsRunning} />
         <h1>Reel Studio</h1>
         <div className="app-meta">
           {project.scenes.length} scenes · {project.total_s.toFixed(1)}s ·{" "}

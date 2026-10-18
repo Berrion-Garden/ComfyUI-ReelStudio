@@ -85,10 +85,8 @@ def _workspace(work_dir: str):
     ws = Path(work_dir).resolve()
     if ws.name == ".work":          # the worker passes workspace/.work
         ws = ws.parent
-    if not (ws / "reel.py").is_file():
-        raise FileNotFoundError(
-            f"reel.py not found beside the project yaml ({ws}) — the pipeline "
-            "script must live in the workspace")
+    from .reel import workspace_script  # the one discovery rule
+    workspace_script(ws)
     return ws
 
 

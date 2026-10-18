@@ -163,6 +163,54 @@ export async function deleteAsset(path: string): Promise<void> {
   await json_or_throw(resp);
 }
 
+// ------------------------------------------------------------- studio ----
+
+export interface StudioScene {
+  slug: string;
+  title: string;
+  dir: string;
+  current: boolean;
+  characters: string[];
+  backgrounds: string[];
+}
+
+export interface StudioView {
+  title: string;
+  current: string;
+  saved: boolean;
+  workspace: string;
+  scenes: StudioScene[];
+}
+
+export async function fetchStudio(): Promise<StudioView> {
+  const resp = await fetch(`${API}/studio`);
+  return json_or_throw(resp);
+}
+
+async function postStudio(path: string, body: object): Promise<StudioView> {
+  const resp = await fetch(`${API}/studio${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return json_or_throw(resp);
+}
+
+export function saveScene(slug?: string, title?: string): Promise<StudioView> {
+  return postStudio("/save", { slug, title });
+}
+
+export function openScene(slug: string): Promise<StudioView> {
+  return postStudio("/open", { slug });
+}
+
+export function newScene(
+  slug: string, title: string | undefined,
+  imp?: { from: string; characters: string[]; backgrounds: string[] },
+): Promise<StudioView> {
+  return postStudio("/scenes", { slug, title, import: imp });
+}
+
 /** POST a chat message; yields SSE events as they stream. */
 export async function* chatStream(
   message: string,
