@@ -240,3 +240,24 @@ Milestones:
   restart) + live verify — blocked on M15a..d
 
 Critical path M15a/M15b/M15c → M15d → M15e.
+
+## M16 addendum — Floating chat window (2026-10-18)
+
+Requirements:
+
+- FR-34: The agent chat is a floating overlay window, not a fixed pane —
+  it renders above the whole studio (`position: fixed`) and the operator
+  can anchor it anywhere: drag by the title bar, resize from the corner,
+  magnetic snap that parks it flush at the viewport edges on release,
+  minimize/restore to the title bar, arrow-key nudging, and geometry
+  (position + size) that persists across reloads. First launch opens
+  docked along the bottom at full width, mirroring the old layout. The
+  fixed bottom chat pane is deleted. The agent interaction is unchanged:
+  SSE stream, conversation history, attachments (button + drag-and-drop),
+  the selection toggle, and project refresh on tool results.
+
+Milestones:
+
+- M16a — FE: FloatingChat (window shell + the existing conversation
+  internals, `chat/Chat.tsx` removed), styles, jsdom PointerEvent shim in
+  the vitest setup, tests — blocked on nothing

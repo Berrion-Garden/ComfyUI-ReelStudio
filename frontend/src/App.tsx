@@ -3,7 +3,7 @@ import { adoptScene, assemble, bellUrl, fetchAssets, fetchProject, fetchSfxBoard
 import { Player } from "./player/Player";
 import { AssetBrowser } from "./assets/AssetBrowser";
 import { Timeline } from "./timeline/Timeline";
-import { Chat } from "./chat/Chat";
+import { FloatingChat } from "./chat/FloatingChat";
 import { AssetsPane } from "./assets/AssetsPane";
 import { FileMenu } from "./studio/FileMenu";
 import { fetchStudio, type StudioView } from "./api";
@@ -248,7 +248,7 @@ export function App() {
         />
       </main>
 
-      <Chat onProjectChanged={() => void refresh()}
+      <FloatingChat onProjectChanged={() => void refresh()}
         selected={selectedAssets.map((a) => (
           { slug: a.slug, path: a.path, group: a.group, labels: a.labels }))} />
     </div>

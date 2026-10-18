@@ -13,13 +13,72 @@ interface Attachment {
   name: string;
 }
 
+interface Geometry {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 interface Props {
   onProjectChanged?: () => void;
   /** the operator's current asset selection — the agent's "this one" */
   selected?: { slug: string; path: string; group: string; labels: string[] }[] | null;
 }
 
-export function Chat({ onProjectChanged, selected }: Props) {
+const GEOMETRY_KEY = "reelstudio.chat.geometry.v1";
+const MIN_W = 280;
+const MIN_H = 200;
+const TITLE_H = 36;
+const SNAP = 12;
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
+
+/** Keep the window grabbable: ≥60px of the title bar and the whole bar in view. */
+const fitToViewport = (g: Geometry, vw: number, vh: number): Geometry => {
+  const w = clamp(g.w, MIN_W, vw);
+  const h = clamp(g.h, MIN_H, vh);
+  const x = clamp(g.x, -w + 60, vw - 60);
+  const y = clamp(g.y, -h + TITLE_H, vh - TITLE_H);
+  return { x, y, w, h };
+};
+
+/** First launch mirrors the old layout: a full-width strip along the bottom. */
+const defaultGeometry = (vw: number, vh: number): Geometry =>
+  fitToViewport({ x: 0, y: vh - 320, w: vw, h: 320 }, vw, vh);
+
+const num = (n: unknown) =>
+  typeof n === "number" && Number.isFinite(n) ? n : null;
+
+const loadGeometry = (vw: number, vh: number): Geometry => {
+  try {
+    const raw = localStorage.getItem(GEOMETRY_KEY);
+    if (!raw) return defaultGeometry(vw, vh);
+    const p = JSON.parse(raw) as Record<string, unknown>;
+    const x = num(p.x), y = num(p.y), w = num(p.w), h = num(p.h);
+    if (x === null || y === null || w === null || h === null) {
+      return defaultGeometry(vw, vh);
+    }
+    return fitToViewport({ x, y, w, h }, vw, vh);
+  } catch {
+    return defaultGeometry(vw, vh);
+  }
+};
+
+/** Magnetic edges: release near a viewport edge and the window parks flush. */
+const snapToEdges = (g: Geometry, vw: number, vh: number): Geometry => ({
+  ...g,
+  x: g.x < SNAP ? 0 : g.x + g.w > vw - SNAP ? vw - g.w : g.x,
+  y: g.y < SNAP ? 0 : g.y + g.h > vh - SNAP ? vh - g.h : g.y,
+});
+
+const snapSize = (g: Geometry, vw: number, vh: number): Geometry => ({
+  ...g,
+  w: g.x + g.w > vw - SNAP ? Math.max(MIN_W, vw - g.x) : g.w,
+  h: g.y + g.h > vh - SNAP ? Math.max(MIN_H, vh - g.y) : g.h,
+});
+
+export function FloatingChat({ onProjectChanged, selected }: Props) {
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -28,13 +87,24 @@ export function Chat({ onProjectChanged, selected }: Props) {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [attachNote, setAttachNote] = useState<string | null>(null);
   const [sendSelection, setSendSelection] = useState(false);
+  const [minimized, setMinimized] = useState(false);
+  const [g, setG] = useState<Geometry>(() =>
+    loadGeometry(window.innerWidth, window.innerHeight));
+  const gRef = useRef(g);
+  gRef.current = g;
   const fileInput = useRef<HTMLInputElement | null>(null);
   const history = useRef<{ role: string; content: string }[]>([]);
   const scroller = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
-    inputRef.current?.focus();
+    try { localStorage.setItem(GEOMETRY_KEY, JSON.stringify(g)); } catch { /* private mode */ }
+  }, [g]);
+
+  useEffect(() => {
+    const onResize = () =>
+      setG((s) => fitToViewport(s, window.innerWidth, window.innerHeight));
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
   /** Upload files for the next message; images land in images/, audio in audio/. */
@@ -75,7 +145,7 @@ export function Chat({ onProjectChanged, selected }: Props) {
     scrollBottom();
     try {
       for await (const ev of chatStream(message, history.current,
-                                        selectedRef.current, sendSelection)) {
+                                         selectedRef.current, sendSelection)) {
         handleEvent(ev);
       }
     } catch (e) {
@@ -108,14 +178,96 @@ export function Chat({ onProjectChanged, selected }: Props) {
     scrollBottom();
   };
 
+  /** Drag the window by its title bar; release near an edge parks it flush.
+   *  The pointer offset stays OUT of the geometry state: spreading it into a
+   *  setG value would bake stale coordinates in and clobber the next drag. */
+  const startMove = (e: React.PointerEvent) => {
+    if (e.button !== 0 || (e.target as HTMLElement).closest("button")) return;
+    e.preventDefault();
+    const g0 = { ...gRef.current };
+    const sx = e.clientX, sy = e.clientY;
+    const move = (ev: PointerEvent) => {
+      setG(fitToViewport(
+        { ...g0, x: g0.x + ev.clientX - sx, y: g0.y + ev.clientY - sy },
+        window.innerWidth, window.innerHeight));
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      setG((cur) => snapToEdges(cur, window.innerWidth, window.innerHeight));
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  };
+
+  /** Grow/shrink from the bottom-right corner; near the edge it stretches flush. */
+  const startResize = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const g0 = { ...gRef.current };
+    const sx = e.clientX, sy = e.clientY;
+    const move = (ev: PointerEvent) => {
+      const vw = window.innerWidth, vh = window.innerHeight;
+      setG({
+        ...g0,
+        w: clamp(g0.w + ev.clientX - sx, MIN_W, Math.max(MIN_W, vw - g0.x)),
+        h: clamp(g0.h + ev.clientY - sy, MIN_H, Math.max(MIN_H, vh - g0.y)),
+      });
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      setG((cur) => snapSize(cur, window.innerWidth, window.innerHeight));
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  };
+
+  /** Arrow keys move the window so the drag is keyboard-reachable. */
+  const nudge = (e: React.KeyboardEvent) => {
+    const step = e.shiftKey ? 50 : 10;
+    let dx = 0, dy = 0;
+    if (e.key === "ArrowLeft") dx = -step;
+    else if (e.key === "ArrowRight") dx = step;
+    else if (e.key === "ArrowUp") dy = -step;
+    else if (e.key === "ArrowDown") dy = step;
+    else return;
+    e.preventDefault();
+    setG((cur) => fitToViewport(
+      { ...cur, x: cur.x + dx, y: cur.y + dy },
+      window.innerWidth, window.innerHeight));
+  };
+
   return (
-    <div className="chat" data-testid="chat"
+    <div
+      className={`chat-float${minimized ? " min" : ""}`}
+      data-testid="floating-chat"
+      style={{ left: g.x, top: g.y, width: g.w, height: minimized ? TITLE_H : g.h }}
       onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) e.preventDefault(); }}
       onDrop={(e) => {
         if (e.dataTransfer.files.length === 0) return;
         e.preventDefault();
         void attach(e.dataTransfer.files);
       }}>
+      <div
+        className="chat-float-title"
+        tabIndex={0}
+        title="drag to move, arrow keys to nudge"
+        aria-label={minimized ? "agent chat window, minimized — drag or arrow keys to move"
+                             : "agent chat window — drag or arrow keys to move"}
+        onPointerDown={startMove}
+        onKeyDown={nudge}>
+        <span className="chat-float-title-text">
+          Agent{busy ? " · working…" : ""}
+        </span>
+        <button type="button" className="chat-float-min"
+          aria-label={minimized ? "restore chat" : "minimize chat"}
+          onClick={() => setMinimized((m) => !m)}>{minimized ? "+" : "–"}</button>
+      </div>
       <div className="chat-log" ref={scroller} aria-live="polite">
         {entries.map((entry, i) => (
           <div key={i} className={`chat-entry role-${entry.role}`}>
@@ -139,7 +291,6 @@ export function Chat({ onProjectChanged, selected }: Props) {
       </div>
       <div className="chat-input">
         <textarea
-          ref={inputRef}
           value={input}
           placeholder={busy ? "agent is working…" : "tell the agent what to change"}
           aria-label="message the agent"
@@ -166,6 +317,8 @@ export function Chat({ onProjectChanged, selected }: Props) {
           if (e.target.files?.length) void attach(e.target.files);
           e.target.value = "";
         }} />
+      <div className="chat-float-resize" data-testid="floating-chat-resize"
+        aria-hidden="true" onPointerDown={startResize} />
     </div>
   );
 }

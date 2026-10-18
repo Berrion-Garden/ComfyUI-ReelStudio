@@ -24,7 +24,9 @@ Born from the Court Aftermath pipeline (`anime_reel/reel.py` + `reel.yaml`).
 │  ▏ ══ opening ═══════▕ ▏    XXX     ▕                 music lanes │
 │  ▏ ▏ ══ battle ═════════════════════▕                               │
 ├────────────────────────────────────────────────────────────────────┤
-│  chat: "make scene 2 shorter" → YAML edit → re-render s2 (+s3)     │
+│┌─ 💬 Agent ─────────────────────────────────────── floating window ┐│
+││ chat: "make scene 2 shorter" → YAML edit → re-render s2 (+s3)    ││
+│└ drag the title bar · resize the corner · parks flush at edges ───┘│
 └────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -50,6 +52,10 @@ Born from the Court Aftermath pipeline (`anime_reel/reel.py` + `reel.yaml`).
   (`get_assets`), the operator's current selection (`currently_selected`),
   validate-gated YAML read/edit, one `generate` seam over every generator
   (scene / music / assemble / still / image_edit all wired), and job status.
+  The chat surface is a floating window over the studio: drag it by the
+  title bar, resize it from the corner, and it parks flush at the viewport
+  edges when released nearby; position and size persist across reloads,
+  and it minimizes to the title bar.
 
 ## The YAML
 

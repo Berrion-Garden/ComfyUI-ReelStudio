@@ -16,5 +16,5 @@ export default defineConfig({
   // with ComfyUI's own frontend assets when served through its server
   base: "/reelstudio/",
   build: { outDir: "dist", sourcemap: false },
-  test: { environment: "jsdom", globals: true },
+  test: { environment: "jsdom", globals: true, setupFiles: "./vitest.setup.ts" },
 });
