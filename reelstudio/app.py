@@ -534,6 +534,12 @@ def create_app(config: Config) -> web.Application:
             raise
 
     app.middlewares.append(error_middleware)
+    # a workspace pointing at the studio ROOT resolves to the current
+    # scene's dir — the project (reel.yaml) lives in the scene, never at
+    # the root. open/save rebind from here.
+    resolved = studio_mod.resolve(config.workspace)
+    if resolved.saved:
+        config = dataclasses.replace(config, workspace=resolved.scene_dir)
     state = ReelStudio(config)
     app[STATE_KEY] = state
     app.router.add_get(f"{API}/project", get_project)

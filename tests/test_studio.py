@@ -166,3 +166,21 @@ async def test_per_scene_adopt_and_adoptable_flag(client, workspace):
     assert scene["video_url"] is not None
     other = next(s for s in view["scenes"] if s["id"] != "s1_ramen")
     assert other["adoptable"] is False and other["video_url"] is None
+
+
+async def test_startup_resolves_a_root_configured_workspace(client, workspace):
+    """config.json pointing at the studio ROOT: the app starts on the
+    wrapper's current scene, not the root (which has no reel.yaml)."""
+    from conftest import make_config
+    from reelstudio import studio
+    from reelstudio.app import STATE_KEY
+
+    await client.post("/reelstudio/api/studio/save", json={"slug": "ep1"})
+    await client.post("/reelstudio/api/studio/scenes", json={"slug": "ep2"})
+
+    # a fresh app, configured the way config.json looks after a restart
+    from reelstudio.app import create_app
+    app2 = create_app(make_config(workspace))
+    state2 = app2[STATE_KEY]
+    assert state2.config.workspace == workspace / "scenes" / "ep2"
+    assert state2.config.yaml_path == workspace / "scenes" / "ep2" / "reel.yaml"
