@@ -87,13 +87,16 @@ class Project:
     def to_yaml_text(self) -> str:
         return yaml.safe_dump(self.raw, sort_keys=False, allow_unicode=True)
 
-    def save(self, text: str | None = None) -> None:
+    def save(self, text: str | None = None) -> list[str]:
+        """Atomic save; raises ValidationError on structural errors. Returns
+        the non-blocking warnings (e.g. off-grid frames)."""
         if text is not None:
             self.raw = yaml.safe_load(text)
-        validate(self)
+        warnings = validate(self)
         tmp = self.config.yaml_path.with_suffix(".yaml.tmp")
         tmp.write_text(text if text is not None else self.to_yaml_text())
         os.replace(tmp, self.config.yaml_path)
+        return warnings
 
 
 def load(config: Config) -> Project:

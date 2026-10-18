@@ -85,6 +85,89 @@ async def test_agent_loop_edits_yaml_and_streams_events(config, workspace):
     await server.close()
 
 
+async def test_toolbox_generate_queues_and_teaches(config, workspace):
+    """generate is the one generation tool: valid kinds queue, bad requests
+    come back with teaching problems, unwired kinds fail loudly."""
+    import json as _json
+
+    from reelstudio.agent.tools import TOOLS, ToolBox
+    from reelstudio.app import ReelStudio
+
+    state = ReelStudio(config)
+    box = ToolBox(state)
+
+    # the generate tool is derived from the registry, all kinds visible
+    gen = next(t for t in TOOLS if t["function"]["name"] == "generate")
+    enum = gen["function"]["parameters"]["properties"]["kind"]["enum"]
+    assert enum == ["scene", "music", "assemble", "still", "image_edit"]
+    assert "NOT WIRED" in gen["function"]["description"]
+
+    # upstream-first ordering for a chain render
+    out = _json.loads(await box.call(
+        "generate", {"kind": "scene", "scene_ids": ["s3_pinkburst", "s1_ramen"]}))
+    assert [j["target"] for j in out["queued"]] == ["s1_ramen", "s3_pinkburst"]
+    assert all(j["kind"] == "scene" for j in out["queued"])
+
+    out = _json.loads(await box.call(
+        "generate", {"kind": "scene", "scene_ids": ["nope"]}))
+    assert "error" in out
+    assert "s1_ramen" in out["problems"][1]
+
+    # stale: true queues every scene (no manifest yet = all stale)
+    out = _json.loads(await box.call("generate", {"kind": "scene", "stale": True}))
+    assert len(out["queued"]) == 3
+
+    # unwired image kinds: loud, uniform, and they point at the real pipeline
+    out = _json.loads(await box.call("generate", {"kind": "still"}))
+    assert "not wired" in out["error"]
+    assert any("still_dir" in p for p in out["problems"])
+
+    out = _json.loads(await box.call("generate", {"kind": "wat"}))
+    assert "known kinds" in out["error"]
+
+
+async def test_toolbox_read_model_and_assets(config, workspace):
+    """get_project is the full read model (stills map included); get_assets
+    exposes the derived library with used_by."""
+    import json as _json
+
+    from reelstudio.agent.tools import ToolBox
+    from reelstudio.app import ReelStudio
+
+    state = ReelStudio(config)
+    box = ToolBox(state)
+
+    view = _json.loads(await box.call("get_project", {}))
+    assert [s["id"] for s in view["scenes"]] == ["s1_ramen", "s2_bowldrop", "s3_pinkburst"]
+    assert all(s["stale"] for s in view["scenes"])
+    assert view["stills"] == {"opening": True, "impact": True, "end": True}
+    assert view["alias_names"] == ["fox"]
+
+    assets = _json.loads(await box.call("get_assets", {}))
+    scenes = assets["groups"]["scenes"]
+    opening = next(a for a in scenes if a["labels"] == ["still", "still:opening"])
+    assert opening["used_by"] == ["s1_ramen"]
+
+
+async def test_read_model_is_one_derivation_api_and_tool(config, workspace):
+    """The API route and the agent tool must serve the same read model."""
+    import json as _json
+
+    from aiohttp.test_utils import TestClient, TestServer
+
+    from reelstudio.agent.tools import ToolBox
+    from reelstudio.app import STATE_KEY, ReelStudio, create_app
+
+    app = create_app(config)
+    tc = TestClient(TestServer(app))
+    await tc.start_server()
+    resp = await tc.get("/reelstudio/api/project")
+    api_view = await resp.json()
+    tool_view = _json.loads(await ToolBox(app[STATE_KEY]).call("get_project", {}))
+    assert api_view == tool_view
+    await tc.close()
+
+
 async def test_agent_chat_route_sse_scripted(config, workspace):
     from aiohttp.test_utils import TestClient, TestServer
 

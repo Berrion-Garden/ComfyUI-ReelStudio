@@ -101,9 +101,13 @@ async def test_assemble_concatenates_without_music(client, fake_comfy, workspace
     assert abs(float(probe["format"]["duration"]) - data["total_s"]) < 0.3
 
 
-async def test_render_unknown_scene_404(client):
+async def test_render_unknown_scene_400_teaches(client):
+    """Validation is uniform across generators: 400 + problems that name the
+    valid targets, so the agent can self-correct without re-reading files."""
     resp = await client.post("/reelstudio/api/render", json={"scene_ids": ["nope"]})
-    assert resp.status == 404
+    assert resp.status == 400
+    body = await resp.json()
+    assert any("s1_ramen" in p for p in body["problems"])
 
 
 async def test_freeze_post_runs_and_becomes_deliverable(client, fake_comfy, workspace):

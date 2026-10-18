@@ -61,8 +61,11 @@ export function Chat({ onProjectChanged }: Props) {
     } else if (ev.type === "tool_call") {
       const args = ev.args as Record<string, unknown> | undefined;
       const summary = ev.name === "update_yaml" ? "updating reel.yaml"
-        : ev.name === "render_scenes"
-          ? `rendering ${(args?.scene_ids as string[] | undefined)?.join(", ") || "stale scenes"}`
+        : ev.name === "generate"
+          ? `generating ${(args?.kind as string | undefined) ?? "?"}${
+              Array.isArray(args?.scene_ids) ? ` (${(args.scene_ids as string[]).join(", ")})`
+              : args?.stale ? " (stale scenes)"
+              : args?.name ? ` (${String(args.name)})` : ""}`
           : `${ev.name}`;
       setEntries((e) => [...e, { role: "tool", text: `⚙ ${summary}` }]);
     } else if (ev.type === "tool_result") {
