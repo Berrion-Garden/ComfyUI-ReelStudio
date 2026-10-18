@@ -53,3 +53,41 @@ Milestones:
   serving) + FE browser pane — blocked on M9
 - M11 — Regeneration loop: agent tooling for pool-driven still regeneration and
   auto-tagging of newly generated images — blocked on M10 (labels land with M10)
+
+---
+
+## M12 addendum — Audio as first-class tracks + single-source-of-truth execution (2026-10-18)
+
+Requirements:
+
+- FR-13: `audio:` top-level array — real overlay tracks as absolute timestamp
+  notes (`at` = video-time start, `seek`, `gain`, `fades`), replacing per-scene
+  `music_2`. reel.yaml, reel.py and the app parsers change together.
+- FR-14: Single source of truth — the app executes nothing: every
+  render/music/assemble job is a subprocess call into `workspace/reel.py`
+  (the only code that touches ComfyUI/ffmpeg). The app's own graph builders,
+  comfy client, stub client and mix are deleted. The app records manifest
+  entries after successful jobs so staleness stays truthful.
+- FR-15: The preview chain mixes on the fly like the real mix: baked clip
+  audio under the `sfx_volume` envelope (0.45 duck when music is in the mix),
+  overlays start at `seek` with gain×fades envelopes, synth bell at `bell_at`
+  (bell sample rendered by reel.py — one bell implementation), 1.2 s master
+  fade; everything resyncs on play/pause/scrub.
+- FR-16: The audio timeline is an audio graph: waveform per track, draggable
+  volume anchors (the `fades` keyframes), add on click, delete on double-click;
+  writes back to reel.yaml comment-preserving (ruamel.yaml). Lane players
+  start at `seek`, never at 0.
+
+Milestones:
+
+- M12a — `audio:` schema + parsers (reel.yaml, reel.py `audio_tracks()`, app
+  `reelstudio/audio.py`, OverlayView.fades) — blocked on M10
+- M12b — subprocess execution: worker runs reel.py, manifest recorded
+  post-job, delete graphs/ render.py assemble.py comfy_client.py stub.py,
+  conftest stub reel.py — blocked on M12a
+- M12c — preview mixer in Player (pure envelope/plan helpers + scheduled
+  elements) + reel.py `bell` subcommand — blocked on M12a
+- M12d — audio graph editor: peaks endpoint, PUT /api/audio/{i} (ruamel),
+  waveform + anchor drag UI — blocked on M12a
+- M12e — deploy + live verify (real `reel.py plan`, browser playback) —
+  blocked on M12b..d
