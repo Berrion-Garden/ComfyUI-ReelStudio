@@ -261,3 +261,25 @@ Milestones:
 - M16a — FE: FloatingChat (window shell + the existing conversation
   internals, `chat/Chat.tsx` removed), styles, jsdom PointerEvent shim in
   the vitest setup, tests — blocked on nothing
+
+## M17 addendum — Chat tabs and full-corner resize (2026-10-18)
+
+Requirements:
+
+- FR-35: The floating chat window resizes from all four corners. Each
+  corner handle drags its two edges while the opposite corner stays put;
+  releasing near the right/bottom edge stretches flush, and releasing
+  near the left/top edge docks it to 0 — matching the magnetic-edge
+  behavior of drag.
+- FR-36: The chat window holds tabs, each one an independent agent
+  context session: its own conversation history, entries, attachments,
+  draft, and selection toggle. New tabs via +, close via ✕ (the last tab
+  cannot be closed), click to switch; the tab is named after its first
+  message; a tab the agent is working in shows a ●. The backend is
+  stateless (every request carries the full history), so contexts are
+  separated client-side; tabs live in memory, as the conversation did.
+
+Milestones:
+
+- M17a — FE: FloatingChat (four-corner resize, tab state + strip UI),
+  styles, tests, docs, dist rebuild — blocked on nothing

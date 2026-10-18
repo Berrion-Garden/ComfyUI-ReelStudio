@@ -26,7 +26,7 @@ Born from the Court Aftermath pipeline (`anime_reel/reel.py` + `reel.yaml`).
 ├────────────────────────────────────────────────────────────────────┤
 │┌─ 💬 Agent ─────────────────────────────────────── floating window ┐│
 ││ chat: "make scene 2 shorter" → YAML edit → re-render s2 (+s3)    ││
-│└ drag the title bar · resize the corner · parks flush at edges ───┘│
+│└ drag · resize any corner · tabs = separate contexts ─────────────┘│
 └────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -53,9 +53,12 @@ Born from the Court Aftermath pipeline (`anime_reel/reel.py` + `reel.yaml`).
   validate-gated YAML read/edit, one `generate` seam over every generator
   (scene / music / assemble / still / image_edit all wired), and job status.
   The chat surface is a floating window over the studio: drag it by the
-  title bar, resize it from the corner, and it parks flush at the viewport
+  title bar, resize it from any corner, and it parks flush at the viewport
   edges when released nearby; position and size persist across reloads,
-  and it minimizes to the title bar.
+  and it minimizes to the title bar. Tabs inside the window are separate
+  agent contexts: each keeps its own history, so one session can plan the
+  reel while another tweaks a scene. New session with +, close with ✕; a
+  working tab shows a ●.
 
 ## The YAML
 

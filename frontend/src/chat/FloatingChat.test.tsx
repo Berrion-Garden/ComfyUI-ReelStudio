@@ -10,6 +10,9 @@ const VW = 1024;
 const VH = 768;
 const winEl = () => screen.getByTestId("floating-chat") as HTMLElement;
 const bar = () => screen.getByLabelText(/agent chat window/) as HTMLElement;
+const tabs = () => screen.getAllByRole("tab") as HTMLElement[];
+const saved = (g: { x: number; y: number; w: number; h: number }) =>
+  localStorage.setItem("reelstudio.chat.geometry.v1", JSON.stringify(g));
 
 describe("FloatingChat", () => {
   // geometry persists to localStorage — isolate every case
@@ -21,8 +24,10 @@ describe("FloatingChat", () => {
     expect(el.style.top).toBe(`${VH - 320}px`);
     expect(el.style.width).toBe(`${VW}px`);
     expect(el.style.height).toBe("320px");
-    // empty state: minimize + sel + paperclip + Send, no starter hints
-    expect(screen.queryAllByRole("button")).toHaveLength(4);
+    // empty state: minimize + new session + sel + paperclip + Send,
+    // one session tab, no starter hints
+    expect(screen.queryAllByRole("button")).toHaveLength(5);
+    expect(tabs()).toHaveLength(1);
     expect(screen.getByLabelText("attach files")).toBeTruthy();
     expect(screen.getByLabelText("send selection image")).toBeTruthy();
     expect(screen.getByLabelText("message the agent")).toBeTruthy();
@@ -85,6 +90,57 @@ describe("FloatingChat", () => {
     expect(el.style.height).toBe(`${VH - 448}px`);
   });
 
+  it("resizes from the top-right corner, keeping the left edge put", () => {
+    saved({ x: 200, y: 200, w: 400, h: 300 });
+    render(<FloatingChat />);
+    const el = winEl();
+    fireEvent.pointerDown(screen.getByTestId("floating-chat-resize-ne"),
+      { clientX: 594, clientY: 206, button: 0 });
+    fireEvent.pointerMove(window, { clientX: 700, clientY: 120 });
+    // dx = +106, dy = −86: the right/top edges follow the pointer, the
+    // left/bottom stay put: w = 400+106 = 506 (x stays 200);
+    // h = 300+86 = 386, top = 500−386 = 114
+    expect(el.style.left).toBe("200px");
+    expect(el.style.width).toBe("506px");
+    expect(el.style.top).toBe("114px");
+    expect(el.style.height).toBe("386px");
+    fireEvent.pointerUp(window);
+  });
+
+  it("resizes from the bottom-left corner, keeping the top edge put", () => {
+    saved({ x: 200, y: 200, w: 400, h: 300 });
+    render(<FloatingChat />);
+    const el = winEl();
+    fireEvent.pointerDown(screen.getByTestId("floating-chat-resize-sw"),
+      { clientX: 206, clientY: 494, button: 0 });
+    fireEvent.pointerMove(window, { clientX: 300, clientY: 620 });
+    // dx = +94, dy = +126: w = 400−94 = 306, left = 600−306 = 294;
+    // h = 300+126 = 426 (top stays 200)
+    expect(el.style.left).toBe("294px");
+    expect(el.style.width).toBe("306px");
+    expect(el.style.top).toBe("200px");
+    expect(el.style.height).toBe("426px");
+    fireEvent.pointerUp(window);
+  });
+
+  it("resizes from the top-left corner and parks flush at the top-left on release", () => {
+    saved({ x: 200, y: 200, w: 400, h: 300 });
+    render(<FloatingChat />);
+    const el = winEl();
+    fireEvent.pointerDown(screen.getByTestId("floating-chat-resize-nw"),
+      { clientX: 206, clientY: 206, button: 0 });
+    fireEvent.pointerMove(window, { clientX: 8, clientY: 8 });
+    // dx = dy = −198: w = 598, left = 600−598 = 2; h = 498, top = 500−498 = 2
+    expect(el.style.left).toBe("2px");
+    expect(el.style.top).toBe("2px");
+    fireEvent.pointerUp(window); // both inside the 12px margin → dock to 0
+    expect(el.style.left).toBe("0px");
+    expect(el.style.top).toBe("0px");
+    // the opposite (right/bottom) edges keep their position: 600 / 500
+    expect(el.style.width).toBe("600px");
+    expect(el.style.height).toBe("500px");
+  });
+
   it("minimizes to the title bar and restores", () => {
     render(<FloatingChat />);
     const el = winEl();
@@ -95,6 +151,44 @@ describe("FloatingChat", () => {
     fireEvent.click(screen.getByLabelText("restore chat"));
     expect(el.style.height).toBe("320px");
     expect(el.classList.contains("min")).toBe(false);
+  });
+
+  it("adds a session tab via + and can close all but the last", () => {
+    render(<FloatingChat />);
+    expect(tabs()).toHaveLength(1);
+    expect(screen.queryByLabelText("close session 1")).toBeNull();
+    fireEvent.click(screen.getByLabelText("new chat session"));
+    expect(tabs()).toHaveLength(2);
+    expect(tabs()[1].getAttribute("aria-selected")).toBe("true");
+    fireEvent.click(screen.getByLabelText("close session 2"));
+    expect(tabs()).toHaveLength(1);
+    expect(tabs()[0].getAttribute("aria-selected")).toBe("true");
+    // the last tab has no close button
+    expect(screen.queryByLabelText("close session 1")).toBeNull();
+  });
+
+  it("tabs hold separate agent contexts", async () => {
+    // echo how much history the request carried — cross-talk would show up here
+    async function* stream(message: string, history: { role: string; content: string }[]) {
+      yield { type: "message" as const, text: `${message} → saw ${history.length} prior` };
+    }
+    vi.mocked(chatStream).mockImplementation(stream);
+    render(<FloatingChat />);
+    const input = () => screen.getByLabelText("message the agent");
+    fireEvent.change(input(), { target: { value: "hello tab one" } });
+    fireEvent.click(screen.getByText("Send"));
+    expect(await screen.findByText("hello tab one → saw 0 prior")).toBeTruthy();
+    // a second session starts with a blank slate — tab one's log entries
+    // are gone (its auto-title still shows in the tab strip, by design)
+    fireEvent.click(screen.getByLabelText("new chat session"));
+    expect(screen.queryByText("hello tab one → saw 0 prior")).toBeNull();
+    fireEvent.change(input(), { target: { value: "hello tab two" } });
+    fireEvent.click(screen.getByText("Send"));
+    // still 0 prior: tab two's context did not inherit tab one's history
+    expect(await screen.findByText("hello tab two → saw 0 prior")).toBeTruthy();
+    // switching back brings tab one's conversation back
+    fireEvent.click(tabs()[0]);
+    expect(screen.getByText("hello tab one → saw 0 prior")).toBeTruthy();
   });
 
   it("restores the saved geometry and saves after a drag", () => {
@@ -109,10 +203,10 @@ describe("FloatingChat", () => {
     fireEvent.pointerDown(bar(), { clientX: 125, clientY: 85, button: 0 });
     fireEvent.pointerMove(window, { clientX: 200, clientY: 85 });
     fireEvent.pointerUp(window);
-    const saved = (JSON.parse(
+    const savedGeo = (JSON.parse(
       localStorage.getItem("reelstudio.chat.geometry.v1")!) as { x: number; y: number });
-    expect(saved.x).toBe(195);
-    expect(saved.y).toBe(80);
+    expect(savedGeo.x).toBe(195);
+    expect(savedGeo.y).toBe(80);
     localStorage.clear();
   });
 
@@ -134,7 +228,9 @@ describe("FloatingChat", () => {
     const input = screen.getByLabelText("message the agent");
     fireEvent.change(input, { target: { value: "make scene 2 shorter" } });
     fireEvent.click(screen.getByText("Send"));
-    expect(await screen.findByText("make scene 2 shorter")).toBeTruthy();
+    // the first message names the tab, so the text appears twice:
+    // the tab pill and the user's entry
+    expect((await screen.findAllByText("make scene 2 shorter")).length).toBe(2);
     expect(await screen.findByText("done — scene 2 is shorter now")).toBeTruthy();
     expect(await screen.findByText("Agent")).toBeTruthy();
   });
