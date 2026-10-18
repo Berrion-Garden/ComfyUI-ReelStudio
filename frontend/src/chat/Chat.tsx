@@ -126,10 +126,6 @@ export function Chat({ onProjectChanged, selected }: Props) {
         {busy && <div className="chat-entry role-tool">…thinking</div>}
       </div>
       <div className="chat-attach">
-        <button type="button" className={`chat-toggle ${sendSelection ? "on" : ""}`}
-          title="send the selected asset's picture with your next message"
-          aria-pressed={sendSelection} aria-label="send selection image"
-          onClick={() => setSendSelection((v) => !v)}>🖼 sel</button>
         {attachments.map((a, i) => (
           <span key={`${a.ref}-${i}`} className="attach-chip" title={a.ref}>
             {a.name}
@@ -157,7 +153,13 @@ export function Chat({ onProjectChanged, selected }: Props) {
           }}
           disabled={busy}
         />
-        <button type="button" onClick={() => void send()} disabled={busy}>Send</button>
+        <div className="chat-actions">
+          <button type="button" className={`chat-toggle ${sendSelection ? "on" : ""}`}
+            title="selecting this will attach the currently selected elements to every request"
+            aria-pressed={sendSelection} aria-label="send selection image"
+            onClick={() => setSendSelection((v) => !v)}>🖼 sel</button>
+          <button type="button" onClick={() => void send()} disabled={busy}>Send</button>
+        </div>
       </div>
       <input ref={fileInput} type="file" multiple hidden
         onChange={(e) => {

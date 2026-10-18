@@ -437,6 +437,7 @@ button:disabled { opacity: 0.45; cursor: default; }
   color: var(--text); border-radius: 6px; padding: 8px 10px; font-size: 13px;
   resize: none; font-family: inherit;
 }
+.chat-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 
 /* upload anchors: paperclip above Send, + per asset section, drag-and-drop */
 .chat-attach {

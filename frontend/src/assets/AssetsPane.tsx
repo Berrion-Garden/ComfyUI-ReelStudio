@@ -98,18 +98,30 @@ export function AssetsPane({ assets, selected, selectedPaths, onSelect, onChange
   const sections = useMemo(() => {
     if (!data) return [];
     const g = data.groups;
-    const out: { title: string; open: boolean; assets: AssetItem[] }[] = [
-      { title: "Characters", open: true, assets: g.characters },
-      { title: "Scenes", open: true, assets: g.scenes },
-      { title: "New stills", open: false, assets: g.stills ?? [] },
-      { title: "Backgrounds", open: false, assets: g.backgrounds ?? [] },
-      { title: "Custom", open: false, assets: g.custom },
-      { title: "LORA / Theme", open: false, assets: g.themes },
-      { title: "Audio", open: false, assets: g.audio },
-      { title: "Sound FX", open: false, assets: g.sfx },
+    const out: { title: string; assets: AssetItem[] }[] = [
+      { title: "Characters", assets: g.characters },
+      { title: "Scenes", assets: g.scenes },
+      { title: "New stills", assets: g.stills ?? [] },
+      { title: "Backgrounds", assets: g.backgrounds ?? [] },
+      { title: "Custom", assets: g.custom },
+      { title: "LORA / Theme", assets: g.themes },
+      { title: "Audio", assets: g.audio },
+      { title: "Sound FX", assets: g.sfx },
     ];
     return out;
   }, [data]);
+
+  // controlled, so the periodic asset refresh re-rendering this pane can't
+  // snap the user's collapsed sections back open
+  const [openSections, setOpenSections] = useState<Set<string>>(
+    () => new Set(["Characters", "Scenes"]));
+  const setOpen = (title: string, open: boolean) =>
+    setOpenSections((prev) => {
+      if (prev.has(title) === open) return prev;
+      const next = new Set(prev);
+      if (open) next.add(title); else next.delete(title);
+      return next;
+    });
 
   // flat order for arrow-key navigation, top to bottom
   const flat = useMemo(() => sections.flatMap((s) => s.assets), [sections]);
@@ -213,7 +225,9 @@ export function AssetsPane({ assets, selected, selectedPaths, onSelect, onChange
       {!data && <div className="assets-loading">loading assets…</div>}
       {error && <div className="assets-error" onClick={() => setError(null)}>{error}</div>}
       {sections.map((s) => (
-        <details key={s.title} className="asset-section" open={s.open}
+        <details key={s.title} className="asset-section"
+          open={openSections.has(s.title)}
+          onToggle={(e) => setOpen(s.title, e.currentTarget.open)}
           onDragOver={(e) => { if (UPLOAD_DIRS[s.title]) e.preventDefault(); }}
           onDrop={(e) => {
             // a drop uploads into this section's library dir

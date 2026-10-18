@@ -93,6 +93,22 @@ describe("AssetsPane", () => {
     expect(vi.mocked(deleteAsset)).toHaveBeenCalledWith("/out/dunk01_.png");
   });
 
+  it("sections collapse and stay collapsed across data refreshes", () => {
+    const { rerender } = render(<AssetsPane {...paneProps()} />);
+    const section = () =>
+      screen.getByText("Characters").closest("details") as HTMLDetailsElement;
+    expect(section().open).toBe(true);
+
+    // the browser flips open before the toggle event reaches React
+    section().open = false;
+    fireEvent(section(), new Event("toggle", { bubbles: true }));
+    expect(section().open).toBe(false);
+
+    // the pane re-renders on every asset poll — the user's collapse sticks
+    rerender(<AssetsPane {...paneProps()} />);
+    expect(section().open).toBe(false);
+  });
+
   it("the ... menu copies an asset:<path> reference and offers delete", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, { clipboard: { writeText } });
