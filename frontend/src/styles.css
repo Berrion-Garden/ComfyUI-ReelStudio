@@ -137,6 +137,36 @@ button:disabled { opacity: 0.45; cursor: default; }
 }
 
 .lane-music { display: grid; height: 28px; margin: 0 6px; }
+.lane-audio { height: 46px; }
+.audio-graph { flex-wrap: wrap; }
+.waveform {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none;
+}
+.waveform rect { fill: rgba(124, 108, 255, 0.4); }
+.anchor {
+  position: absolute; z-index: 2;
+  width: 10px; height: 10px; margin: 0 0 -5px -5px;
+  border-radius: 50%; background: var(--warn); border: 1px solid #000;
+  cursor: ns-resize; touch-action: none;
+}
+.lane-sfx { height: 34px; }
+.sfx-block {
+  position: relative; margin: 0 2px; overflow: hidden;
+  border-radius: 4px; background: rgba(124, 108, 255, 0.08);
+  display: flex; align-items: center;
+}
+.sfx-block .waveform { opacity: 0.7; }
+.sfx-block.missing { opacity: 0.35; }
+.sfx-name {
+  position: relative; z-index: 1; padding: 0 4px;
+  font-size: 9px; color: #cfc9ff;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.bell-mark {
+  position: absolute; z-index: 2; top: 1px; transform: translateX(-50%);
+  font-size: 10px; line-height: 1;
+}
 .lane-clip {
   display: grid; height: 18px; margin: 0 6px;
   background: #12101a; border-radius: 4px;

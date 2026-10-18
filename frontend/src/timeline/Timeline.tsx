@@ -1,5 +1,7 @@
 import type { MusicView, OverlayView, SceneView } from "../types";
 import { spanCols, videoCell } from "./layout";
+import { AudioLane } from "./AudioLane";
+import { SfxBar } from "./SfxBar";
 
 interface Props {
   scenes: SceneView[];
@@ -9,6 +11,7 @@ interface Props {
   artifactUrl: (sceneId: string, kind: string) => string;
   onSceneClick?: (sceneId: string) => void;
   onRenderScene?: (sceneId: string) => void;
+  onTrackChange?: (index: number, fades: [number, number][]) => void;
   playheadPct: number | null;
   onSeek?: (pct: number) => void;
 }
@@ -28,7 +31,7 @@ function AnchorThumb({ label, kind, url }: { label: string; kind: string; url: s
   );
 }
 
-export function Timeline({ scenes, music, overlays = [], totalS, artifactUrl, onSceneClick, onRenderScene, playheadPct, onSeek }: Props) {
+export function Timeline({ scenes, music, overlays = [], totalS, artifactUrl, onSceneClick, onRenderScene, onTrackChange, playheadPct, onSeek }: Props) {
   const columns = scenes.map((s) => `${Math.max(s.duration_s, 0.4)}fr`).join(" ");
   const ticks: number[] = [];
   for (let t = 0; t < totalS - 0.01; t += 5) ticks.push(t);
@@ -104,19 +107,20 @@ export function Timeline({ scenes, music, overlays = [], totalS, artifactUrl, on
         })}
 
         {scenes.some((s) => s.has_sfx) && (
-          <div className="lane lane-clip" title="baked scene audio (sound effects)"
-            style={{ gridColumn: `1 / ${scenes.length + 1}`, gridTemplateColumns: columns }}>
-            {scenes.map((s, i) => (
-              <div key={`${s.id}-clip`} className={`clip-block ${s.has_sfx ? "" : "empty"}`}
-                style={{ gridColumn: `${i + 1}` }}>
-                {s.has_sfx && <span className="cell-flag" title="scene sound effects baked in">♪ clip</span>}
-              </div>
-            ))}
-          </div>
+          <SfxBar scenes={scenes.map((s) => ({ id: s.id, duration_s: s.duration_s }))}
+            columns={columns} />
         )}
 
         {musicLanes.map((m) => {
           const span = spanCols(scenes, m.startS, m.durS);
+          if (m.kind === "overlay") {
+            const ov = overlays.find((o) => o.name === m.name)!;
+            return (
+              <AudioLane key={m.name} overlay={ov} totalS={totalS}
+                columns={columns} span={span} sceneCount={scenes.length}
+                onChange={onTrackChange} />
+            );
+          }
           return (
             <div key={m.name} data-testid={`lane-${m.name}`} className="lane lane-music"
               style={{ gridColumn: `1 / ${scenes.length + 1}`, gridTemplateColumns: columns }}>

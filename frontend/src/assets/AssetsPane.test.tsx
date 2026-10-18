@@ -18,6 +18,7 @@ const data: AssetsData = {
         labels: ["still:opening"], used_by: ["s1_ramen"], url: "/f/opening.png" },
     ],
     custom: [], themes: [],
+    sfx: [],
     audio: [
       { path: "/out/music_opening_1.wav", slug: "music_opening_1", group: "audio",
         labels: ["music", "track:opening"], used_by: [], url: "/f/m.wav" },

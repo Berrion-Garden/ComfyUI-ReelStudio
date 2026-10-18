@@ -46,6 +46,46 @@ export function sceneArtifactUrl(sceneId: string, kind: string): string {
   return `${API}/scene/${sceneId}/artifact/${kind}`;
 }
 
+export function audioTrackUrl(index: number): string {
+  return `${API}/audio/${index}/artifact`;
+}
+
+export function bellUrl(): string {
+  return `${API}/bell/artifact`;
+}
+
+export interface SfxScene {
+  id: string;
+  soundscape: string;
+  bell: string | boolean | null;
+  bell_at: number | null;
+  split: string | null;
+  peaks: number[] | null;
+}
+
+export async function fetchSfxBoard(buckets = 0): Promise<SfxScene[]> {
+  const resp = await fetch(`${API}/sfx/board?peaks=${buckets}`);
+  return json_or_throw<{ scenes: SfxScene[] }>(resp).then((j) => j.scenes);
+}
+
+export async function fetchAudioPeaks(index: number, buckets = 600): Promise<number[]> {
+  const resp = await fetch(`${API}/audio/${index}/peaks?buckets=${buckets}`);
+  const body = await json_or_throw<{ peaks: number[] }>(resp);
+  return body.peaks;
+}
+
+export async function updateAudioTrack(
+  index: number,
+  patch: { at?: number; seek?: number; gain?: number; fades?: [number, number][] },
+): Promise<void> {
+  const resp = await fetch(`${API}/audio/${index}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  await json_or_throw(resp);
+}
+
 export function finalUrl(): string | null {
   return `${API}/final`;
 }
@@ -53,7 +93,7 @@ export function finalUrl(): string | null {
 export interface AssetItem {
   path: string;
   slug: string;
-  group: "characters" | "scenes" | "custom" | "themes" | "audio";
+  group: "characters" | "scenes" | "custom" | "themes" | "audio" | "sfx";
   labels: string[];
   used_by: string[];
   url: string;

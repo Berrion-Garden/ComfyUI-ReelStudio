@@ -23,7 +23,7 @@ export function AssetsPane({ selected, onSelect }: Props) {
 
   useEffect(() => {
     void fetchAssets().then(setData).catch(() => setData({ groups: {
-      characters: [], scenes: [], custom: [], themes: [], audio: [],
+      characters: [], scenes: [], custom: [], themes: [], audio: [], sfx: [],
     }}));
   }, []);
 
@@ -36,6 +36,7 @@ export function AssetsPane({ selected, onSelect }: Props) {
       { title: "Custom", open: false, assets: g.custom },
       { title: "LORA / Theme", open: false, assets: g.themes },
       { title: "Audio", open: false, assets: g.audio },
+      { title: "Sound FX", open: false, assets: g.sfx },
     ];
     return out;
   }, [data]);

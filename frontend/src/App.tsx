@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { assemble, fetchProject, renderScenes, renderStale } from "./api";
+import { assemble, bellUrl, fetchProject, renderScenes, renderStale, updateAudioTrack } from "./api";
 import { Player, type SelectedAsset } from "./player/Player";
 import { Timeline } from "./timeline/Timeline";
 import { Chat } from "./chat/Chat";
@@ -95,6 +95,30 @@ export function App() {
               onPlayhead={setPlayheadPct}
               selectedAsset={selectedAsset}
               seekRequest={seekRequest}
+              mix={{
+                // the real tracks + the Music3 bed when the mix uses it —
+                // everything the yaml drives, layered on the fly
+                sources: [
+                  ...project.overlays
+                    .filter((o) => o.present && o.url)
+                    .map((o) => ({
+                      key: `a${o.index}`, url: o.url as string,
+                      startS: o.start_s, durS: o.duration_s,
+                      gain: o.gain, seek: o.seek, fades: o.fades,
+                    })),
+                  ...project.music
+                    .filter((m) => m.present && m.url)
+                    .map((m, i) => ({
+                      key: `m${i}`, url: m.url as string,
+                      startS: m.start_s, durS: m.duration_s,
+                      gain: m.gain, seek: 0, fades: [],
+                    })),
+                ],
+                sfxVolume: project.sfx_volume,
+                useMusic: !(project.flags as { skip_music?: boolean }).skip_music,
+                bellUrl: bellUrl(),
+                totalS: project.total_s,
+              }}
             />
           </section>
           <AssetsPane selected={selectedAsset} onSelect={setSelectedAsset} />
@@ -103,6 +127,11 @@ export function App() {
           scenes={project.scenes}
           music={project.music}
           overlays={project.overlays}
+          onTrackChange={(index, fades) => {
+            void updateAudioTrack(index, { fades })
+              .then(() => refresh())
+              .catch((e) => setError(String(e)));
+          }}
           totalS={project.total_s}
           artifactUrl={artifactUrl}
           playheadPct={playheadPct}

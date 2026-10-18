@@ -1,10 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import type { SceneView } from "../types";
 import { absoluteTime, advance, createQueue, type Clip } from "./queue";
+import { bellTimes, fadeOut, sfxVolumeAt, trackPlans, type MixSource } from "./mix";
 
 export interface SelectedAsset {
   url: string;
   name: string;
+}
+
+/** The layers the preview mix applies on the fly (derived from reel.yaml). */
+export interface Mix {
+  sources: MixSource[];
+  sfxVolume: [number, number][];
+  useMusic: boolean;
+  bellUrl: string | null;
+  totalS: number;
 }
 
 interface Props {
@@ -13,6 +23,7 @@ interface Props {
   selectedAsset?: SelectedAsset | null;
   /** scrub requests: { s: absolute seconds, n: monotonically increasing } */
   seekRequest?: { s: number; n: number } | null;
+  mix?: Mix | null;
 }
 
 /**
@@ -21,7 +32,7 @@ interface Props {
  * and the swap happens at the boundary. The reel ends only at a XXX scene.
  * Scrubbing seeks the queue to any absolute reel time.
  */
-export function Player({ scenes, onPlayhead, selectedAsset, seekRequest }: Props) {
+export function Player({ scenes, onPlayhead, selectedAsset, seekRequest, mix }: Props) {
   const playable = scenes.filter((s) => s.video_url !== null);
   const clips: Clip[] = playable.map((s) => ({
     id: s.id,
@@ -129,6 +140,68 @@ export function Player({ scenes, onPlayhead, selectedAsset, seekRequest }: Props
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state?.index, playing, seekRequest?.n, current?.id]);
 
+  // ------------------------------------------------------------ the mix --
+  // On-the-fly layering of everything the yaml drives: audio tracks (at
+  // seek, under their volume envelopes), the synth bell one-shots, and the
+  // sfx envelope on the baked clip audio — resynced on play/pause/seek.
+  const trackEls = useRef<Map<string, HTMLAudioElement>>(new Map());
+  const bellEl = useRef<HTMLAudioElement | null>(null);
+  const bellsFired = useRef<Set<number>>(new Set());
+  const resync = useRef(true);
+  const mixRef = useRef(mix);
+  mixRef.current = mix;
+
+  const pauseMix = () => {
+    for (const el of trackEls.current.values()) el.pause();
+    bellEl.current?.pause();
+    bellsFired.current.clear();
+  };
+
+  const applyMix = (t: number) => {
+    const m = mixRef.current;
+    if (!m) return;
+    const masterVideo = (stateRef.current?.index ?? 0) % 2 === 0
+      ? videoA.current : videoB.current;
+    if (masterVideo) {
+      masterVideo.volume = sfxVolumeAt(m.sfxVolume, t, m.totalS, m.useMusic);
+    }
+    for (const plan of trackPlans(m.sources, t, m.totalS)) {
+      const el = trackEls.current.get(plan.key);
+      if (!el || el.getAttribute("src") == null) continue;
+      if (plan.active) {
+        if (resync.current || Math.abs(el.currentTime - plan.offset) > 0.25) {
+          el.currentTime = plan.offset;
+        }
+        el.volume = plan.volume;
+        if (el.paused) void el.play().catch(() => { /* autoplay-guarded */ });
+      } else if (!el.paused) {
+        el.pause();
+      }
+    }
+    for (const b of bellTimes(scenes)) {
+      if (bellsFired.current.has(b) || t < b || t >= b + 3) continue;
+      const el = bellEl.current;
+      if (!el || !el.getAttribute("src")) continue;
+      bellsFired.current.add(b);
+      el.currentTime = 0;
+      el.volume = 0.5 * fadeOut(t, m.totalS);  // the mix rings the bell at 0.5
+      void el.play().catch(() => { /* autoplay-guarded */ });
+    }
+    resync.current = false;
+  };
+
+  useEffect(() => {
+    if (!playing || state === null) return;
+    applyMix(absoluteTime(clipDurations(), state));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state?.index, state?.elapsedInClip, playing]);
+
+  useEffect(() => {
+    if (!playing) pauseMix();           // pause/stop/asset-view silences the mix
+    resync.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing, seekRequest?.n]);
+
   if (playable.length === 0) {
     return (
       <div className="player empty" data-testid="player">
@@ -140,6 +213,13 @@ export function Player({ scenes, onPlayhead, selectedAsset, seekRequest }: Props
   const assetMode = showAsset && selectedAsset != null;
   return (
     <div className="player" data-testid="player">
+      {mix && mix.sources.map((s) => (
+        <audio key={s.key} ref={(el) => { if (el) trackEls.current.set(s.key, el); }}
+          src={s.url} preload="auto" />
+      ))}
+      {mix?.bellUrl && (
+        <audio ref={(el) => { bellEl.current = el; }} src={mix.bellUrl} preload="auto" />
+      )}
       <div className="player-stage">
         <video ref={videoA} className={!assetMode && state !== null && state.index % 2 === 0 ? "active" : ""} playsInline />
         <video ref={videoB} className={!assetMode && state !== null && state.index % 2 === 1 ? "active" : ""} playsInline />

@@ -60,7 +60,8 @@ def index_assets(workspace: str | Path, project) -> dict:
                 "group": group, "labels": merged, "used_by": used_by or []}
 
     groups: dict[str, list[dict]] = {"characters": [], "scenes": [],
-                                     "custom": [], "themes": [], "audio": []}
+                                     "custom": [], "themes": [], "audio": [],
+                                     "sfx": []}
 
     # scenes — the stills the timeline actually anchors on
     def _still_refs(scene: dict) -> list[str]:
@@ -120,6 +121,14 @@ def index_assets(workspace: str | Path, project) -> dict:
         for p in sorted(audio_root.rglob("*")):
             if p.is_file() and p.suffix.lower() in AUDIO_EXTS:
                 groups["audio"].append(mk(p, "audio", ["audio"]))
+
+    # sfx — named sound effects the yaml references (`bell: school_bell`);
+    # the seedbed of the sound-effect board
+    sfx_root = ws / "sfx"
+    if sfx_root.exists():
+        for p in sorted(sfx_root.rglob("*")):
+            if p.is_file() and p.suffix.lower() in AUDIO_EXTS:
+                groups["sfx"].append(mk(p, "sfx", ["sfx", f"sfx:{p.stem}"]))
 
     return {"groups": groups}
 

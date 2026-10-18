@@ -160,3 +160,17 @@ async def test_overlay_without_fades_runs_to_reel_end(client, workspace, tmp_pat
     assert ov["start_s"] == 0
     assert ov["duration_s"] == data["total_s"]
     assert ov["seek"] == 0.0
+
+
+async def test_sfx_assets_get_their_own_group_and_label(config, workspace):
+    from reelstudio import assets as assets_mod
+    from reelstudio.project import load
+
+    ws = workspace
+    (ws / "sfx").mkdir()
+    (ws / "sfx" / "school_bell.wav").write_bytes(b"x")
+
+    data = assets_mod.index_assets(ws, load(config))
+    bell = next(a for a in data["groups"]["sfx"] if a["slug"] == "school_bell")
+    assert bell["labels"] == ["sfx", "sfx:school_bell"]
+    assert "sfx" not in {a["slug"]: a for a in data["groups"]["audio"]}

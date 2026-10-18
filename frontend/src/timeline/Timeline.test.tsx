@@ -16,6 +16,7 @@ function scene(partial: Partial<SceneView>): SceneView {
     description: "",
     has_freeze: false,
     has_bell: false,
+    bell_at: null,
     has_sfx: false,
     video_url: null,
     stale: false,
@@ -126,7 +127,7 @@ describe("Timeline", () => {
       <Timeline
         scenes={[scene({ id: "s1", start_s: 0, duration_s: 4.5 })]}
         music={[{ name: "opening", start_s: 0, duration_s: 4.5, gain: 1, stale: false, present: true, url: "/m.wav" }]}
-        overlays={[{ name: "OMAM - Destroyer", start_s: 0, duration_s: 4.5, gain: 1, seek: 71, present: true, url: "/ov.mp3" }]}
+        overlays={[{ name: "OMAM - Destroyer", index: 0, start_s: 0, duration_s: 4.5, gain: 1, seek: 71, fades: [], present: true, url: "/ov.mp3" }]}
         totalS={4.5}
         artifactUrl={noop}
         playheadPct={null}
@@ -141,7 +142,7 @@ describe("Timeline", () => {
       <Timeline
         scenes={[scene({ id: "s1", start_s: 0, duration_s: 4.5 })]}
         music={[]}
-        overlays={[{ name: "Otonoke", start_s: 1, duration_s: 3, gain: 1, seek: 90, present: false, url: null }]}
+        overlays={[{ name: "Otonoke", index: 1, start_s: 1, duration_s: 3, gain: 1, seek: 90, fades: [], present: false, url: null }]}
         totalS={4.5}
         artifactUrl={noop}
         playheadPct={null}
@@ -151,7 +152,7 @@ describe("Timeline", () => {
     expect(screen.getByTestId("lane-Otonoke").querySelector("audio")).toBeNull();
   });
 
-  it("scenes with baked sound effects get a clip-audio lane", () => {
+  it("scenes with baked sound effects get the sfx board lane", () => {
     render(
       <Timeline
         scenes={[scene({ id: "s1", has_sfx: true }), scene({ id: "s2" })]}
@@ -161,9 +162,9 @@ describe("Timeline", () => {
         playheadPct={null}
       />,
     );
-    const lane = document.querySelector(".lane-clip")!;
+    const lane = document.querySelector('[data-testid="lane-sfx"]')!;
     expect(lane).toBeTruthy();
-    expect(lane.textContent).toContain("♪ clip");
+    expect(lane.querySelectorAll(".sfx-block").length).toBe(2);
   });
 
   it("pointer scrub reports the clicked position as a percentage", () => {

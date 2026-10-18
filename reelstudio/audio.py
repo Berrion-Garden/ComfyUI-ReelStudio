@@ -70,12 +70,15 @@ def track(project, index: int) -> dict:
     return tracks[index]
 
 
-def peaks(project, index: int, buckets: int) -> list[float]:
-    """Max-abs waveform envelope of the track's source file, `buckets` wide."""
+def split_path(project, scene_id: str) -> Path:
+    """A scene's split audio ({scene_id}_sfx.wav) — the editable layer."""
+    return Path(project.meta["reel_dir"]) / f"{scene_id}_sfx.wav"
+
+
+def peaks_for_path(path: Path, buckets: int) -> list[float]:
+    """Max-abs waveform envelope of an audio file, `buckets` wide."""
     import numpy as np
 
-    t = track(project, index)
-    path = Path(t["file"]).expanduser()
     if not path.is_file():
         raise NotFoundError(f"audio file missing: {path.name}")
     raw = subprocess.run(
@@ -92,6 +95,12 @@ def peaks(project, index: int, buckets: int) -> list[float]:
     env = np.abs(samples.reshape(-1, buckets)).max(axis=0)
     peak = float(env.max())
     return [round(float(v) / peak, 4) if peak > 0 else 0.0 for v in env]
+
+
+def peaks(project, index: int, buckets: int) -> list[float]:
+    """Max-abs waveform envelope of the track's source file, `buckets` wide."""
+    t = track(project, index)
+    return peaks_for_path(Path(t["file"]).expanduser(), buckets)
 
 
 def update_track(project, config, index: int, body: dict) -> dict:

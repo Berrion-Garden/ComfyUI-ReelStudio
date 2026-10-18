@@ -178,6 +178,13 @@ async def get_scene_artifact(request: web.Request) -> web.Response:
             raise NotFoundError(f"scene {sid!r} has no render")
         return web.FileResponse(Path(file))
 
+    if kind == "sfx":
+        split = audio_mod.split_path(project, sid)
+        if not split.is_file():
+            raise NotFoundError(
+                f"scene {sid!r} has no audio split (reel.py sfx {sid})")
+        return web.FileResponse(split)
+
     if kind in ("thumb_first", "thumb_last"):
         anchor = scene["video"].get("first" if kind == "thumb_first" else "last")
         resolved = timeline.resolve_anchor(project, anchor)
@@ -266,6 +273,35 @@ async def put_audio_track(request: web.Request) -> web.Response:
     except ValueError:
         raise NotFoundError("no such audio track")
     return web.json_response(t)
+
+
+async def get_sfx_board(request: web.Request) -> web.Response:
+    """Per-scene sound-effects facts: the soundscape prompt, the bell asset,
+    and the split audio (waveform peaks optional via ?peaks=<buckets>)."""
+    state = _state(request)
+    project = state.project()
+    try:
+        buckets = max(0, int(request.query.get("peaks", "0")))
+    except ValueError:
+        buckets = 0
+    items = []
+    for s in project.scenes:
+        se = s.get("sound_effects") or {}
+        sid = s["id"]
+        split = audio_mod.split_path(project, sid)
+        item = {
+            "id": sid,
+            "soundscape": str(se.get("soundscape") or ""),
+            "bell": se.get("bell"),
+            "bell_at": se.get("bell_at"),
+            "split": f"{API}/scene/{sid}/artifact/sfx" if split.is_file() else None,
+            "peaks": None,
+        }
+        if buckets and item["split"]:
+            item["peaks"] = await asyncio.to_thread(
+                audio_mod.peaks_for_path, split, buckets)
+        items.append(item)
+    return web.json_response({"scenes": items})
 
 
 async def get_bell_artifact(request: web.Request) -> web.Response:
@@ -371,6 +407,7 @@ def create_app(config: Config) -> web.Application:
     app.router.add_get(f"{API}/audio/{{index}}/peaks", get_audio_peaks)
     app.router.add_put(f"{API}/audio/{{index}}", put_audio_track)
     app.router.add_get(f"{API}/bell/artifact", get_bell_artifact)
+    app.router.add_get(f"{API}/sfx/board", get_sfx_board)
     app.router.add_post(f"{API}/manifest/adopt", post_manifest_adopt)
     app.router.add_get(f"{API}/scene/{{scene_id}}/artifact/{{kind}}", get_scene_artifact)
     app.router.add_post(f"{API}/agent/chat", post_agent_chat)

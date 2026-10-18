@@ -7,10 +7,11 @@ from pathlib import Path
 
 def _sine(path: Path, seconds: float = 1.0):
     path.parent.mkdir(parents=True, exist_ok=True)
+    codec = "libmp3lame" if path.suffix == ".mp3" else "pcm_s16le"
     subprocess.run(
         ["/usr/bin/ffmpeg", "-y", "-v", "error", "-f", "lavfi",
-         "-i", f"sine=frequency=440:duration={seconds}", "-c:a",
-         "libmp3lame", str(path)], check=True)
+         "-i", f"sine=frequency=440:duration={seconds}", "-c:a", codec,
+         str(path)], check=True)
     return path
 
 
@@ -92,3 +93,25 @@ async def test_bell_artifact_renders_once_via_reel_py(client, workspace):
     assert (workspace / ".work" / "bell.wav").exists()
     again = await (await client.get("/reelstudio/api/bell/artifact")).read()
     assert again == first
+
+
+async def test_sfx_board_lists_soundscapes_bell_and_peaks(client, workspace, tmp_path):
+    split = _sine(workspace / "output" / "reel" / "s1_ramen_sfx.wav")
+    resp = await client.get("/reelstudio/api/sfx/board", params={"peaks": "24"})
+    assert resp.status == 200
+    scenes = (await resp.json())["scenes"]
+    first = next(s for s in scenes if s["id"] == "s1_ramen")
+    assert first["soundscape"] == "slurp"
+    assert first["split"].endswith("/scene/s1_ramen/artifact/sfx")
+    assert len(first["peaks"]) == 24 and max(first["peaks"]) > 0.5
+    missing = next(s for s in scenes if s["id"] == "s2_bowldrop")
+    assert missing["split"] is None and missing["peaks"] is None
+    assert Path(split).is_file()
+
+
+async def test_scene_sfx_artifact_serves_the_split(client, workspace):
+    _sine(workspace / "output" / "reel" / "s2_bowldrop_sfx.wav", seconds=0.4)
+    ok = await client.get("/reelstudio/api/scene/s2_bowldrop/artifact/sfx")
+    assert ok.status == 200
+    gone = await client.get("/reelstudio/api/scene/s3_pinkburst/artifact/sfx")
+    assert gone.status == 404
