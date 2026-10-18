@@ -16,6 +16,15 @@ single source of truth; code never holds a second copy.
 - `aliases` — character/style shorthand spliced into descriptions with
   `{name}`. Define once, reference everywhere; never inline a character
   description twice.
+- `styles` — map of named look blocks `{pro, con}` (see film-grammar for the
+  vocabulary); `style:` names the ACTIVE one. The active style's `pro` is
+  prepended to EVERY video prompt and its `con` merged into every negative —
+  so one edit there cascades staleness to the whole reel. Keep only what
+  should be universally consistent here (aesthetic, grade, rendering rules).
+- `locations` — map of slug → `{pro, con}` shared location notes; a scene
+  references one with `location: <slug>` and only those scenes get the
+  injection (consistent location across a subset, one edit). EXT/INT, D/N,
+  time-of-day and weather belong here.
 - `stills` — named anchor images resolved into `meta.still_dir` with a
   `_.png` suffix appended (`opening: qwen_image_2_1_00008` →
   `still_dir/qwen_image_2_1_00008_.png`).
@@ -34,9 +43,12 @@ single source of truth; code never holds a second copy.
 
 ## Scene layers
 
+- `location` — optional slug into `locations:`; injected pro/con for this
+  scene only.
 - `video` — `mode` (`i2v` image-to-video, `fl2v` first+last, `t2v` text),
   `first`/`last` anchor refs, `description` (H3-Context-IR — see
-  h3-prompting), optional `negative`.
+  h3-prompting), optional `negative`. The description holds only what is
+  specific to this shot: action, blocking, shot size, camera move.
 - `sound_effects` — `soundscape` prose, baked INTO the clip by H3. Optional
   `bell: true` + `bell_at` (seconds into the scene) for the synthesized
   3-strike school bell.
@@ -58,3 +70,14 @@ single source of truth; code never holds a second copy.
 - `still:<name>` — entry in `stills:`.
 - absolute path — literal.
 - `null` — free ending (i2v) or no pin.
+
+## Staleness: the collapse
+
+`reel.py collapse` merges the yaml into each scene's FINAL generation input —
+prompt text, negative (scene + style con + location con, term-deduped),
+resolved anchors with file-content hashes, frames, size. The studio caches
+that artifact in the manifest at render time; a scene is stale exactly when
+the fresh collapse differs from the cached one. That is why editing the
+active style, a location, a still file or an upstream render all mark the
+right scenes for re-render automatically — there is no second staleness
+mechanism to keep in sync.

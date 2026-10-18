@@ -11,6 +11,7 @@ from pathlib import Path
 
 from . import assets as assets_mod
 from . import audio as audio_mod
+from . import collapse as collapse_mod
 from . import manifest as manifest_mod
 from . import timeline
 from .audio import music_segments
@@ -20,7 +21,9 @@ def project_view(state, api: str = "/reelstudio/api") -> dict:
     project = state.project()
     reel_dir = project.meta["reel_dir"]
     manifest = manifest_mod.load(reel_dir)
-    stale = set(timeline.stale_scenes(project, manifest, reel_dir))
+
+    stale = set(timeline.stale_scenes(project, manifest, reel_dir,
+                                      collapse=collapse_mod.current(project)))
     starts = timeline.scene_starts(project)
 
     scenes = []
@@ -67,6 +70,7 @@ def project_view(state, api: str = "/reelstudio/api") -> dict:
         p = project.still_path(name)
         stills[name] = p is not None and p.exists()
 
+    style = project.active_style()
     return {
         "yaml_path": str(state.config.yaml_path),
         "fps": project.fps,
@@ -78,6 +82,13 @@ def project_view(state, api: str = "/reelstudio/api") -> dict:
         "sfx_volume": project.raw.get("sfx_volume") or [],
         "alias_names": list(project.aliases),
         "stills": stills,
+        # the shared look machinery: the active style reaches every prompt,
+        # a location only the scenes referencing it (scene.location slug)
+        "style": ({"name": project.active_style_name,
+                   "pro": style.get("pro"), "con": style.get("con")}
+                  if style else None),
+        "styles": list(project.styles),
+        "locations": list(project.locations),
         "scenes": scenes,
         "music": music,
         "overlays": overlays,

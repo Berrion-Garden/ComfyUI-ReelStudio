@@ -1,9 +1,11 @@
 """Timeline math and staleness.
 
 Scene length is a generation-time property (frames on the H3 17n+5 grid) —
-never a cut. Staleness is hash-based: a scene is stale when its generation-
-relevant config changed OR when its `prev_last` upstream re-rendered, so
-"render changed" fixes exactly the chain (the S2→S3 re-anchor lesson).
+never a cut. Staleness is diff-based: a scene is stale when the generation
+input the yaml would produce now differs from the one cached in the manifest
+at render time (the collapse) — which subsumes config changes, shared look
+edits, upstream re-renders and changed stills. A hash fallback covers
+workspaces whose reel.py cannot collapse yet.
 """
 
 import hashlib
@@ -53,7 +55,11 @@ def resolve_anchor(project: Project, ref) -> dict:
 def generation_view(project: Project, scene: dict) -> dict:
     """The generation-relevant subset of a scene, with aliases resolved and
     still anchors pinned to file content. Two scenes with equal views render
-    identically (same seed randomness aside)."""
+    identically (same seed randomness aside). Shared look blocks are part of
+    the identity: the active style reaches every scene, a location only the
+    scenes that reference it — editing them cascades staleness exactly."""
+    style = project.active_style() or {}
+    location = project.scene_location(scene) or {}
     view = {
         "mode": scene["video"].get("mode"),
         "first": scene["video"].get("first"),
@@ -65,6 +71,8 @@ def generation_view(project: Project, scene: dict) -> dict:
         "post": _fmt(scene.get("post"), project.aliases),
         "size": [project.meta.get("width"), project.meta.get("height")],
         "steps": project.meta.get("steps"),
+        "style": _fmt(style, project.aliases),
+        "location": _fmt(location, project.aliases),
     }
     for anchor in ("first", "last"):
         resolved = resolve_anchor(project, view[anchor])
@@ -110,11 +118,36 @@ def chain_hash(project: Project, scene: dict, cache: dict | None = None) -> str:
 
 
 # ------------------------------------------------------------ staleness ----
-def stale_scenes(project: Project, manifest: dict, reel_dir: str = "") -> list[str]:
-    """Scene ids whose manifest entry no longer matches the current chain."""
+def stale_scenes(project: Project, manifest: dict, reel_dir: str = "",
+                 collapse: dict | None = None) -> list[str]:
+    """Scene ids whose recorded generation input no longer matches what the
+    yaml would generate now.
+
+    Primary mechanism: `collapse` (reel.py's merged generation input per
+    scene) diffed against the artifact cached in the manifest at render time.
+    It subsumes junction identity — a resolved prev_last anchor carries the
+    upstream file's content hash, so an upstream re-render cascades here
+    automatically. When the workspace cannot collapse (older reel.py), fall
+    back to the hash chain."""
     from pathlib import Path
 
-    cache: dict = {}
+    if collapse is not None:
+        stale = []
+        for s in project.scenes:
+            sid = s["id"]
+            entry = manifest.get("scenes", {}).get(sid)
+            if entry is None:
+                stale.append(sid)
+                continue
+            if entry.get("generation") != collapse.get(sid):
+                stale.append(sid)
+                continue
+            video_file = (entry.get("video") or {}).get("path", {}).get("file")
+            if not video_file or not (Path(reel_dir) / video_file).exists():
+                stale.append(sid)
+        return stale
+
+    cache = {}
     stale = []
     for s in project.scenes:
         entry = manifest.get("scenes", {}).get(s["id"])
@@ -168,6 +201,7 @@ def scene_view(project: Project, scene_id: str) -> dict:
         "first": resolve_anchor(project, scene["video"].get("first")),
         "last": resolve_anchor(project, scene["video"].get("last")),
         "description": scene["video"].get("description", ""),
+        "location": scene.get("location"),
         "has_freeze": bool(scene.get("post", {}).get("freeze")),
         "has_bell": bool(scene.get("sound_effects", {}).get("bell")),
         "bell_at": (scene.get("sound_effects", {}).get("bell_at")

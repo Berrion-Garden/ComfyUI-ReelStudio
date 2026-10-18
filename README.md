@@ -61,6 +61,17 @@ with `video` (mode i2v/fl2v/t2v, `first`/`last` anchors: `prev_last`,
 per-scene `frames` (the scene-length lever — length is **generated**, never
 cut; off the 17n+5 H3 grid is allowed but warned).
 
+Shared look machinery keeps scene notes focused: `styles:` names look blocks
+(`pro`/`con`) with `style:` picking the active one — its `pro` is prepended
+to every video prompt and its `con` merged into every negative, so one edit
+re-styles the whole reel. `locations:` are slugged location blocks a scene
+references with `location:`; only those scenes get the injection. Vocabulary
+and pro/con doctrine: `skills/film-grammar.md`.
+
+Staleness is diff-based: the workspace's `reel.py collapse` merges the yaml
+into each scene's final generation input; the studio caches it in the
+manifest and re-renders exactly the scenes whose input changed.
+
 ## Asset library
 
 Everything in the library is **derived, never hand-indexed** — the API response
@@ -157,6 +168,8 @@ The in-app agent's system prompt is assembled from the markdown skills in
 [`skills/`](skills/) — one concern per file, open Agent Skills format:
 
 - `reel-yaml-schema` — the full YAML contract
+- `film-grammar` — condensed shot/lighting/color vocabulary, every term with
+  pro (prompt) and con (negative) words
 - `h3-prompting` — writing H3 descriptions/negatives/soundscapes
 - `junction-doctrine` — chaining, `prev_last` frame-exactness, the
   "never show the landing" lesson

@@ -33,6 +33,20 @@ meta:
 aliases:
   fox: the pink fox boy
 
+styles:
+  anime:
+    pro: 2D anime, cel-shaded, clean bold line art, vibrant flat colors
+    con: photorealistic, 3D rendering, live action, text, watermark
+  pixar:
+    pro: 3D animation, soft global illumination, expressive stylized characters
+    con: flat 2D, sketchy lines
+style: anime
+
+locations:
+  campus_sunset:
+    pro: university campus plaza at golden sunset, warm orange sky
+    con: indoor, night, rain
+
 stills:
   opening: opening_still
   impact: impact_still
@@ -41,6 +55,7 @@ stills:
 scenes:
   - id: s1_ramen
     next: s2_bowldrop
+    location: campus_sunset
     video:
       mode: i2v
       first: still:opening
@@ -73,8 +88,10 @@ scenes:
 """
 
 # Same CLI contract as the real reel.py: render <id...>, music, assemble,
-# bell [out]. Deliverables are tiny real files so serving/staleness work.
-STUB_REEL_PY = '''
+# bell [out], collapse. Deliverables are tiny real files so serving/staleness
+# works; collapse emits the merged generation input exactly like the contract
+# the app caches and diffs.
+STUB_REEL_PY = r'''
 #!/usr/bin/env python3
 """Test double for the workspace pipeline: same CLI, no ComfyUI."""
 import os
@@ -89,11 +106,11 @@ M = CFG["meta"]
 FF = "/usr/bin/ffmpeg"
 
 
-def _tiny(path, ext):
+def _tiny(path, ext, shade=0):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     if ext == "mp4":
         args = [FF, "-y", "-v", "error", "-f", "lavfi",
-                "-i", "color=c=red:s=64x64:r=8:d=0.5",
+                "-i", f"color=c=0x{0x20 + shade:02d}5588:s=64x64:r=8:d=0.5",
                 "-f", "lavfi", "-i", "sine=frequency=440:duration=0.5",
                 "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p",
                 "-c:a", "aac"]
@@ -104,11 +121,65 @@ def _tiny(path, ext):
     subprocess.run(args + [path], check=True)
 
 
+def fh(path):
+    import hashlib
+    try:
+        return hashlib.sha256(open(path, "rb").read()).hexdigest()[:16]
+    except OSError:
+        return "missing"
+
+
+def _anchor(ref, prev_sid):
+    if ref in (None, "", "null"):
+        return {"kind": "none"}
+    if ref == "prev_last":
+        import glob
+        hits = sorted(glob.glob(os.path.join(M["reel_dir"], f"{prev_sid}_*.mp4")))
+        return {"kind": "prev_last", "file_hash": fh(hits[-1] if hits else "")}
+    if ref.startswith("still:"):
+        p = os.path.join(M["still_dir"], CFG["stills"][ref[6:]] + "_.png")
+        return {"kind": "still", "path": p, "file_hash": fh(p)}
+    return {"kind": "path", "path": ref}
+
+
+def _collapse():
+    import json
+    al = CFG.get("aliases", {})
+    style = (CFG.get("styles") or {}).get(CFG.get("style") or "", {})
+    ids = [s["id"] for s in CFG["scenes"]]
+    out = {}
+    for i, s in enumerate(CFG["scenes"]):
+        loc = (CFG.get("locations") or {}).get(s.get("location") or "", {})
+        v = s["video"]
+        parts = [b["pro"].format(**al) for b in (style, loc) if b.get("pro")]
+        parts.append(v["description"].strip().format(**al))
+        merged_neg = ", ".join(dict.fromkeys(
+            t.strip() for src in ((v.get("negative") or ""),
+                                  (style.get("con") or ""),
+                                  (loc.get("con") or ""))
+            for t in src.split(",") if t.strip()))
+        out[s["id"]] = {
+            "prompt": "\n".join(parts),
+            "negative": merged_neg,
+            "frames": s.get("frames", M["frames"]),
+            "mode": v.get("mode"),
+            "first": _anchor(v.get("first"), ids[i - 1] if i else None),
+            "last": _anchor(v.get("last"), ids[i - 1] if i else None),
+            "size": [M["width"], M["height"]],
+            "steps": M["steps"],
+        }
+    return json.dumps({"scenes": out})
+
+
 def _run(argv):
     cmd = argv[0]
     if cmd == "render":
+        import glob
         for sid in argv[1:]:
-            _tiny(os.path.join(M["reel_dir"], f"{sid}_00001_.mp4"), "mp4")
+            # real SaveVideo increments the suffix; re-renders change the file
+            n = len(glob.glob(os.path.join(M["reel_dir"], f"{sid}_*.mp4"))) + 1
+            _tiny(os.path.join(M["reel_dir"], f"{sid}_{n:05d}_.mp4"), "mp4",
+                  shade=n)
     elif cmd == "music":
         for s in CFG["scenes"]:
             m = s.get("music")
@@ -120,6 +191,8 @@ def _run(argv):
     elif cmd == "bell":
         out = argv[1] if len(argv) > 1 else os.path.join(M["work"], "bell.wav")
         _tiny(out, "wav")
+    elif cmd == "collapse":
+        print(_collapse())
     else:
         raise SystemExit(f"stub reel.py: unknown command {cmd!r}")
 

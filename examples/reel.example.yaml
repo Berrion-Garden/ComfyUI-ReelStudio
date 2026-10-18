@@ -13,6 +13,20 @@ meta:
 aliases:
   fox: the pink fox boy
 
+styles:
+  anime:
+    pro: 2D anime, cel-shaded, clean bold line art, vibrant flat colors
+    con: photorealistic, 3D rendering, live action, text, watermark
+  pixar:
+    pro: 3D animation, soft global illumination, expressive stylized characters
+    con: flat 2D, sketchy lines
+style: anime
+
+locations:
+  campus_sunset:
+    pro: university campus plaza at golden sunset, warm orange sky
+    con: indoor, night, rain
+
 stills:
   opening: opening_still
   impact: impact_still
@@ -21,12 +35,13 @@ stills:
 scenes:
   - id: s1_ramen
     next: s2_bowldrop
+    location: campus_sunset
     video:
       mode: i2v
       first: still:opening
       last: null
       description: |
-        The fox eats noodles. {{fox}}.
+        MCU. The fox eats noodles. {{fox}}.
       negative: text, watermark
     sound_effects:
       soundscape: slurp

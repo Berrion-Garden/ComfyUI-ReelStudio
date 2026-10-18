@@ -8,6 +8,67 @@ def test_valid_workspace_loads(config):
 
     project = load(config)
     assert [s["id"] for s in project.scenes] == ["s1_ramen", "s2_bowldrop", "s3_pinkburst"]
+    assert project.active_style_name == "anime"
+    assert project.active_style()["pro"].startswith("2D anime")
+    assert project.scene_location(project.scenes[0])["pro"].startswith("university campus")
+
+
+def test_look_blocks_reject_bad_refs_and_aliases(config, workspace):
+    import pytest
+
+    from reelstudio.errors import ValidationError
+    from reelstudio.project import load
+
+    project = load(config)
+    raw = config.yaml_path.read_text()
+    with pytest.raises(ValidationError) as e:
+        project.save(raw.replace("style: anime", "style: pixar2"))
+    assert any("known: ['anime', 'pixar']" in p for p in e.value.problems)
+
+    with pytest.raises(ValidationError) as e:
+        project.save(raw.replace("style: anime\n", ""))
+    assert any("pick the active style" in p for p in e.value.problems)
+
+    with pytest.raises(ValidationError) as e:
+        project.save(raw.replace("pro: 2D anime, cel-shaded, clean bold line art, vibrant flat colors",
+                                 "pro: 2D anime, {foks}"))
+    assert any("unknown alias ref" in p and "'foks'" in p
+               for p in e.value.problems)
+
+    with pytest.raises(ValidationError) as e:
+        project.save(raw.replace("    location: campus_sunset", "    location: dojo"))
+    assert any("unknown location 'dojo'" in p for p in e.value.problems)
+
+    with pytest.raises(ValidationError) as e:
+        project.save(raw.replace(
+            "locations:\n"
+            "  campus_sunset:\n"
+            "    pro: university campus plaza at golden sunset, warm orange sky\n"
+            "    con: indoor, night, rain\n",
+            "locations: [nope]\n"))
+    assert any("must be a map" in p for p in e.value.problems)
+
+    with pytest.raises(ValidationError) as e:
+        project.save(raw.replace("meta:\n", "meta: [broken\n"))
+    assert any("malformed yaml" in p for p in e.value.problems)
+
+
+def test_look_blocks_are_optional(config, workspace):
+    """A yaml with no styles/locations at all stays valid — the machinery is
+    additive."""
+    import yaml
+
+    from reelstudio.project import load
+
+    project = load(config)
+    raw = yaml.safe_load(config.yaml_path.read_text())
+    for key in ("styles", "style", "locations"):
+        raw.pop(key, None)
+    for s in raw["scenes"]:
+        s.pop("location", None)
+    project.save(yaml.safe_dump(raw, sort_keys=False, allow_unicode=True))
+    assert project.active_style() is None
+    assert project.scene_location(project.scenes[0]) is None
 
 
 def test_off_grid_frames_warn_not_fail(config):

@@ -9,16 +9,21 @@ description: Writing video.description / negative / soundscape for MiniMax H3 �
 A `video.description` is one structured block, not prose chat:
 
 ```
-integrated_multimodal_description: [Shot 1] 2D anime, cel-shaded, clean bold line art.
-<setting, held fixed>. <shot size and subject>. <action in order, concrete verbs>.
-<camera: static/pan/push-in + amplitude>. <lighting>.
+integrated_multimodal_description: [Shot 1] <shot size + angle>. <subject>.
+<action in order, concrete verbs>. <camera: static/pan/push-in + amplitude>.
 ```
 
-- State the style up front; pin the background as FIXED when it must not morph.
+Style and location are NOT written here: the machinery prepends the active
+`styles:` block and the scene's `locations:` block to every prompt and merges
+their `con:` lists into the negative (see film-grammar for the vocabulary and
+reel-yaml-schema for the injection contract). Restating them per scene is
+duplication — one edit should follow the scene, not forty.
+
+- Pin the background as FIXED when it must not morph.
 - Describe the LAST frame explicitly ("exactly like the final frame") when
   `last:` pins a still.
-- `negative` is a comma list of concrete re-manifestation risks — not style
-  words. "text, watermark, photorealistic, 3D rendering" always apply.
+- `negative` holds only scene-specific re-manifestation risks — the shared
+  style/location cons are merged in automatically.
 
 ## Audio
 

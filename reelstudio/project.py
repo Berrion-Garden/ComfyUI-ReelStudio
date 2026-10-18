@@ -2,8 +2,10 @@
 
 reel.yaml is the single source of truth (inherited from the anime_reel
 pipeline): one scene = one narrative chunk with video / sound_effects / music
-layers, chained by `next:` slugs. This module owns the structure rules; the
-timeline module owns the time math.
+layers, chained by `next:` slugs. Shared look machinery — `styles:` (the
+active one is injected into every prompt) and `locations:` (injected into the
+scenes that reference them) — lives here too. This module owns the structure
+rules; the timeline module owns the time math.
 """
 
 import os
@@ -50,6 +52,28 @@ class Project:
         return self.raw.get("stills", {})
 
     @property
+    def styles(self) -> dict:
+        return self.raw.get("styles", {})
+
+    @property
+    def active_style_name(self) -> str | None:
+        return self.raw.get("style")
+
+    def active_style(self) -> dict | None:
+        """The {pro, con} block injected into every video prompt."""
+        name = self.active_style_name
+        return self.styles.get(name) if name else None
+
+    @property
+    def locations(self) -> dict:
+        return self.raw.get("locations", {})
+
+    def scene_location(self, scene: dict) -> dict | None:
+        """The {pro, con} block for the scene's `location:` slug, if any."""
+        return self.locations.get(scene.get("location")) \
+            if scene.get("location") else None
+
+    @property
     def scenes(self) -> list[dict]:
         return self.raw.get("scenes", [])
 
@@ -88,10 +112,11 @@ class Project:
         return yaml.safe_dump(self.raw, sort_keys=False, allow_unicode=True)
 
     def save(self, text: str | None = None) -> list[str]:
-        """Atomic save; raises ValidationError on structural errors. Returns
+        """Atomic save; raises ValidationError on structural errors (parse
+        errors included — a malformed file must never reach disk). Returns
         the non-blocking warnings (e.g. off-grid frames)."""
         if text is not None:
-            self.raw = yaml.safe_load(text)
+            self.raw = _safe_load(text)
         warnings = validate(self)
         tmp = self.config.yaml_path.with_suffix(".yaml.tmp")
         tmp.write_text(text if text is not None else self.to_yaml_text())
@@ -99,14 +124,55 @@ class Project:
         return warnings
 
 
+def _safe_load(text: str) -> dict:
+    import yaml as _yaml
+
+    try:
+        data = _yaml.safe_load(text)
+    except _yaml.YAMLError as e:
+        raise ValidationError([f"malformed yaml: {e}"]) from e
+    if not isinstance(data, dict):
+        raise ValidationError(["reel.yaml must be a yaml mapping at the top level"])
+    return data
+
+
 def load(config: Config) -> Project:
-    raw = yaml.safe_load(config.yaml_path.read_text())
+    raw = _safe_load(config.yaml_path.read_text())
     project = Project(raw, config)
     validate(project)
     return project
 
 
 # ---------------------------------------------------------------- rules ----
+def _validate_look_block(project: Project, kind: str, blocks: dict,
+                         problems: list[str]) -> None:
+    """Shared shape for `styles:`/`locations:` entries: a map of slug ->
+    {pro (required), con (optional)}. Alias refs must resolve everywhere —
+    a typo in a shared block would otherwise poison every prompt."""
+    if not isinstance(blocks, dict):
+        problems.append(f"{kind}: must be a map of slug -> "
+                        "{pro: ..., con: ...} blocks")
+        return
+    for slug, block in blocks.items():
+        where = f"{kind}.{slug}"
+        if not isinstance(block, dict):
+            problems.append(f"{where}: needs pro (and optional con) strings")
+            continue
+        pro = block.get("pro")
+        if not pro or not isinstance(pro, str):
+            problems.append(f"{where}: pro is required and must be a string")
+        for part in ("pro", "con"):
+            text = block.get(part)
+            if text is not None and not isinstance(text, str):
+                problems.append(f"{where}.{part}: must be a string")
+            if isinstance(text, str) and text:
+                try:
+                    text.format(**project.aliases)
+                except (KeyError, IndexError) as e:
+                    problems.append(f"{where}.{part}: unknown alias ref {e} "
+                                    f"(known aliases: {list(project.aliases)})")
+
+
 def validate(project: Project) -> list[str]:
     """Raises ValidationError on structural errors; returns warnings (e.g.
     off-grid frame counts) that do not block work."""
@@ -120,6 +186,19 @@ def validate(project: Project) -> list[str]:
     for required in ("fps", "frames", "width", "height", "still_dir", "reel_dir"):
         if required not in meta:
             problems.append(f"meta.{required} is required")
+
+    _validate_look_block(project, "styles", project.styles, problems)
+    if project.styles:
+        name = project.active_style_name
+        if not name:
+            problems.append(f"style: pick the active style "
+                            f"(known: {list(project.styles)})")
+        elif name not in project.styles:
+            problems.append(f"style: {name!r} is not defined in styles "
+                            f"(known: {list(project.styles)})")
+    elif project.active_style_name:
+        problems.append("style: selector without a styles map")
+    _validate_look_block(project, "locations", project.locations, problems)
 
     ids = [s.get("id") for s in scenes]
     if len(set(ids)) != len(ids):
@@ -159,6 +238,11 @@ def validate(project: Project) -> list[str]:
         music = s.get("music")
         if isinstance(music, dict) and not (music.get("name") and music.get("caption")):
             problems.append(f"{sid}: music segments need name and caption")
+
+        loc = s.get("location")
+        if loc is not None and loc not in project.locations:
+            problems.append(f"{sid}: unknown location {loc!r} "
+                            f"(known: {list(project.locations)})")
 
         post = s.get("post", {}).get("freeze")
         if post and "at_s" not in post:

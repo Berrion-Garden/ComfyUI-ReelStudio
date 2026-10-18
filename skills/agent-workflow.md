@@ -9,7 +9,8 @@ description: The Reel Studio agent tool protocol — get_project staleness readi
 - `get_project` is the read model: per-scene `stale`, `rendered`, `start_s`,
   `duration_s`, anchor kinds, plus music segments, overlays, the `stills` map
   (a `present: false` entry is a broken anchor — fix it or ask), alias names,
-  flags. Read it before and after every edit.
+  the active `style` and `locations`, flags. Read it before and after every
+  edit.
 - `get_assets` is the derived library: character pose pools (`char:`/`pose:`),
   custom images, themes, audio, and `used_by` per still. Find anchor images by
   label here — never guess filenames (see asset-library).
@@ -21,7 +22,10 @@ description: The Reel Studio agent tool protocol — get_project staleness readi
 - `generate` queues work on the single-GPU worker. Kinds:
   - `scene` — render videos. Pass `scene_ids` (queued upstream-first) or
     `stale: true` for every stale scene. NEVER render the whole chain when
-    two scenes changed.
+    two scenes changed. EXCEPTION: an edit to the active `style:` block or
+    `styles:` map is global — every scene's prompt changes, so the whole reel
+    legitimately goes stale; say so and render the chain (or offer to).
+    A `location:` edit cascades only to the scenes referencing it.
   - `music` — regenerate one anchored segment (`name:`).
   - `assemble` — the final production mix; only when the user asks for it.
   - `still` / `image_edit` — NOT WIRED: anchor stills come from the operator's

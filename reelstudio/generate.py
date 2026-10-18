@@ -34,12 +34,14 @@ class Generator:
 # ------------------------------------------------------------ validators ---
 def _validate_scene(project: Project, args: dict) -> list[str]:
     if args.get("stale"):
+        from . import collapse as collapse_mod
         from . import manifest as manifest_mod
         from . import timeline
 
         wanted = timeline.stale_scenes(
             project, manifest_mod.load(project.meta["reel_dir"]),
-            project.meta["reel_dir"])
+            project.meta["reel_dir"],
+            collapse=collapse_mod.current(project))
     else:
         wanted = args.get("scene_ids") or []
     if not wanted:
@@ -102,7 +104,9 @@ def _workspace(work_dir: str):
 
 
 def _record_scene_render(project: Project, target: str) -> str:
-    """Point the manifest at the deliverable reel.py just produced."""
+    """Point the manifest at the deliverable reel.py just produced, and cache
+    that scene's collapsed generation input — the artifact staleness diffs."""
+    from . import collapse as collapse_mod
     from . import manifest as manifest_mod
     from .timeline import chain_hash, scene_frames
 
@@ -120,9 +124,11 @@ def _record_scene_render(project: Project, target: str) -> str:
                      .get("path", {}).get("file"))
         if prev_file:
             upstream = (prev["id"], prev_file)
+    gen = collapse_mod.current(project)
     manifest_mod.record_scene(reel_dir, target, chain_hash(project, scene),
                               path, scene_frames(project, scene),
-                              upstream=upstream)
+                              upstream=upstream,
+                              generation=(gen or {}).get(target))
     return path
 
 

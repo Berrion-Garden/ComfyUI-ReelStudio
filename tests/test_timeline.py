@@ -83,6 +83,31 @@ def test_staleness_reflects_manifest(config, workspace):
     assert stale_scenes(project, manifest, reel_dir) == ["s1_ramen", "s2_bowldrop"]
 
 
+def test_generation_view_folds_shared_looks(config, workspace):
+    """The active style is part of every scene's generation identity; a
+    location only of the scenes referencing it. This is what makes one style
+    edit mark the whole reel stale — hash fallback included."""
+    from reelstudio.timeline import generation_view
+
+    project = _project(config)
+    s1, s2 = project.scenes[0], project.scenes[1]
+    v1, v2 = generation_view(project, s1), generation_view(project, s2)
+    assert v1["style"]["pro"].startswith("2D anime")
+    assert v1["location"]["pro"].startswith("university campus")
+    assert v2["location"] == {}  # s2 carries no location
+
+    project.save(config.yaml_path.read_text().replace(
+        "cel-shaded", "watercolor washes"))
+    assert generation_view(project, s1) != v1
+    assert generation_view(project, s2) != v2  # global: both changed
+
+    v2_watercolor = generation_view(project, s2)
+    project.save(config.yaml_path.read_text().replace(
+        "warm orange sky", "warm dawn sky"))
+    assert generation_view(project, s1) != v1
+    assert generation_view(project, s2) == v2_watercolor  # scoped: only s1 moved
+
+
 def test_anchor_resolution(config):
     from reelstudio.timeline import resolve_anchor
 

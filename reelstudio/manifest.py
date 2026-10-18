@@ -37,9 +37,12 @@ def save(reel_dir: str | Path, manifest: dict) -> None:
 
 def record_scene(reel_dir: str, scene_id: str, chain_hash: str, video_path: str,
                  frames: int, prompt_id: str = "",
-                 upstream: tuple[str, str] | None = None) -> dict:
+                 upstream: tuple[str, str] | None = None,
+                 generation: dict | None = None) -> dict:
     """`upstream` = (scene_id, deliverable filename) when the scene anchored on
-    prev_last — the junction identity a later upstream re-render invalidates."""
+    prev_last — the junction identity a later upstream re-render invalidates.
+    `generation` caches the scene's collapsed generation input (reel.py's
+    merged prompt/anchors) — the artifact staleness diffs against."""
     manifest = load(reel_dir)
     entry = {
         "chain_hash": chain_hash,
@@ -50,6 +53,8 @@ def record_scene(reel_dir: str, scene_id: str, chain_hash: str, video_path: str,
     }
     if upstream is not None:
         entry["upstream"] = {"scene_id": upstream[0], "file": upstream[1]}
+    if generation is not None:
+        entry["generation"] = generation
     manifest["scenes"][scene_id] = entry
     save(reel_dir, manifest)
     return manifest
@@ -81,11 +86,14 @@ def deliverable(reel_dir: str | Path, scene_id: str) -> str | None:
 
 def adopt_existing(reel_dir: str | Path, project) -> int:
     """Record renders that predate the manifest as current: each scene with a
-    deliverable and no entry gets its config chain_hash and the CURRENT
-    upstream deliverable as junction identity. Explicit user action — it
-    declares 'these renders match this config', never assumed."""
+    deliverable and no entry gets the CURRENT generation input cached as its
+    provenance (and the chain hash, for workspaces that cannot collapse).
+    Explicit user action — it declares 'these renders match this config',
+    never assumed."""
+    from . import collapse as collapse_mod
     from .timeline import chain_hash
 
+    gen = collapse_mod.current(project)
     manifest = load(reel_dir)
     adopted = 0
     by_id = project.by_id()
@@ -111,6 +119,8 @@ def adopt_existing(reel_dir: str | Path, project) -> int:
         }
         if upstream:
             entry["upstream"] = {"scene_id": upstream[0], "file": upstream[1]}
+        if gen and gen.get(sid):
+            entry["generation"] = gen[sid]
         manifest["scenes"][sid] = entry
         adopted += 1
     if adopted:
