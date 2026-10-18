@@ -5,6 +5,7 @@ treats scenes as individual clips.
 """
 
 import glob
+import re
 import subprocess
 from pathlib import Path
 
@@ -40,6 +41,31 @@ def music_segments(project: Project) -> list[dict]:
         blob = f"{seg['caption']}|{seg['start']}|{seg['dur']}|{seg['gain']}"
         seg["hash"] = hashlib.sha256(blob.encode()).hexdigest()[:16]
         out.append(seg)
+    return out
+
+
+def music_overlays(project: Project) -> list[dict]:
+    """Real audio-file overlays (`music_2`) — the tracks the production mix
+    actually uses. Each starts at its scene (+ optional `at`) and runs until
+    the last `fades` keyframe (or the reel end). `seek`/`gain` ride along for
+    display and future mixing."""
+    starts = scene_starts(project)
+    total = total_dur(project)
+    out = []
+    for i, s in enumerate(project.scenes):
+        for m in s.get("music_2") or []:
+            start = starts[i] + float(m.get("at", 0.0))
+            fades = m.get("fades") or []
+            end = float(fades[-1][0]) if fades else total
+            name = re.sub(r"^\d+\s+-\s+", "", Path(m["file"]).stem)
+            out.append({
+                "name": name,
+                "file": m["file"],
+                "start": round(start, SECONDS_DIGITS),
+                "dur": round(end - start, SECONDS_DIGITS),
+                "gain": m.get("gain", 1.0),
+                "seek": m.get("seek", 0.0),
+            })
     return out
 
 

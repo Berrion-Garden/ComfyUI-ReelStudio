@@ -1,9 +1,10 @@
-import type { MusicView, SceneView } from "../types";
+import type { MusicView, OverlayView, SceneView } from "../types";
 import { spanCols, videoCell } from "./layout";
 
 interface Props {
   scenes: SceneView[];
   music: MusicView[];
+  overlays?: OverlayView[];
   totalS: number;
   artifactUrl: (sceneId: string, kind: string) => string;
   onSceneClick?: (sceneId: string) => void;
@@ -27,7 +28,7 @@ function AnchorThumb({ label, kind, url }: { label: string; kind: string; url: s
   );
 }
 
-export function Timeline({ scenes, music, totalS, artifactUrl, onSceneClick, onRenderScene, playheadPct, onSeek }: Props) {
+export function Timeline({ scenes, music, overlays = [], totalS, artifactUrl, onSceneClick, onRenderScene, playheadPct, onSeek }: Props) {
   const columns = scenes.map((s) => `${Math.max(s.duration_s, 0.4)}fr`).join(" ");
   const ticks: number[] = [];
   for (let t = 0; t < totalS - 0.01; t += 5) ticks.push(t);
@@ -37,6 +38,13 @@ export function Timeline({ scenes, music, totalS, artifactUrl, onSceneClick, onR
     const rect = e.currentTarget.getBoundingClientRect();
     onSeek(Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1) * 100);
   };
+
+  // the real-file overlays are the tracks the mix uses; the generated
+  // segments only fill the lanes when there are no overlays at all
+  const musicLanes: Array<{ name: string; startS: number; durS: number; present: boolean; url: string | null; kind: string }> =
+    overlays.length > 0
+      ? overlays.map((o) => ({ name: o.name, startS: o.start_s, durS: o.duration_s, present: o.present, url: o.url, kind: "overlay" }))
+      : music.map((m) => ({ name: m.name, startS: m.start_s, durS: m.duration_s, present: m.present, url: m.url, kind: "generated" }));
 
   return (
     <div className="timeline" data-testid="timeline">
@@ -95,8 +103,20 @@ export function Timeline({ scenes, music, totalS, artifactUrl, onSceneClick, onR
           );
         })}
 
-        {music.map((m) => {
-          const span = spanCols(scenes, m.start_s, m.duration_s);
+        {scenes.some((s) => s.has_sfx) && (
+          <div className="lane lane-clip" title="baked scene audio (sound effects)"
+            style={{ gridColumn: `1 / ${scenes.length + 1}`, gridTemplateColumns: columns }}>
+            {scenes.map((s, i) => (
+              <div key={`${s.id}-clip`} className={`clip-block ${s.has_sfx ? "" : "empty"}`}
+                style={{ gridColumn: `${i + 1}` }}>
+                {s.has_sfx && <span className="cell-flag" title="scene sound effects baked in">♪ clip</span>}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {musicLanes.map((m) => {
+          const span = spanCols(scenes, m.startS, m.durS);
           return (
             <div key={m.name} data-testid={`lane-${m.name}`} className="lane lane-music"
               style={{ gridColumn: `1 / ${scenes.length + 1}`, gridTemplateColumns: columns }}>

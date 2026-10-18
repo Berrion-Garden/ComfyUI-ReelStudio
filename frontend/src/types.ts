@@ -16,6 +16,7 @@ export interface SceneView {
   description: string;
   has_freeze: boolean;
   has_bell: boolean;
+  has_sfx: boolean;
   video_url: string | null;
   stale: boolean;
   start_s: number;
@@ -27,6 +28,17 @@ export interface MusicView {
   duration_s: number;
   gain: number;
   stale: boolean;
+  present: boolean;
+  url: string | null;
+}
+
+/** A real-file `music_2` overlay — the audio the production mix actually uses. */
+export interface OverlayView {
+  name: string;
+  start_s: number;
+  duration_s: number;
+  gain: number;
+  seek: number;
   present: boolean;
   url: string | null;
 }
@@ -51,6 +63,7 @@ export interface ProjectView {
   comfy_mode: string;
   scenes: SceneView[];
   music: MusicView[];
+  overlays: OverlayView[];
   final_url: string | null;
   jobs: JobView[];
 }

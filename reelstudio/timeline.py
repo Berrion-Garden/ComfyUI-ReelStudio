@@ -170,4 +170,5 @@ def scene_view(project: Project, scene_id: str) -> dict:
         "description": scene["video"].get("description", ""),
         "has_freeze": bool(scene.get("post", {}).get("freeze")),
         "has_bell": bool(scene.get("sound_effects", {}).get("bell")),
+        "has_sfx": bool(scene.get("sound_effects", {}).get("soundscape")),
     }

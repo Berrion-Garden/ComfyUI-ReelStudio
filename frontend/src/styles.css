@@ -137,6 +137,16 @@ button:disabled { opacity: 0.45; cursor: default; }
 }
 
 .lane-music { display: grid; height: 28px; margin: 0 6px; }
+.lane-clip {
+  display: grid; height: 18px; margin: 0 6px;
+  background: #12101a; border-radius: 4px;
+}
+.clip-block { position: relative; min-width: 0; }
+.clip-block .cell-flag {
+  position: static; display: block; padding: 2px 4px;
+  font-size: 9px; color: var(--muted, #8a84a0);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .music-block {
   position: relative; border: 1px solid var(--edge); border-radius: 4px;
   background: var(--panel-2); display: flex; align-items: center; padding: 0 4px;

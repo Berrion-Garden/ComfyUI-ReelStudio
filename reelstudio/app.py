@@ -19,7 +19,7 @@ from . import render, timeline
 from .agent.loop import run as agent_run
 from .agent.tools import ToolBox
 from .assemble import assemble as run_assemble
-from .assemble import music_segments
+from .assemble import music_overlays, music_segments
 from .comfy_client import ComfyClient
 from .config import Config
 from .errors import ForbiddenError, NotFoundError, ReelStudioError, ValidationError
@@ -162,6 +162,18 @@ async def get_project(request: web.Request) -> web.Response:
             "url": (f"{API}/music/{name}/artifact" if rendered else None),
         })
 
+    # the real-file overlays (`music_2`) — what the production mix actually
+    # uses; the timeline prefers these over the generated segments
+    overlays = []
+    for k, m in enumerate(music_overlays(project)):
+        p = Path(m["file"])
+        overlays.append({
+            "name": m["name"], "start_s": m["start"], "duration_s": m["dur"],
+            "gain": m["gain"], "seek": m["seek"],
+            "present": p.is_file(),
+            "url": f"{API}/overlay/{k}/artifact" if p.is_file() else None,
+        })
+
     return web.json_response({
         "yaml_path": str(state.config.yaml_path),
         "fps": project.fps,
@@ -173,6 +185,7 @@ async def get_project(request: web.Request) -> web.Response:
         "comfy_mode": state.config.comfy_mode,
         "scenes": scenes,
         "music": music,
+        "overlays": overlays,
         "final_url": f"{API}/final" if Path(project.meta.get("final", "")).exists() else None,
         "jobs": [j.view() for j in state.jobs.values()],
     })
@@ -295,6 +308,24 @@ async def get_music_artifact(request: web.Request) -> web.Response:
     return web.FileResponse(Path(file))
 
 
+async def get_overlay_artifact(request: web.Request) -> web.Response:
+    """A `music_2` overlay's source file, as declared in reel.yaml.
+
+    The index — not a client-supplied path — selects the file, so the
+    operator's music library stays reachable without widening the asset roots.
+    """
+    state = _state(request)
+    project = state.project()
+    overlays = music_overlays(project)
+    try:
+        file = Path(overlays[int(request.match_info["index"])]["file"])
+    except (IndexError, ValueError):
+        raise NotFoundError("no such overlay")
+    if not file.is_file():
+        raise NotFoundError("overlay file missing")
+    return web.FileResponse(file)
+
+
 async def get_assets(request: web.Request) -> web.Response:
     state = _state(request)
     project = state.project()
@@ -383,6 +414,7 @@ def create_app(config: Config) -> web.Application:
     app.router.add_get(f"{API}/assets", get_assets)
     app.router.add_get(f"{API}/asset/file", get_asset_file)
     app.router.add_get(f"{API}/music/{{name}}/artifact", get_music_artifact)
+    app.router.add_get(f"{API}/overlay/{{index}}/artifact", get_overlay_artifact)
     app.router.add_post(f"{API}/manifest/adopt", post_manifest_adopt)
     app.router.add_get(f"{API}/scene/{{scene_id}}/artifact/{{kind}}", get_scene_artifact)
     app.router.add_post(f"{API}/agent/chat", post_agent_chat)

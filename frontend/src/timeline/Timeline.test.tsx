@@ -16,6 +16,7 @@ function scene(partial: Partial<SceneView>): SceneView {
     description: "",
     has_freeze: false,
     has_bell: false,
+    has_sfx: false,
     video_url: null,
     stale: false,
     start_s: 0,
@@ -118,6 +119,51 @@ describe("Timeline", () => {
     );
     expect(screen.getByText(/XXX battle/)).toBeTruthy();
     expect(screen.getByTestId("lane-battle").querySelector("audio")).toBeNull();
+  });
+
+  it("overlay lanes replace the generated music lanes — the real mix wins", () => {
+    render(
+      <Timeline
+        scenes={[scene({ id: "s1", start_s: 0, duration_s: 4.5 })]}
+        music={[{ name: "opening", start_s: 0, duration_s: 4.5, gain: 1, stale: false, present: true, url: "/m.wav" }]}
+        overlays={[{ name: "OMAM - Destroyer", start_s: 0, duration_s: 4.5, gain: 1, seek: 71, present: true, url: "/ov.mp3" }]}
+        totalS={4.5}
+        artifactUrl={noop}
+        playheadPct={null}
+      />,
+    );
+    expect(screen.getByTestId("lane-OMAM - Destroyer").querySelector("audio")).toBeTruthy();
+    expect(screen.queryByTestId("lane-opening")).toBeNull();
+  });
+
+  it("missing overlay files show their placeholder like unrendered segments", () => {
+    render(
+      <Timeline
+        scenes={[scene({ id: "s1", start_s: 0, duration_s: 4.5 })]}
+        music={[]}
+        overlays={[{ name: "Otonoke", start_s: 1, duration_s: 3, gain: 1, seek: 90, present: false, url: null }]}
+        totalS={4.5}
+        artifactUrl={noop}
+        playheadPct={null}
+      />,
+    );
+    expect(screen.getByText(/XXX Otonoke/)).toBeTruthy();
+    expect(screen.getByTestId("lane-Otonoke").querySelector("audio")).toBeNull();
+  });
+
+  it("scenes with baked sound effects get a clip-audio lane", () => {
+    render(
+      <Timeline
+        scenes={[scene({ id: "s1", has_sfx: true }), scene({ id: "s2" })]}
+        music={[]}
+        totalS={9}
+        artifactUrl={noop}
+        playheadPct={null}
+      />,
+    );
+    const lane = document.querySelector(".lane-clip")!;
+    expect(lane).toBeTruthy();
+    expect(lane.textContent).toContain("♪ clip");
   });
 
   it("pointer scrub reports the clicked position as a percentage", () => {

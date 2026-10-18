@@ -7,7 +7,7 @@ function scene(id: string, startS: number, durationS: number, partial: Partial<S
     id, next: null, index: 0, mode: "i2v", frames: 107,
     duration_s: durationS, start_s: startS,
     first: { kind: "none" }, last: { kind: "none" },
-    description: "", has_freeze: false, has_bell: false,
+    description: "", has_freeze: false, has_bell: false, has_sfx: false,
     video_url: null, stale: false,
     ...partial,
   };

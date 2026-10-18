@@ -105,6 +105,7 @@ export function App() {
         <Timeline
           scenes={project.scenes}
           music={project.music}
+          overlays={project.overlays}
           totalS={project.total_s}
           artifactUrl={artifactUrl}
           playheadPct={playheadPct}
