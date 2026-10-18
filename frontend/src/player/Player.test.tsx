@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { Player } from "./Player";
 import type { SceneView } from "../types";
 
@@ -20,21 +20,4 @@ describe("Player", () => {
     expect(screen.getByText(/No renders yet/)).toBeTruthy();
   });
 
-  it("the asset toggle appears with a selection and swaps the stage", () => {
-    render(
-      <Player
-        scenes={[scene({ id: "s1", video_url: "/v.mp4" })]}
-        selectedAsset={{ path: "/f/still.png", slug: "still", group: "scenes",
-          labels: [], used_by: [], url: "/f/still.png" }}
-      />,
-    );
-    const toggle = screen.getByTitle("show still");
-    expect(toggle.textContent).toBe("🖼 asset");
-    fireEvent.click(toggle);
-    // the stage now shows the image, the overlay is hidden
-    const stage = screen.getByTestId("player").querySelector(".player-stage")!;
-    expect(stage.querySelector("img.active")).toBeTruthy();
-    expect(stage.querySelector("img.active")!.getAttribute("src")).toBe("/f/still.png");
-    expect(screen.getByTitle("back to the video")).toBeTruthy();
-  });
 });

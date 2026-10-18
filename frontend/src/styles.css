@@ -85,8 +85,6 @@ button:disabled { opacity: 0.45; cursor: default; }
   position: absolute; inset: 0; width: 100%; height: 100%;
   object-fit: contain; background: black;
 }
-.asset-toggle { position: absolute; top: 8px; right: 8px; z-index: 3; }
-.asset-toggle.on { border-color: var(--accent); color: var(--accent); }
 
 /* ---- timeline: proportional grid of lanes ---- */
 .timeline { overflow-x: auto; }

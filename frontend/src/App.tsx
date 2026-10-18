@@ -138,7 +138,6 @@ export function App() {
               <Player
                 scenes={project.scenes}
                 onPlayhead={setPlayheadPct}
-                selectedAsset={selectedAsset}
                 seekRequest={seekRequest}
               mix={{
                 // the real tracks always; the Music3 bed only when the mix
