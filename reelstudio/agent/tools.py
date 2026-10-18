@@ -53,11 +53,13 @@ TOOLS = [
                        "the studio — every picked one (shift-click "
                        "multi-selects), the last being the primary shown on "
                        "the stage. Each: slug, path, group, labels (char:/"
-                       "scene:/cond: tags), used_by scenes. When the operator "
-                       "says 'this one' or pastes an `asset:<path>` reference "
-                       "(from an asset's copy-reference menu), call this or "
-                       "match the path against get_assets — never guess "
-                       "filenames.",
+                       "scene:/cond: tags), used_by scenes. Their PICTURES "
+                       "are delivered to you right after this result — you "
+                       "will see them; look before commenting on visuals. "
+                       "When the operator says 'this one' or pastes an "
+                       "`asset:<path>` reference (from an asset's "
+                       "copy-reference menu), call this or match the path "
+                       "against get_assets — never guess filenames.",
         "parameters": {"type": "object", "properties": {}, "required": []}}},
     {"type": "function", "function": {
         "name": "update_asset_labels",
@@ -170,7 +172,11 @@ class ToolBox:
     async def _currently_selected(self, _) -> str:
         """The request-scoped selection — every asset the operator has
         picked (shift-click multi-selects), labels refreshed from the
-        index. The last one is the primary (what the stage shows)."""
+        index. The last one is the primary (what the stage shows). The
+        picked images are delivered as pictures right after this result:
+        referencing the selection IS looking at it."""
+        from ..agent import vision
+
         if not self.selected:
             return json.dumps({"selected": None,
                                "hint": "nothing is selected in the studio — "
@@ -185,10 +191,21 @@ class ToolBox:
                            "labels": (fresh or {}).get(
                                "labels", sel.get("labels", [])),
                            "used_by": (fresh or {}).get("used_by", [])})
+        # the selection's pictures follow this result (primary first, capped)
+        image_exts = tuple(vision.IMAGE_EXTS)
+        for sel in reversed(picked):
+            if len(self.image_requests) >= 6:
+                break
+            path = str(sel.get("path", ""))
+            if path.lower().endswith(image_exts) and \
+                    path not in self.image_requests:
+                self.image_requests.append(path)
+        delivered = len(self.image_requests)
         primary = picked[-1] if picked else None
         return json.dumps(
             {"selected": picked, "primary": primary,
              "count": len(picked),
+             "images_following": delivered,
              "hint": (f"{len(picked)} assets selected; the operator is "
                       f"looking at {primary.get('slug', '')}"
                       if len(picked) > 1 else "")},

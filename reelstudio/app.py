@@ -459,10 +459,12 @@ async def post_agent_chat(request: web.Request) -> web.StreamResponse:
     else:
         selected = None
 
-    # the agent is visual: the operator's primary selection rides the
-    # message as a picture (when it is one)
+    # the agent is visual, but nothing rides along by default: the
+    # selection's pictures are delivered through currently_selected when the
+    # agent references it. attach_selection is the operator's explicit
+    # "send it with this message" toggle.
     images = []
-    if selected:
+    if selected and body.get("attach_selection"):
         primary_path = str(selected[-1].get("path", ""))
         if Path(primary_path).suffix.lower() in \
                 {".png", ".jpg", ".jpeg", ".webp", ".gif"}:

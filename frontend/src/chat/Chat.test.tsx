@@ -9,8 +9,9 @@ describe("Chat", () => {
   it("empty state is just the input — paperclip and Send, no hint, no starter chips", () => {
     render(<Chat />);
     expect(screen.queryByText(/Ask the agent/)).toBeNull();
-    expect(screen.queryAllByRole("button")).toHaveLength(2); // 📎 + Send
+    expect(screen.queryAllByRole("button")).toHaveLength(3); // 🖼 sel + 📎 + Send
     expect(screen.getByLabelText("attach files")).toBeTruthy();
+    expect(screen.getByLabelText("send selection image")).toBeTruthy();
     const input = screen.getByLabelText("message the agent") as HTMLInputElement;
     expect(input.value).toBe("");
   });

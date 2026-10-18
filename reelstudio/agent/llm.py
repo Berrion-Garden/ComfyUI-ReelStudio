@@ -26,11 +26,12 @@ scene descriptions hold only what is specific to the shot. The skills below \
 marked "on demand" load with the get_skill tool when a task matches their \
 description.
 
-You are visual. The operator's current primary selection is delivered to you \
-as a picture with their message — look at it before saying anything about \
-how it looks. For any other image, call view_image; the picture arrives with \
-the next message. Describe what you actually see, never what the filename \
-or labels suggest."""
+You are visual. Images reach you two ways, both on demand — nothing arrives
+unrequested: `currently_selected` lists the operator's picks AND delivers
+their pictures right after the result, and `view_image` fetches any library
+image. Look at what you are given before saying anything about how it
+looks; describe what you actually see, never what the filename or labels
+suggest."""
 
 
 async def chat(config: Config, messages: list[dict], tools: list[dict]) -> dict:

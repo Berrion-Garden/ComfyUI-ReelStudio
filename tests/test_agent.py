@@ -162,6 +162,32 @@ async def test_view_image_delivers_picture_on_next_turn(config, workspace):
                for p in image_turn["content"])
 
 
+async def test_currently_selected_delivers_pictures(config, workspace):
+    """Referencing the selection IS looking at it: the picked images are
+    queued for delivery (primary first), nothing else auto-attaches."""
+    from reelstudio.agent.tools import ToolBox
+    from reelstudio.app import ReelStudio
+
+    box = ToolBox(ReelStudio(config), selected=[
+        {"slug": "opening", "path": str(workspace / "stills" / "opening_still_.png"),
+         "group": "stills", "labels": []},
+        {"slug": "impact", "path": str(workspace / "stills" / "impact_still_.png"),
+         "group": "stills", "labels": []},
+    ])
+    out = json.loads(await box.call("currently_selected", {}))
+    assert out["count"] == 2
+    assert out["images_following"] == 2
+    # primary first — reversed pick order
+    assert box.image_requests[-1].endswith("opening_still_.png")
+
+    # a text-only selection delivers nothing
+    box2 = ToolBox(ReelStudio(config), selected=[
+        {"slug": "theme", "path": str(workspace / "themes" / "x.yaml"),
+         "group": "themes", "labels": []}])
+    await box2.call("currently_selected", {})
+    assert box2.image_requests == []
+
+
 def test_vision_content_parts_and_guards(config, workspace):
     import pytest
 

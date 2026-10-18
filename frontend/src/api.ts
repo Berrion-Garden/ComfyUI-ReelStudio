@@ -249,11 +249,15 @@ export async function* chatStream(
   message: string,
   history: { role: string; content: string }[],
   selected?: { slug: string; path: string; group: string; labels: string[] }[] | null,
+  attachSelection?: boolean,
 ): AsyncGenerator<ChatEvent> {
   const resp = await fetch(`${API}/agent/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, history, selected: selected ?? null }),
+    body: JSON.stringify({
+      message, history, selected: selected ?? null,
+      attach_selection: attachSelection ?? false,
+    }),
   });
   if (!resp.ok || !resp.body) {
     throw new Error(`chat failed: HTTP ${resp.status}`);

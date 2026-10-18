@@ -27,6 +27,7 @@ export function Chat({ onProjectChanged, selected }: Props) {
   const [busy, setBusy] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [attachNote, setAttachNote] = useState<string | null>(null);
+  const [sendSelection, setSendSelection] = useState(false);
   const fileInput = useRef<HTMLInputElement | null>(null);
   const history = useRef<{ role: string; content: string }[]>([]);
   const scroller = useRef<HTMLDivElement | null>(null);
@@ -73,7 +74,8 @@ export function Chat({ onProjectChanged, selected }: Props) {
     setEntries((e) => [...e, { role: "user", text: message }]);
     scrollBottom();
     try {
-      for await (const ev of chatStream(message, history.current, selectedRef.current)) {
+      for await (const ev of chatStream(message, history.current,
+                                        selectedRef.current, sendSelection)) {
         handleEvent(ev);
       }
     } catch (e) {
@@ -124,6 +126,10 @@ export function Chat({ onProjectChanged, selected }: Props) {
         {busy && <div className="chat-entry role-tool">…thinking</div>}
       </div>
       <div className="chat-attach">
+        <button type="button" className={`chat-toggle ${sendSelection ? "on" : ""}`}
+          title="send the selected asset's picture with your next message"
+          aria-pressed={sendSelection} aria-label="send selection image"
+          onClick={() => setSendSelection((v) => !v)}>🖼 sel</button>
         {attachments.map((a, i) => (
           <span key={`${a.ref}-${i}`} className="attach-chip" title={a.ref}>
             {a.name}

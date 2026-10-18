@@ -17,7 +17,9 @@ always: true
   label here — never guess filenames (see asset-library).
 - `currently_selected` is the request-scoped selection: every asset the
   operator picked in the studio (shift-click multi-selects), the last one
-  being the `primary` they are looking at. The operator may also paste
+  being the `primary` they are looking at. Their PICTURES are delivered to
+  you right after the result — referencing the selection is looking at it.
+  The operator may also paste
   `asset:<path>` references — produced by an asset thumbnail's
   copy-reference menu — those paths match `get_assets` entries exactly.
 - `update_yaml` replaces the WHOLE file and is validate-gated: one atomic edit
@@ -64,14 +66,15 @@ always: true
   or wants a regeneration from the same seed. Every generated file carries
   its `job:<id>` label (assets.yaml) or manifest `job` field automatically;
   the journal lives in the scene's `.studio/jobs.jsonl`.
-- `view_image` is your eyes: you are visual. The operator's primary
-  selection arrives as a picture with their message; call `view_image` for
-  any other library image and it is delivered with the next message. LOOK
+- `view_image` is your eyes: you are visual. Call it for any library image
+  and it is delivered with the next message. LOOK
   before judging anything visual — a generated plate's composition, whether
   a sheet is a clean multi-view, whether a pick matches its `shot:`
   description — and describe what you actually see, never what the filename
-  suggests. The gateway flattens tool results to text, so the picture rides
-  the next user turn; if you don't see it, call view_image again.
+  suggests. The gateway flattens tool results to text, so pictures ride the
+  next user turn; if you don't see one, call view_image again. The operator
+  can also force their selection's picture into a message with the 📎-row
+  toggle — that one arrives without any tool call.
 - `adopt_renders` declares the CURRENT deliverables current so staleness
   starts from truth — explicit operator instruction only (their ✓ adopt on
   a timeline thumbnail does one scene).
