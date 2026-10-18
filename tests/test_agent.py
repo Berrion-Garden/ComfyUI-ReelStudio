@@ -100,7 +100,9 @@ async def test_toolbox_generate_queues_and_teaches(config, workspace):
     gen = next(t for t in TOOLS if t["function"]["name"] == "generate")
     enum = gen["function"]["parameters"]["properties"]["kind"]["enum"]
     assert enum == ["scene", "music", "assemble", "still", "image_edit"]
-    assert "NOT WIRED" in gen["function"]["description"]
+    # every kind is wired — the descriptions come from the registry summaries
+    assert "background" in gen["function"]["description"]  # still -> bg
+    assert "shots:" in gen["function"]["description"]      # image_edit -> shot
 
     # upstream-first ordering for a chain render
     out = _json.loads(await box.call(
@@ -117,10 +119,14 @@ async def test_toolbox_generate_queues_and_teaches(config, workspace):
     out = _json.loads(await box.call("generate", {"kind": "scene", "stale": True}))
     assert len(out["queued"]) == 3
 
-    # unwired image kinds: loud, uniform, and they point at the real pipeline
+    # missing targets teach what the yaml section that owns them expects
     out = _json.loads(await box.call("generate", {"kind": "still"}))
-    assert "not wired" in out["error"]
-    assert any("still_dir" in p for p in out["problems"])
+    assert "locations:" in out["error"] or any(
+        "locations:" in p for p in out["problems"])
+
+    out = _json.loads(await box.call("generate", {"kind": "image_edit"}))
+    assert "shots:" in out["error"] or any(
+        "shots:" in p for p in out["problems"])
 
     out = _json.loads(await box.call("generate", {"kind": "wat"}))
     assert "known kinds" in out["error"]
