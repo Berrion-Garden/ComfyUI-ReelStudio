@@ -29,6 +29,12 @@ single source of truth; code never holds a second copy.
 - `stills` — named anchor images resolved into `meta.still_dir` with a
   `_.png` suffix appended (`opening: qwen_image_2_1_00008` →
   `still_dir/qwen_image_2_1_00008_.png`).
+- `shots` — Qwen-Image-2.1 per-shot anchor-still recipes (`reel.py shot
+  <name>` or `generate kind=image_edit name=<name>`): `characters` (slugs —
+  each resolves to the sheet tagged `ref` in `assets.yaml`), `background`
+  (a `backgrounds/` plate), `description` (what happens). Every run renders
+  10 seed/prompt variants into the stills dir, born `non-verified`; anchor
+  the pick by adding it to `stills:`.
 - `flags` — `skip_music: true` compiles video + sound effects only.
 - `audio` — top-level array of REAL-FILE overlay tracks (what the production
   mix actually uses). Each entry is an absolute timestamp note: `file` (path
@@ -51,8 +57,9 @@ single source of truth; code never holds a second copy.
   h3-prompting), optional `negative`. The description holds only what is
   specific to this shot: action, blocking, shot size, camera move.
 - `sound_effects` — `soundscape` prose, baked INTO the clip by H3. Optional
-  `bell: true` + `bell_at` (seconds into the scene) for the synthesized
-  3-strike school bell.
+  `bell: <slug>` + `bell_at` (seconds into the scene): the slug names an
+  `sfx/` asset, played as a one-shot at that moment (there is no synth
+  fallback — an unknown slug is a plan error).
 - `music` — dict `{name, caption, gain?}` anchors a GENERATED Music 3 segment
   at this scene; it runs until the next anchored scene or reel end.
   `music: none` keeps the previous segment playing. Names must be unique.

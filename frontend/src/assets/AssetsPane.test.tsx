@@ -1,9 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { fetchAssets, type AssetsData } from "../api";
+import { fireEvent, render, screen } from "@testing-library/react";
+import type { AssetsData } from "../api";
 import { AssetsPane } from "./AssetsPane";
-
-vi.mock("../api", () => ({ fetchAssets: vi.fn() }));
 
 const data: AssetsData = {
   groups: {
@@ -27,12 +25,10 @@ const data: AssetsData = {
 };
 
 describe("AssetsPane", () => {
-  it("groups assets and selects on click", async () => {
-    vi.mocked(fetchAssets).mockResolvedValue(data);
+  it("groups assets and selects on click", () => {
     const onSelect = vi.fn();
-    render(<AssetsPane selected={null} onSelect={onSelect} />);
+    render(<AssetsPane assets={data} selected={null} onSelect={onSelect} />);
 
-    await waitFor(() => expect(screen.getByTestId("assets-pane")).toBeTruthy());
     // characters pool renders under its pool heading
     expect(screen.getByText("fox_boy")).toBeTruthy();
     const card = screen.getByTestId("asset-scenes-opening_still");
@@ -41,18 +37,17 @@ describe("AssetsPane", () => {
     expect(onSelect).toHaveBeenCalledWith(data.groups.scenes[0]);
   });
 
-  it("arrow keys walk the flat asset order", async () => {
-    vi.mocked(fetchAssets).mockResolvedValue(data);
+  it("arrow keys walk the flat asset order", () => {
     const onSelect = vi.fn();
-    const { rerender } = render(<AssetsPane selected={null} onSelect={onSelect} />);
-    await waitFor(() => expect(screen.getByTestId("asset-characters-sit")).toBeTruthy());
+    const { rerender } = render(<AssetsPane assets={data} selected={null} onSelect={onSelect} />);
+    expect(screen.getByTestId("asset-characters-sit")).toBeTruthy();
 
     const pane = screen.getByTestId("assets-pane");
     fireEvent.keyDown(pane, { key: "ArrowDown" });
     expect(onSelect).toHaveBeenLastCalledWith(data.groups.characters[0]);
 
     // with the first asset selected, ArrowDown moves to the next in order
-    rerender(<AssetsPane selected={data.groups.characters[0]} onSelect={onSelect} />);
+    rerender(<AssetsPane assets={data} selected={data.groups.characters[0]} onSelect={onSelect} />);
     fireEvent.keyDown(pane, { key: "ArrowDown" });
     expect(onSelect).toHaveBeenLastCalledWith(data.groups.characters[1]);
     fireEvent.keyDown(pane, { key: "ArrowUp" });

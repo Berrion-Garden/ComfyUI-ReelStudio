@@ -1,19 +1,15 @@
 import { useEffect, useRef, useState } from "react";
+import type { AssetItem } from "../api";
 import type { SceneView } from "../types";
 import { absoluteTime, advance, createQueue, type Clip } from "./queue";
 import { fadeOut, sfxVolumeAt, trackPlans, type Mix } from "./mix";
 
 export type { Mix, MixOneShot } from "./mix";
 
-export interface SelectedAsset {
-  url: string;
-  name: string;
-}
-
 interface Props {
   scenes: SceneView[];
   onPlayhead?: (pct: number | null) => void;
-  selectedAsset?: SelectedAsset | null;
+  selectedAsset?: AssetItem | null;
   /** scrub requests: { s: absolute seconds, n: monotonically increasing } */
   seekRequest?: { s: number; n: number } | null;
   mix?: Mix | null;
@@ -248,7 +244,7 @@ export function Player({ scenes, onPlayhead, selectedAsset, seekRequest, mix }: 
         <video ref={videoA} className={!assetMode && state !== null && state.index % 2 === 0 ? "active" : ""} playsInline />
         <video ref={videoB} className={!assetMode && state !== null && state.index % 2 === 1 ? "active" : ""} playsInline />
         {assetMode && (
-          <img className="active" src={selectedAsset!.url} alt={selectedAsset!.name} />
+          <img className="active" src={selectedAsset!.url} alt={selectedAsset!.slug} />
         )}
         {state === null && !assetMode && (
           <div className="player-overlay">
@@ -262,7 +258,7 @@ export function Player({ scenes, onPlayhead, selectedAsset, seekRequest, mix }: 
           <button
             className={`asset-toggle ${assetMode ? "on" : ""}`}
             onClick={() => { setShowAsset(!assetMode); if (playing) setPlaying(false); }}
-            title={assetMode ? "back to the video" : `show ${selectedAsset.name}`}
+            title={assetMode ? "back to the video" : `show ${selectedAsset.slug}`}
           >
             {assetMode ? "🎬 video" : "🖼 asset"}
           </button>

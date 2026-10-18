@@ -384,8 +384,7 @@ async def delete_asset(request: web.Request) -> web.Response:
     body = await request.json()
     project = state.project()
     target = assets_mod.asset_file(str(body.get("path", "")), [
-        state.config.workspace, project.meta["still_dir"], project.meta["reel_dir"],
-    ])
+        state.config.workspace, project.meta["still_dir"]])
     index = assets_mod.index_assets(state.config.workspace, project)
     item = next((a for items in index["groups"].values() for a in items
                  if a["path"] == str(target)), None)

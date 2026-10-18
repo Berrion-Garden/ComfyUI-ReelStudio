@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
-import { deleteAsset, fetchAssets, setAssetLabels,
-  type AssetItem } from "../api";
+import { useEffect, useMemo, useState } from "react";
+import { deleteAsset, setAssetLabels, type AssetItem, type AssetsData } from "../api";
 
 interface Props {
+  /** the library the app already fetched — known-labels source, no refetch */
+  assets: AssetsData | null;
   selected: AssetItem | null;
   onChanged: () => void;
   /** deselect after a delete */
@@ -20,37 +21,33 @@ function isImage(a: AssetItem): boolean {
  * interactive — images full-frame, audio a player — with its labels and
  * verify/delete controls. Selection lives in the Assets pane.
  */
-export function AssetBrowser({ selected, onChanged, onSelect }: Props) {
+export function AssetBrowser({ assets, selected, onChanged, onSelect }: Props) {
+  const known = useMemo(() => {
+    const all = new Set<string>();
+    for (const items of Object.values(assets?.groups ?? {})) {
+      for (const a of items) a.labels.forEach((l) => all.add(l));
+    }
+    return [...all].sort();
+  }, [assets]);
+
   return (
     <div className="asset-stage" data-testid="asset-stage">
       {selected
-        ? <Inspector asset={selected} onChanged={onChanged} onSelect={onSelect} />
+        ? <Inspector asset={selected} known={known}
+            onChanged={onChanged} onSelect={onSelect} />
         : <div className="stage-empty">select an asset to inspect it</div>}
     </div>
   );
 }
 
-function Inspector({ asset, onChanged, onSelect }:
-  { asset: AssetItem; onChanged: () => void; onSelect: (a: AssetItem | null) => void }) {
+function Inspector({ asset, known, onChanged, onSelect }:
+  { asset: AssetItem; known: string[]; onChanged: () => void;
+    onSelect: (a: AssetItem | null) => void }) {
   const [labels, setLabels] = useState<string[]>(asset.labels);
   const [draft, setDraft] = useState("");
-  const [known, setKnown] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => { setLabels(asset.labels); }, [asset.path, asset.labels]);
-
-  useEffect(() => {
-    let alive = true;
-    fetchAssets().then((data) => {
-      if (!alive) return;
-      const all = new Set<string>();
-      for (const items of Object.values(data.groups)) {
-        for (const a of items) a.labels.forEach((l) => all.add(l));
-      }
-      setKnown([...all].sort());
-    }).catch(() => { /* the datalist just stays empty */ });
-    return () => { alive = false; };
-  }, [asset.path]);
 
   const save = async (next: string[]) => {
     setLabels(next);

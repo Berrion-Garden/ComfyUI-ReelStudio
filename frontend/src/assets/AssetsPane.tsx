@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
-import { fetchAssets, type AssetItem, type AssetsData } from "../api";
+import { useMemo } from "react";
+import type { AssetItem, AssetsData } from "../api";
 
 interface Props {
-  assets?: AssetsData | null;
+  assets: AssetsData | null;
   selected: AssetItem | null;
   onSelect: (asset: AssetItem | null) => void;
 }
@@ -19,16 +19,7 @@ function characterPools(items: AssetItem[]): { pool: string; assets: AssetItem[]
 }
 
 export function AssetsPane({ assets, selected, onSelect }: Props) {
-  const [fetched, setFetched] = useState<AssetsData | null>(null);
-
-  useEffect(() => {
-    if (assets) return;  // data provided by the app — no own fetch
-    let alive = true;
-    void fetchAssets().then((d) => { if (alive) setFetched(d); }).catch(() => {});
-    return () => { alive = false; };
-  }, [assets]);
-
-  const data = assets ?? fetched;
+  const data = assets;
 
   const sections = useMemo(() => {
     if (!data) return [];
@@ -51,7 +42,7 @@ export function AssetsPane({ assets, selected, onSelect }: Props) {
 
   const move = (dir: 1 | -1) => {
     if (flat.length === 0) return;
-    const idx = selected ? flat.findIndex((a) => a.url === selected.url) : -1;
+    const idx = selected ? flat.findIndex((a) => a.path === selected.path) : -1;
     const next = flat[Math.min(Math.max(idx + dir, 0), flat.length - 1)];
     if (next) onSelect(next);
   };
@@ -90,7 +81,7 @@ export function AssetsPane({ assets, selected, onSelect }: Props) {
         if (e.key === "ArrowUp") { e.preventDefault(); move(-1); }
       }}>
       <div className="assets-header">Assets</div>
-      {data === null && <div className="assets-loading">loading assets…</div>}
+      {!data && <div className="assets-loading">loading assets…</div>}
       {sections.map((s) => (
         <details key={s.title} className="asset-section" open={s.open}>
           <summary>{s.title} <span className="count">{s.assets.length}</span></summary>

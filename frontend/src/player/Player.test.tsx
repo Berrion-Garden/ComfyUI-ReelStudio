@@ -24,7 +24,8 @@ describe("Player", () => {
     render(
       <Player
         scenes={[scene({ id: "s1", video_url: "/v.mp4" })]}
-        selectedAsset={{ url: "/f/still.png", name: "still" }}
+        selectedAsset={{ path: "/f/still.png", slug: "still", group: "scenes",
+          labels: [], used_by: [], url: "/f/still.png" }}
       />,
     );
     const toggle = screen.getByTitle("show still");

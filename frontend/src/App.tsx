@@ -138,9 +138,7 @@ export function App() {
               <Player
                 scenes={project.scenes}
                 onPlayhead={setPlayheadPct}
-                selectedAsset={selectedAsset
-                  ? { url: selectedAsset.url, name: selectedAsset.slug }
-                  : null}
+                selectedAsset={selectedAsset}
                 seekRequest={seekRequest}
               mix={{
                 // the real tracks always; the Music3 bed only when the mix
@@ -189,7 +187,7 @@ export function App() {
               />
             </div>
             <div className={stageView === "images" ? "stage-host" : "stage-host hidden"}>
-              <AssetBrowser selected={selectedAsset}
+              <AssetBrowser assets={assets} selected={selectedAsset}
                 onSelect={setSelectedAsset} onChanged={() => void refresh()} />
             </div>
           </section>

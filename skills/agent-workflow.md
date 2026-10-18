@@ -1,6 +1,6 @@
 ---
 name: agent-workflow
-description: The Reel Studio agent tool protocol — get_project staleness reading, validate-gated update_yaml, the generate kinds (scene/music/assemble; still/image_edit unwired), get_assets, get_skill, and what to report. Always on; the reference for every tool call.
+description: The Reel Studio agent tool protocol — get_project staleness reading, validate-gated update_yaml, the generate kinds (scene/music/assemble/still/image_edit, all wired), get_assets, currently_selected, get_skill, and what to report. Always on; the reference for every tool call.
 always: true
 ---
 # Agent workflow
@@ -29,9 +29,12 @@ always: true
     A `location:` edit cascades only to the scenes referencing it.
   - `music` — regenerate one anchored segment (`name:`).
   - `assemble` — the final production mix; only when the user asks for it.
-  - `still` / `image_edit` — NOT WIRED: anchor stills come from the operator's
-    external Qwen-Image pipeline. Ask the operator; reference the results as
-    `still:<name>`.
+  - `still` — render a background/location plate from a `locations:` entry
+    (`slug:`) — 10 seed/prompt variants into `backgrounds/`.
+  - `image_edit` — render a `shots:` entry's anchor stills (`name:`) —
+    character refs + background plate, strict identity/scene roles, 10
+    variants into the stills dir. The operator picks (and verifies) in the
+    asset view; anchor the pick by adding it to `stills:`.
 - `get_status` reports queued/running/done/error jobs. Renders are minutes
   per scene on the GPU node; report what was queued, do not poll silently.
 - `get_skill` loads an on-demand skill's full body (`film-grammar`,

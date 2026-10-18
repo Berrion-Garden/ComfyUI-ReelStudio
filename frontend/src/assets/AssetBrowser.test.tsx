@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { deleteAsset, fetchAssets, setAssetLabels, type AssetsData } from "../api";
+import { deleteAsset, setAssetLabels, type AssetsData } from "../api";
 import { AssetBrowser } from "./AssetBrowser";
 
 vi.mock("../api", () => (
-  { fetchAssets: vi.fn(), setAssetLabels: vi.fn(), deleteAsset: vi.fn() }));
+  { setAssetLabels: vi.fn(), deleteAsset: vi.fn() }));
 
 const data: AssetsData = {
   groups: {
@@ -23,8 +23,7 @@ const data: AssetsData = {
 
 describe("AssetBrowser", () => {
   it("shows the single selected asset, large, with its label editor", async () => {
-    vi.mocked(fetchAssets).mockResolvedValue(data);
-    render(<AssetBrowser selected={data.groups.characters[0]}
+    render(<AssetBrowser assets={data} selected={data.groups.characters[0]}
       onSelect={vi.fn()} onChanged={vi.fn()} />);
 
     const media = await screen.findByAltText("face");
@@ -43,9 +42,8 @@ describe("AssetBrowser", () => {
   });
 
   it("non-verified assets get a check (approve) and an x (delete)", async () => {
-    vi.mocked(fetchAssets).mockResolvedValue(data);
     const onSelect = vi.fn();
-    render(<AssetBrowser selected={data.groups.stills[0]}
+    render(<AssetBrowser assets={data} selected={data.groups.stills[0]}
       onSelect={onSelect} onChanged={vi.fn()} />);
 
     // ✓ removes only the non-verified label — and with it, the buttons
@@ -59,9 +57,8 @@ describe("AssetBrowser", () => {
   });
 
   it("✕ on a non-verified asset deletes the file and deselects", async () => {
-    vi.mocked(fetchAssets).mockResolvedValue(data);
     const onSelect = vi.fn();
-    render(<AssetBrowser selected={data.groups.stills[0]}
+    render(<AssetBrowser assets={data} selected={data.groups.stills[0]}
       onSelect={onSelect} onChanged={vi.fn()} />);
 
     vi.mocked(deleteAsset).mockResolvedValue(undefined);
@@ -72,7 +69,8 @@ describe("AssetBrowser", () => {
   });
 
   it("nothing selected: an empty hint, no inspector", () => {
-    render(<AssetBrowser selected={null} onSelect={vi.fn()} onChanged={vi.fn()} />);
+    render(<AssetBrowser assets={data} selected={null}
+      onSelect={vi.fn()} onChanged={vi.fn()} />);
     expect(screen.getByTestId("asset-stage").textContent)
       .toContain("select an asset");
   });
