@@ -96,8 +96,8 @@ export function App() {
               selectedAsset={selectedAsset}
               seekRequest={seekRequest}
               mix={{
-                // the real tracks + the Music3 bed when the mix uses it —
-                // everything the yaml drives, layered on the fly
+                // the real tracks always; the Music3 bed only when the mix
+                // uses it (skip_music: false) — mirrors reel.py assemble
                 sources: [
                   ...project.overlays
                     .filter((o) => o.present && o.url)
@@ -106,13 +106,15 @@ export function App() {
                       startS: o.start_s, durS: o.duration_s,
                       gain: o.gain, seek: o.seek, fades: o.fades,
                     })),
-                  ...project.music
-                    .filter((m) => m.present && m.url)
-                    .map((m, i) => ({
-                      key: `m${i}`, url: m.url as string,
-                      startS: m.start_s, durS: m.duration_s,
-                      gain: m.gain, seek: 0, fades: [],
-                    })),
+                  ...(!(project.flags as { skip_music?: boolean }).skip_music
+                    ? project.music
+                        .filter((m) => m.present && m.url)
+                        .map((m, i) => ({
+                          key: `m${i}`, url: m.url as string,
+                          startS: m.start_s, durS: m.duration_s,
+                          gain: m.gain, seek: 0, fades: [],
+                        }))
+                    : []),
                 ],
                 sfxVolume: project.sfx_volume,
                 useMusic: !(project.flags as { skip_music?: boolean }).skip_music,
