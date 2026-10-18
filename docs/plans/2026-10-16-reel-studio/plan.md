@@ -91,3 +91,56 @@ Milestones:
   waveform + anchor drag UI — blocked on M12a
 - M12e — deploy + live verify (real `reel.py plan`, browser playback) —
   blocked on M12b..d
+
+---
+
+## M13 addendum — Asset inspector, selection-aware agent, Qwen reference pipeline (2026-10-18)
+
+Requirements:
+
+- FR-17: The stage's Images view is an asset browser: LEFT = a large
+  interactive preview of the currently selected asset (images render full,
+  audio renders a player), RIGHT = the thumbnail picker grid across the
+  image+audio groups. Selecting in the grid updates the preview.
+- FR-18: The agent knows what the operator is looking at: the chat request
+  carries the current selection; a `currently_selected` tool returns the
+  asset's slug, path, group, labels and used_by, so "regenerate this one"
+  resolves without the operator naming files.
+- FR-19: Free-form, typed asset labels at will: `char:<slug>`,
+  `scene:<slug>` (foreign-key to the scene id), `cond:<x>` (human,
+  were-tiger, …), any other free tag. `assets.yaml` stays the single owner
+  of declared labels; the app writes it, never restates it.
+- FR-20: `backgrounds/` folder in the workspace, enumerated as its own asset
+  group with the same label machinery.
+- FR-21: Qwen-Image-2.1 reference flow, executed by the workspace reel.py
+  (single source of truth): (a) multi-view character sheets per character —
+  front/profile/back/full-body from reference images, strict-roles prompt
+  ("Picture 1 is the identity reference — preserve face/hair/outfit; Picture
+  N the scene reference; do not blend identities"); (b) per-shot generation
+  from 2–4 refs (character face/body + location plate) producing **10
+  outputs per run with slight seed and prompt variations** for selection.
+- FR-22: Reference images for Fox Kun and Tony exist, tagged `char:<slug>`
+  (+ `cond:*` where applicable); scene images containing them carry both the
+  char label and the scene FK label.
+
+Milestones:
+
+- M13a — Asset inspector: App lifts the full selection (slug/path/group),
+  Stills.tsx → AssetBrowser (preview left, grid right, audio playback) —
+  blocked on nothing
+- M13b — `currently_selected` agent tool: chat POST carries the selection,
+  ToolBox exposes it request-scoped — blocked on M13a
+- M13c — Tagging: PUT /api/assets/labels (ruamel, comment-preserving),
+  tag editor UI in the inspector, `backgrounds/` group in assets.py —
+  blocked on M13a
+- M13d — Workspace reel.py: `sheet` subcommand (multi-view character sheet,
+  10 seed/prompt variants) + `shot` subcommand (per-shot 2–4 refs, strict
+  roles, 10 variants) on the Qwen-Image-2.1 graph; generator registry wires
+  `still`/`image_edit` — blocked on M13c
+- M13e — Reference generation run: fox_kun + tony sheets and location plates
+  into characters/ + backgrounds/, tagged; one per-shot demo run on the
+  court scene — blocked on M13d
+- M13f — Deploy + live verify (browser: inspector, tagging, agent tool) —
+  blocked on M13b..e
+
+Critical path M13a → M13c → M13d → M13e → M13f.
