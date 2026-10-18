@@ -219,6 +219,21 @@ export async function uploadFile(file: File, dir: string): Promise<string> {
   return `asset:${body.path}`;
 }
 
+/** How one generated file was made: its job, the request context, and the
+ * prompt/seed/models embedded in the file (images). */
+export interface Provenance {
+  file: string;
+  job: string | null;
+  record: { id: string; kind: string; target: string; args: Record<string, unknown>;
+            status: string; result?: string; seed?: string | null; ts: number } | null;
+  embedded: Record<string, string | number> | null;
+}
+
+export async function getProvenance(path: string): Promise<Provenance> {
+  const resp = await fetch(`${API}/provenance?path=${encodeURIComponent(path)}`);
+  return json_or_throw<Provenance>(resp);
+}
+
 /** Declare renders current — the whole reel or one scene (thumbnail ✓). */
 export async function adoptScene(sceneId?: string): Promise<void> {
   const resp = await fetch(`${API}/manifest/adopt`, {

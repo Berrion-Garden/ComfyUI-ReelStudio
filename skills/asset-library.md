@@ -61,3 +61,9 @@ human: read the labels, regenerate what points at them.
    stills (10 variants each) into the stills dir. Point `stills:` at the
    variant the operator picks. The pool member tagged `ref` in `assets.yaml`
    is the identity every shot uses.
+4. Every generated file carries its provenance: a `job:<id>` label
+   (images) or manifest `job` field (videos, music) linking to the
+   journaled job record. `get_provenance path=<asset path>` returns the
+   whole claw-back — request args, seed, and for images the exact prompt
+   and models embedded in the PNG. Never re-derive a prompt by guessing:
+   read it from provenance.

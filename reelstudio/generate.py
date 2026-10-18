@@ -27,8 +27,9 @@ class Generator:
     # JSON-schema properties this kind accepts (merged into the tool schema)
     args: dict
     validate: Callable[[Project, dict], list[str]]
-    # (project, client, work_dir, target) -> deliverable path; runs in a thread
-    execute: Callable[..., str] | None
+    # (project, client, work_dir, target, job_id) -> (deliverable, extra);
+    # runs in a thread
+    execute: Callable[..., tuple] | None
 
 
 # ------------------------------------------------------------ validators ---
@@ -78,6 +79,10 @@ def _validate_assemble(project: Project, args: dict) -> list[str]:
 # implementation (H3 graphs, freeze post, Music3, the final mix all live
 # there; see reelstudio/reel.py). After a successful run the studio vouches
 # for the deliverable in the manifest so staleness stays truthful.
+#
+# Every executor returns (deliverable, extra): the deliverable path plus the
+# generation context the file itself does not carry (for H3 videos the seed
+# — mp4 has no metadata — and the job id for the manifest's provenance).
 
 
 def _workspace(work_dir: str):
@@ -91,7 +96,25 @@ def _workspace(work_dir: str):
     return ws
 
 
-def _record_scene_render(project: Project, target: str) -> str:
+def _run(ws, cmd: str, args: list[str], job_id: str) -> str:
+    """reel.py as a subprocess, carrying the job id so the pipeline can stamp
+    `job:<id>` provenance labels on what it produces."""
+    from . import reel as reel_pipeline
+
+    return reel_pipeline.run_sync(
+        ws, cmd, args, env={"REELSTUDIO_JOB_ID": job_id} if job_id else None)
+
+
+def _seed_of(log: str) -> str | None:
+    """reel.py's H3 render log names its noise seed; mp4 carries no metadata,
+    so the log is the only source."""
+    import re
+
+    m = re.search(r"seed=(\d+)", log)
+    return m.group(1) if m else None
+
+
+def _record_scene_render(project: Project, target: str, job: str = "") -> str:
     """Point the manifest at the deliverable reel.py just produced, and cache
     that scene's collapsed generation input — the artifact staleness diffs."""
     from . import collapse as collapse_mod
@@ -107,25 +130,23 @@ def _record_scene_render(project: Project, target: str) -> str:
     gen = collapse_mod.current(project)
     manifest_mod.record_scene(reel_dir, target, path,
                               scene_frames(project, scene),
-                              generation=(gen or {}).get(target))
+                              generation=(gen or {}).get(target), job=job)
     return path
 
 
-def _execute_scene(project, client, work_dir, target):
-    from . import reel as reel_pipeline
+def _execute_scene(project, client, work_dir, target, job_id=""):
+    log = _run(_workspace(work_dir), "render", [target], job_id)
+    path = _record_scene_render(project, target, job=job_id)
+    return path, {"seed": _seed_of(log)}
 
-    reel_pipeline.run_sync(_workspace(work_dir), "render", [target])
-    return _record_scene_render(project, target)
 
-
-def _execute_music(project, client, work_dir, target):
-    from . import audio as audio_mod
+def _execute_music(project, client, work_dir, target, job_id=""):
+    from .audio import music_segments
     from . import manifest as manifest_mod
-    from . import reel as reel_pipeline
 
     ws = _workspace(work_dir)
-    reel_pipeline.run_sync(ws, "music")
-    segment = next(m for m in audio_mod.music_segments(project)
+    _run(ws, "music", [], job_id)
+    segment = next(m for m in music_segments(project)
                    if m["name"] == target)
     audio_path = manifest_mod.music_file(project.meta["reel_dir"], target)
     if audio_path is None:
@@ -133,42 +154,33 @@ def _execute_music(project, client, work_dir, target):
             f"reel.py music finished but no audio landed in "
             f"{project.meta['reel_dir']}")
     manifest_mod.record_music(project.meta["reel_dir"], target,
-                              segment["hash"], audio_path)
-    return audio_path
+                              segment["hash"], audio_path, job=job_id)
+    return audio_path, {}
 
 
-def _execute_assemble(project, client, work_dir, target):
-    from . import reel as reel_pipeline
-
-    ws = _workspace(work_dir)
-    reel_pipeline.run_sync(
-        ws, "assemble", ["--with-music"] if target == "music" else [])
+def _execute_assemble(project, client, work_dir, target, job_id=""):
+    _run(_workspace(work_dir), "assemble",
+         ["--with-music"] if target == "music" else [], job_id)
     final = project.meta.get("final")
     if not final or not Path(final).exists():
         raise FileNotFoundError(
             f"reel.py assemble finished but no final at {final}")
-    return final
+    return final, {}
 
 
-def _execute_still(project, client, work_dir, target):
-    from . import reel as reel_pipeline
-
-    out = reel_pipeline.run_sync(_workspace(work_dir), "bg", [target])
-    return _last_made(out, "BG:")
+def _execute_still(project, client, work_dir, target, job_id=""):
+    out = _run(_workspace(work_dir), "bg", [target], job_id)
+    return _last_made(out, "BG:"), {}
 
 
-def _execute_sheet(project, client, work_dir, target):
-    from . import reel as reel_pipeline
-
-    out = reel_pipeline.run_sync(_workspace(work_dir), "sheet", [target])
-    return _last_made(out, "SHEET:")
+def _execute_sheet(project, client, work_dir, target, job_id=""):
+    out = _run(_workspace(work_dir), "sheet", [target], job_id)
+    return _last_made(out, "SHEET:"), {}
 
 
-def _execute_image_edit(project, client, work_dir, target):
-    from . import reel as reel_pipeline
-
-    out = reel_pipeline.run_sync(_workspace(work_dir), "shot", [target])
-    return _last_made(out, "SHOT:")
+def _execute_image_edit(project, client, work_dir, target, job_id=""):
+    out = _run(_workspace(work_dir), "shot", [target], job_id)
+    return _last_made(out, "SHOT:"), {}
 
 
 def _last_made(out: str, marker: str) -> str:
@@ -298,8 +310,11 @@ def plan(project: Project, kind, args: dict | None) -> list[tuple[str, str]]:
     return [(kind, t) for t in g.validate(project, args or {})]
 
 
-def run_job(project: Project, client, work_dir: str, kind: str, target: str) -> str:
-    return _BY_KIND[kind].execute(project, client, work_dir, target)
+def run_job(project: Project, client, work_dir: str, kind: str, target: str,
+            job_id: str = "") -> tuple[str, dict]:
+    """Run one queued job: returns (deliverable path, generation context the
+    file itself does not carry — today, the H3 noise seed)."""
+    return _BY_KIND[kind].execute(project, client, work_dir, target, job_id)
 
 
 def tool() -> dict:

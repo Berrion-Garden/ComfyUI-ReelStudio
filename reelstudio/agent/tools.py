@@ -1,7 +1,8 @@
 """Agent tools — the exact operations a human has, executed server-side.
 
 get_project / get_assets / get_yaml / update_yaml / generate /
-currently_selected / get_studio / import_assets / get_skill / get_status. update_yaml validates before saving and generate validates
+currently_selected / get_studio / import_assets / get_provenance /
+get_skill / get_status. update_yaml validates before saving and generate validates
 before queueing — the agent cannot save a broken chain or queue a bogus
 job, and every rejection teaches what would be valid.
 """
@@ -9,6 +10,7 @@ job, and every rejection teaches what would be valid.
 import json
 
 from .. import generate
+from .. import jobs as jobs_mod
 from .. import readmodel
 from .. import studio as studio_mod
 from ..errors import ReelStudioError
@@ -76,6 +78,16 @@ TOOLS = [
                            "backgrounds": {"type": "array",
                                            "items": {"type": "string"}}},
                        "required": ["from"]}}},
+    {"type": "function", "function": {
+        "name": "get_provenance",
+        "description": "How one generated file was made: its job id, the "
+                       "queued request (kind/target/args), the H3 noise seed "
+                       "for videos, and — for images — the exact prompt, "
+                       "negative prompt, seed, steps and models embedded in "
+                       "the PNG. Pass the asset's `asset:<path>` path.",
+        "parameters": {"type": "object",
+                       "properties": {"path": {"type": "string"}},
+                       "required": ["path"]}}},
     {"type": "function", "function": {
         "name": "get_skill",
         "description": "Load an on-demand skill's full body by name. The "
@@ -156,7 +168,8 @@ class ToolBox:
     async def _generate(self, args):
         project = self.state.project()
         specs = generate.plan(project, args.get("kind"), args)
-        jobs = [self.state.enqueue(kind, target) for kind, target in specs]
+        jobs = [self.state.enqueue(kind, target, args)
+                for kind, target in specs]
         return json.dumps({"queued": [j.view() for j in jobs]})
 
     async def _get_studio(self, _):
@@ -168,6 +181,13 @@ class ToolBox:
             self.state.config.workspace, str(args.get("from", "")),
             args.get("characters") or [], args.get("backgrounds") or [])
         return json.dumps(result, ensure_ascii=False)
+
+    async def _get_provenance(self, args):
+        path = str(args.get("path", ""))
+        if path.startswith("asset:"):
+            path = path[len("asset:"):]
+        return json.dumps(
+            jobs_mod.provenance(self.state.config, path), ensure_ascii=False)
 
     async def _get_skill(self, args):
         name = args.get("name")

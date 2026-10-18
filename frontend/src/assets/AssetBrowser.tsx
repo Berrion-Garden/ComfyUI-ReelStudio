@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { deleteAsset, setAssetLabels, type AssetItem, type AssetsData } from "../api";
+import { deleteAsset, getProvenance, setAssetLabels, type AssetItem, type AssetsData, type Provenance } from "../api";
 
 interface Props {
   /** the library the app already fetched — known-labels source, no refetch */
@@ -61,6 +61,49 @@ export function AssetBrowser({ assets, selected, selectedList,
               onChanged={onChanged} onSelect={onSelect} />
           </div>
         : <div className="stage-empty">select an asset to inspect it</div>}
+    </div>
+  );
+}
+
+/** The claw-back block: which job made this, with what. Images carry their
+ * prompt/seed/models embedded; videos point at the journaled render. */
+function Provenance({ path }: { path: string }) {
+  const [prov, setProv] = useState<Provenance | null>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    setProv(null);
+    setOpen(false);
+    let stale = false;
+    getProvenance(path).then((p) => { if (!stale) setProv(p); })
+      .catch(() => { if (!stale) setProv(null); });
+    return () => { stale = true; };
+  }, [path]);
+
+  if (!prov || (!prov.job && !prov.embedded)) return null;
+  const e = prov.embedded ?? {};
+  const rec = prov.record;
+  return (
+    <div className="inspector-prov" data-testid="inspector-provenance">
+      <button type="button" className="prov-toggle" onClick={() => setOpen((v) => !v)}>
+        {open ? "▾" : "▸"} provenance{prov.job ? ` · job ${prov.job}` : ""}
+      </button>
+      {open && (
+        <dl className="prov-fields">
+          {rec && (
+            <>
+              <div><dt>job</dt><dd>{rec.id} · {rec.kind} {rec.target}
+                {rec.seed ? ` · seed ${rec.seed}` : ""}</dd></div>
+              <div><dt>request</dt><dd>{JSON.stringify(rec.args)}</dd></div>
+            </>
+          )}
+          {Object.entries(e).map(([k, v]) => (
+            <div key={k}><dt>{k.replace(/_/g, " ")}</dt><dd title={String(v)}>
+              {typeof v === "string" && v.length > 160 ? `${v.slice(0, 160)}…` : String(v)}
+            </dd></div>
+          ))}
+        </dl>
+      )}
     </div>
   );
 }
@@ -144,6 +187,7 @@ function Inspector({ asset, known, onChanged, onSelect }:
               onClick={() => void remove()}>✕</button>
           </span>
         )}
+        <Provenance path={asset.path} />
         {error && <span className="tag-error">{error}</span>}
       </div>
     </div>

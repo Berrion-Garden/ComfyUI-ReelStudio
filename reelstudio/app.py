@@ -13,13 +13,14 @@ import re
 import subprocess
 import urllib.parse
 import uuid
+import time
 from pathlib import Path
 
 from aiohttp import web
 
 from . import manifest as manifest_mod
 from . import assets as assets_mod
-from . import generate, studio as studio_mod, timeline
+from . import generate, jobs as jobs_mod, studio as studio_mod, timeline
 from . import audio as audio_mod
 from . import reel as reel_pipeline
 from .agent.loop import run as agent_run
@@ -33,18 +34,22 @@ API = "/reelstudio/api"
 
 
 class RenderJob:
-    def __init__(self, kind: str, target: str):
+    def __init__(self, kind: str, target: str, args: dict | None = None):
         self.id = uuid.uuid4().hex[:12]
-        self.kind = kind          # scene | music | assemble
+        self.kind = kind          # scene | music | assemble | sheet | still | image_edit
         self.target = target
+        self.args = dict(args or {})  # the request context the job ran with
         self.status = "queued"    # queued | running | done | error
         self.error: str | None = None
         self.result: str | None = None
+        self.seed: str | None = None
+        self.ts = time.time()
+        self.config: Config | None = None  # set by enqueue: journal target
 
     def view(self) -> dict:
         return {"id": self.id, "kind": self.kind, "target": self.target,
-                "status": self.status, "error": self.error,
-                "result": self.result}
+                "args": self.args, "status": self.status, "error": self.error,
+                "result": self.result, "seed": self.seed, "ts": self.ts}
 
 
 class ReelStudio:
@@ -73,9 +78,12 @@ class ReelStudio:
         if self._worker:
             self._worker.cancel()
 
-    def enqueue(self, kind: str, target: str) -> RenderJob:
-        job = RenderJob(kind, target)
+    def enqueue(self, kind: str, target: str, args: dict | None = None) -> RenderJob:
+        job = RenderJob(kind, target, args)
+        job.config = self.config  # journal where it was queued, not where it ends
         self.jobs[job.id] = job
+        jobs_mod.record(self.config, id=job.id, kind=kind, target=target,
+                        args=job.args, status="queued", ts=job.ts)
         self._queue.put_nowait(job)
         return job
 
@@ -84,17 +92,24 @@ class ReelStudio:
         while True:
             job = await self._queue.get()
             job.status = "running"
+            jobs_mod.record(job.config, id=job.id, status="running")
             try:
-                project = self.project()
-                job.result = await asyncio.to_thread(
+                project = load_project(job.config)
+                result, extra = await asyncio.to_thread(
                     generate.run_job, project, None,
-                    self.config.workspace.as_posix() + "/.work",
-                    job.kind, job.target)
+                    job.config.workspace.as_posix() + "/.work",
+                    job.kind, job.target, job.id)
             except Exception as e:  # noqa: BLE001 - job errors surface in the UI
                 job.status = "error"
                 job.error = str(e)
+                jobs_mod.record(job.config, id=job.id, status="error",
+                                error=job.error)
             else:
                 job.status = "done"
+                job.result = result
+                job.seed = extra.get("seed")
+                jobs_mod.record(job.config, id=job.id, status="done",
+                                result=job.result, seed=job.seed)
             self._queue.task_done()
 
 
@@ -145,7 +160,7 @@ async def post_render(request: web.Request) -> web.Response:
     state = _state(request)
     body = await request.json()
     specs = generate.plan(state.project(), "scene", body)
-    jobs = [state.enqueue(kind, target) for kind, target in specs]
+    jobs = [state.enqueue(kind, target, body) for kind, target in specs]
     return web.json_response({"jobs": [j.view() for j in jobs]})
 
 
@@ -154,7 +169,7 @@ async def post_music(request: web.Request) -> web.Response:
     body = await request.json()
     specs = generate.plan(state.project(), "music",
                           {"name": body.get("name")})
-    jobs = [state.enqueue(kind, target) for kind, target in specs]
+    jobs = [state.enqueue(kind, target, body) for kind, target in specs]
     return web.json_response({"jobs": [j.view() for j in jobs]})
 
 
@@ -162,13 +177,27 @@ async def post_assemble(request: web.Request) -> web.Response:
     state = _state(request)
     body = await request.json() if request.can_read_body else {}
     specs = generate.plan(state.project(), "assemble", body)
-    jobs = [state.enqueue(kind, target) for kind, target in specs]
+    jobs = [state.enqueue(kind, target, body) for kind, target in specs]
     return web.json_response({"jobs": [j.view() for j in jobs]})
 
 
 async def get_jobs(request: web.Request) -> web.Response:
     state = _state(request)
-    return web.json_response({"jobs": [j.view() for j in state.jobs.values()]})
+    live = {j.id: j.view() for j in state.jobs.values()}
+    # the journal fills in every past run — restarts don't erase history
+    history = [e for i, e in jobs_mod.load(state.config).items()
+               if i not in live]
+    jobs = sorted(list(live.values()) + history,
+                  key=lambda j: j.get("ts", 0), reverse=True)
+    return web.json_response({"jobs": jobs})
+
+
+async def get_provenance(request: web.Request) -> web.Response:
+    """The claw-back: one generated file → its job, its request context, and
+    (for images) the prompt graph embedded in the file itself."""
+    state = _state(request)
+    return web.json_response(
+        jobs_mod.provenance(state.config, request.query.get("path", "")))
 
 
 async def get_scene_artifact(request: web.Request) -> web.Response:
@@ -613,6 +642,7 @@ def create_app(config: Config) -> web.Application:
     app.router.add_post(f"{API}/music", post_music)
     app.router.add_post(f"{API}/assemble", post_assemble)
     app.router.add_get(f"{API}/jobs", get_jobs)
+    app.router.add_get(f"{API}/provenance", get_provenance)
     app.router.add_get(f"{API}/final", get_final)
     app.router.add_get(f"{API}/assets", get_assets)
     app.router.add_put(f"{API}/assets/labels", put_asset_labels)

@@ -37,9 +37,11 @@ def save(reel_dir: str | Path, manifest: dict) -> None:
 
 def record_scene(reel_dir: str, scene_id: str, video_path: str,
                  frames: int, prompt_id: str = "",
-                 generation: dict | None = None) -> dict:
+                 generation: dict | None = None,
+                 job: str = "") -> dict:
     """`generation` caches the scene's collapsed generation input (reel.py's
-    merged prompt/anchors) — the artifact staleness diffs against."""
+    merged prompt/anchors) — the artifact staleness diffs against. `job`
+    links the render to its journal entry (see jobs.provenance)."""
     manifest = load(reel_dir)
     entry = {
         "video": {"kind": "video", "path": {"file": str(Path(video_path).name)}},
@@ -49,18 +51,24 @@ def record_scene(reel_dir: str, scene_id: str, video_path: str,
     }
     if generation is not None:
         entry["generation"] = generation
+    if job:
+        entry["job"] = job
     manifest["scenes"][scene_id] = entry
     save(reel_dir, manifest)
     return manifest
 
 
-def record_music(reel_dir: str, name: str, segment_hash: str, audio_path: str) -> dict:
+def record_music(reel_dir: str, name: str, segment_hash: str, audio_path: str,
+                 job: str = "") -> dict:
     manifest = load(reel_dir)
-    manifest["music"][name] = {
+    entry = {
         "hash": segment_hash,
         "path": {"kind": "audio", "file": str(Path(audio_path).name)},
         "rendered_at": time.time(),
     }
+    if job:
+        entry["job"] = job
+    manifest["music"][name] = entry
     save(reel_dir, manifest)
     return manifest
 

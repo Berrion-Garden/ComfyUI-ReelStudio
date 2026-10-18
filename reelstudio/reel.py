@@ -28,13 +28,25 @@ def workspace_script(workspace: Path) -> Path:
         "source of truth for the pipeline")
 
 
-async def run_async(workspace: Path, cmd: str, args: list[str] | None = None) -> str:
+def _spawn(env: dict | None = None) -> dict | None:
+    """The subprocess env: inherit everything, overlay the studio's extras
+    (REELSTUDIO_JOB_ID — the pipeline stamps it on what it produces)."""
+    import os
+
+    if env is None:
+        return None
+    return {**os.environ, **env}
+
+
+async def run_async(workspace: Path, cmd: str, args: list[str] | None = None,
+                    env: dict | None = None) -> str:
     """Run `python3 reel.py <cmd> [args...]` from the workspace; returns the
     last lines of its output (the per-scene DONE/overlay lines live there)."""
     script = workspace_script(workspace)
     proc = await asyncio.create_subprocess_exec(
         sys.executable, str(script), cmd, *(args or []),
         cwd=str(workspace),
+        env=_spawn(env),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
     )
@@ -50,14 +62,15 @@ def tail(text: str, lines: int = 10) -> str:
     return "\n".join(text.strip().splitlines()[-lines:])
 
 
-def run_sync(workspace: Path, cmd: str, args: list[str] | None = None) -> str:
+def run_sync(workspace: Path, cmd: str, args: list[str] | None = None,
+             env: dict | None = None) -> str:
     """Blocking twin of run_async for thread-pool executors."""
     import subprocess
 
     script = workspace_script(workspace)
     proc = subprocess.run(
         [sys.executable, str(script), cmd, *(args or [])],
-        cwd=str(workspace), capture_output=True, text=True)
+        cwd=str(workspace), capture_output=True, text=True, env=_spawn(env))
     if proc.returncode != 0:
         raise ReelScriptError(
             f"reel.py {cmd} failed (exit {proc.returncode}):\n"

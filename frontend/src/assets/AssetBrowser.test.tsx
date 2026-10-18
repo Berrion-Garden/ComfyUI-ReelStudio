@@ -1,10 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { deleteAsset, setAssetLabels, type AssetsData } from "../api";
+import { deleteAsset, getProvenance, setAssetLabels, type AssetsData } from "../api";
 import { AssetBrowser } from "./AssetBrowser";
 
-vi.mock("../api", () => (
-  { setAssetLabels: vi.fn(), deleteAsset: vi.fn() }));
+vi.mock("../api", () => ({
+  setAssetLabels: vi.fn(), deleteAsset: vi.fn(), getProvenance: vi.fn(),
+}));
+// the inspector's provenance fetch must resolve to "nothing known" by default
+vi.mocked(getProvenance).mockResolvedValue(
+  { file: "", job: null, record: null, embedded: null });
 
 const data: AssetsData = {
   groups: {
@@ -79,6 +83,27 @@ describe("AssetBrowser", () => {
     render(<AssetBrowser {...browserProps()} />);
     expect(screen.getByTestId("asset-stage").textContent)
       .toContain("select an asset");
+  });
+
+  it("the provenance block claws back job, seed and prompt", async () => {
+    vi.mocked(getProvenance).mockResolvedValue({
+      file: "/out/tony_dunk01_00001_.png", job: "abc123",
+      record: { id: "abc123", kind: "image_edit", target: "tony_dunk",
+                args: { kind: "image_edit", name: "tony_dunk" },
+                status: "done", ts: 1 },
+      embedded: { prompt: "a were-tiger mid-dunk", seed: 42, steps: 8 },
+    });
+    render(<AssetBrowser {...browserProps(
+      { selected: data.groups.stills[0] })} />);
+
+    await screen.findByTestId("inspector-provenance");
+    const toggle = screen.getByRole("button", { name: /provenance/ });
+    expect(toggle.textContent).toBe("▸ provenance · job abc123");
+    fireEvent.click(toggle);
+    expect(await screen.findByText("a were-tiger mid-dunk")).toBeTruthy();
+    const block = screen.getByTestId("inspector-provenance").textContent!;
+    expect(block).toContain("seed");
+    expect(block).toContain("image_edit tony_dunk");
   });
 
   it("a multi-selection turns the display into a carousel", () => {

@@ -49,6 +49,13 @@ always: true
     asset view; anchor the pick by adding it to `stills:`.
 - `get_status` reports queued/running/done/error jobs. Renders are minutes
   per scene on the GPU node; report what was queued, do not poll silently.
+- `get_provenance` is the claw-back: one generated file's job id, its queued
+  request (kind/target/args), the H3 noise seed for videos, and — for images
+  — the exact prompt, negative prompt, seed, steps and models ComfyUI
+  embedded in the PNG. Use it when the operator asks "how was this made?"
+  or wants a regeneration from the same seed. Every generated file carries
+  its `job:<id>` label (assets.yaml) or manifest `job` field automatically;
+  the journal lives in the scene's `.studio/jobs.jsonl`.
 - `get_skill` loads an on-demand skill's full body (`film-grammar`,
   `junction-doctrine`, `asset-library`, `app-troubleshooting`). The system
   prompt carries the always-on skills (this workflow, reel-yaml-schema,
