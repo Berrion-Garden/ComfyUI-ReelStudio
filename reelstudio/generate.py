@@ -6,10 +6,9 @@ and execution. The agent's `generate` tool and the HTTP job routes derive from
 this registry, so adding a generator kind is one entry here — never edits in
 three places.
 
-Wired: scene (H3 video), music (Music3), assemble (final mix).
-Declared, not wired: still / image_edit — anchor stills come from the external
-Qwen-Image pipeline into meta.still_dir; a wired executor is the only piece
-missing when image generation lands.
+Wired: scene (H3 video), music (Music3), assemble (final mix), still
+(background/location plates) and image_edit (per-shot anchor stills) — both
+delegated to the workspace reel.py's Qwen-Image-2.1 commands (`bg`/`shot`).
 """
 
 from dataclasses import dataclass
@@ -71,16 +70,6 @@ def _validate_assemble(project: Project, args: dict) -> list[str]:
     flags = project.raw.get("flags", {})
     use_music = bool(args.get("use_music", not flags.get("skip_music", True)))
     return ["music" if use_music else "no-music"]
-
-
-def _not_wired(kind: str):
-    def validate(project: Project, args: dict) -> list[str]:
-        raise ValidationError([
-            f"{kind} generation is not wired on this install",
-            "anchor stills come from the external Qwen-Image pipeline into "
-            "meta.still_dir — reference them as still:<name>, or ask the "
-            "operator to add stills"])
-    return validate
 
 
 # ------------------------------------------------------------- executors ---
@@ -162,6 +151,56 @@ def _execute_assemble(project, client, work_dir, target):
     return final
 
 
+def _execute_still(project, client, work_dir, target):
+    from . import reel as reel_pipeline
+
+    out = reel_pipeline.run_sync(_workspace(work_dir), "bg", [target])
+    return _last_made(out, "BG:")
+
+
+def _execute_image_edit(project, client, work_dir, target):
+    from . import reel as reel_pipeline
+
+    out = reel_pipeline.run_sync(_workspace(work_dir), "shot", [target])
+    return _last_made(out, "SHOT:")
+
+
+def _last_made(out: str, marker: str) -> str:
+    """reel.py prints '<MARKER>: <path>' per produced file; the last is the
+    run's deliverable."""
+    for line in out.splitlines():
+        if line.startswith(marker):
+            return line.split(":", 1)[1].strip()
+    raise FileNotFoundError(f"reel.py finished but no {marker} path in its log")
+
+
+def _validate_still(project, args):
+    slug = str(args.get("slug", "")).strip()
+    if not slug:
+        raise ValidationError(["a still (a background/location plate) needs "
+                               "slug — a `locations:` entry in reel.yaml"])
+    if slug not in (project.raw.get("locations") or {}):
+        raise ValidationError([f"no such location {slug!r} in reel.yaml "
+                               "`locations:`", "add it there first — the yaml "
+                               "is the pipeline's driver"])
+    return [f"plate: {slug}"]
+
+
+def _validate_image_edit(project, args):
+    name = str(args.get("name", "")).strip()
+    shots = project.raw.get("shots") or {}
+    if not name:
+        raise ValidationError(["an image_edit (a shot still) needs name — an "
+                               "entry in reel.yaml `shots:` (characters, "
+                               "background, description)",
+                               f"known shots: {', '.join(shots) or 'none'}"])
+    if name not in shots:
+        raise ValidationError([f"no such shot {name!r} in reel.yaml `shots:`",
+                               "add it there first — characters, background, "
+                               "description"])
+    return [f"shot: {name}"]
+
+
 # -------------------------------------------------------------- registry ---
 GENERATORS: tuple[Generator, ...] = (
     Generator(
@@ -194,14 +233,24 @@ GENERATORS: tuple[Generator, ...] = (
         validate=_validate_assemble, execute=_execute_assemble),
     Generator(
         kind="still",
-        summary="NOT WIRED on this install — anchor stills come from the "
-                "external Qwen-Image pipeline; ask the operator instead",
-        args={}, validate=_not_wired("still"), execute=None),
+        summary="generate a background/location plate from a reel.yaml "
+                "`locations:` entry — 10 seed/prompt variants into "
+                "backgrounds/ (Qwen-Image-2.1, no people)",
+        args={
+            "slug": {"type": "string",
+                     "description": "location slug (still kind)"},
+        },
+        validate=_validate_still, execute=_execute_still),
     Generator(
         kind="image_edit",
-        summary="NOT WIRED on this install — anchor stills are edited in the "
-                "external Qwen-Image pipeline; ask the operator instead",
-        args={}, validate=_not_wired("image_edit"), execute=None),
+        summary="generate one shot's anchor stills from a reel.yaml `shots:` "
+                "entry — character refs + background plate, strict identity/"
+                "scene roles, 10 seed/prompt variants into the stills dir",
+        args={
+            "name": {"type": "string",
+                     "description": "shot name (image_edit kind)"},
+        },
+        validate=_validate_image_edit, execute=_execute_image_edit),
 )
 
 _BY_KIND = {g.kind: g for g in GENERATORS}
