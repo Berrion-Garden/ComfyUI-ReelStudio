@@ -9,9 +9,35 @@ import subprocess
 from pathlib import Path
 
 from .errors import NotFoundError, ValidationError
-from .timeline import SECONDS_DIGITS, total_dur
+from .timeline import SECONDS_DIGITS, scene_starts, total_dur
 
 FF = "/usr/bin/ffmpeg"
+
+
+def music_segments(project) -> list[dict]:
+    """Scene-anchored Music3 segments: start at their scene, run to the next
+    anchor (or reel end). Each carries a hash for staleness tracking."""
+    import hashlib
+
+    starts = scene_starts(project)
+    total = total_dur(project)
+    anchors = [(i, s["music"]) for i, s in enumerate(project.scenes)
+               if isinstance(s.get("music"), dict)]
+    out = []
+    for k, (idx, m) in enumerate(anchors):
+        start = starts[idx]
+        end = starts[anchors[k + 1][0]] if k + 1 < len(anchors) else total
+        seg = {
+            "name": m["name"],
+            "caption": m["caption"].format(**project.aliases),
+            "start": round(start, SECONDS_DIGITS),
+            "dur": round(end - start, SECONDS_DIGITS),
+            "gain": m.get("gain", 1.0),
+        }
+        blob = f"{seg['caption']}|{seg['start']}|{seg['dur']}|{seg['gain']}"
+        seg["hash"] = hashlib.sha256(blob.encode()).hexdigest()[:16]
+        out.append(seg)
+    return out
 
 
 def audio_tracks(project) -> list[dict]:
@@ -120,4 +146,7 @@ def update_track(project, config, index: int, body: dict) -> dict:
     with open(path, "w") as f:
         doc.dump(yaml_doc, f)
 
-    return track(project, index)
+    # return the view derived from the file we just wrote, not the caller's
+    # (possibly stale) in-memory project
+    from .project import load as load_project
+    return track(load_project(config), index)

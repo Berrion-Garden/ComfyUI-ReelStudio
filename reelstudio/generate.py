@@ -13,6 +13,7 @@ missing when image generation lands.
 """
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable
 
 from .errors import ValidationError
@@ -54,7 +55,7 @@ def _validate_scene(project: Project, args: dict) -> list[str]:
 
 
 def _validate_music(project: Project, args: dict) -> list[str]:
-    from .assemble import music_segments
+    from .audio import music_segments
 
     name = args.get("name")
     known = [m["name"] for m in music_segments(project)]
@@ -81,23 +82,87 @@ def _not_wired(kind: str):
 
 
 # ------------------------------------------------------------- executors ---
-def _execute_scene(project, client, work_dir, target):
-    from . import render
+# Execution is delegated to the workspace's reel.py — the single pipeline
+# implementation (H3 graphs, freeze post, Music3, the final mix all live
+# there; see reelstudio/reel.py). After a successful run the studio vouches
+# for the deliverable in the manifest so staleness stays truthful.
 
-    return render.render_scene(project, target, client, work_dir)
+
+def _workspace(work_dir: str):
+    from pathlib import Path
+
+    ws = Path(work_dir).resolve()
+    if ws.name == ".work":          # the worker passes workspace/.work
+        ws = ws.parent
+    if not (ws / "reel.py").is_file():
+        raise FileNotFoundError(
+            f"reel.py not found beside the project yaml ({ws}) — the pipeline "
+            "script must live in the workspace")
+    return ws
+
+
+def _record_scene_render(project: Project, target: str) -> str:
+    """Point the manifest at the deliverable reel.py just produced."""
+    from . import manifest as manifest_mod
+    from .timeline import chain_hash, scene_frames
+
+    reel_dir = project.meta["reel_dir"]
+    path = manifest_mod.deliverable(reel_dir, target)
+    if path is None:
+        raise FileNotFoundError(
+            f"{target}: reel.py finished but no render landed in {reel_dir}")
+    scene = project.by_id()[target]
+    upstream = None
+    if scene["video"].get("first") == "prev_last":
+        prev = project.previous(target)
+        prev_file = (manifest_mod.load(reel_dir)["scenes"]
+                     .get(prev["id"], {}).get("video", {})
+                     .get("path", {}).get("file"))
+        if prev_file:
+            upstream = (prev["id"], prev_file)
+    manifest_mod.record_scene(reel_dir, target, chain_hash(project, scene),
+                              path, scene_frames(project, scene),
+                              upstream=upstream)
+    return path
+
+
+def _execute_scene(project, client, work_dir, target):
+    from . import reel as reel_pipeline
+
+    reel_pipeline.run_sync(_workspace(work_dir), "render", [target])
+    return _record_scene_render(project, target)
 
 
 def _execute_music(project, client, work_dir, target):
-    from . import render
+    from . import audio as audio_mod
+    from . import manifest as manifest_mod
+    from . import reel as reel_pipeline
 
-    return render.render_music(project, target, client, work_dir)
+    ws = _workspace(work_dir)
+    reel_pipeline.run_sync(ws, "music")
+    segment = next(m for m in audio_mod.music_segments(project)
+                   if m["name"] == target)
+    audio_path = manifest_mod.music_file(project.meta["reel_dir"], target)
+    if audio_path is None:
+        raise FileNotFoundError(
+            f"reel.py music finished but no audio landed in "
+            f"{project.meta['reel_dir']}")
+    manifest_mod.record_music(project.meta["reel_dir"], target,
+                              segment["hash"], audio_path)
+    return audio_path
 
 
 def _execute_assemble(project, client, work_dir, target):
-    from .assemble import assemble as run_assemble
+    from . import reel as reel_pipeline
 
-    return run_assemble(project, project.meta["final"], target == "music",
-                        work_dir)
+    ws = _workspace(work_dir)
+    reel_pipeline.run_sync(
+        ws, "assemble", ["--with-music"] if target == "music" else [])
+    final = project.meta.get("final")
+    if not final or not Path(final).exists():
+        raise FileNotFoundError(
+            f"reel.py assemble finished but no final at {final}")
+    return final
 
 
 # -------------------------------------------------------------- registry ---

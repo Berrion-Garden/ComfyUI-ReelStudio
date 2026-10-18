@@ -141,7 +141,7 @@ def stale_scenes(project: Project, manifest: dict, reel_dir: str = "") -> list[s
 
 def stale_music(project: Project, manifest: dict) -> list[str]:
     """Music segment names whose caption/gain/timespan changed."""
-    from .assemble import music_segments  # local import: assemble owns segments
+    from .audio import music_segments  # local import: audio owns segments
 
     out = []
     current = {m["name"]: m for m in music_segments(project)}
@@ -170,5 +170,7 @@ def scene_view(project: Project, scene_id: str) -> dict:
         "description": scene["video"].get("description", ""),
         "has_freeze": bool(scene.get("post", {}).get("freeze")),
         "has_bell": bool(scene.get("sound_effects", {}).get("bell")),
+        "bell_at": (scene.get("sound_effects", {}).get("bell_at")
+                    if scene.get("sound_effects", {}).get("bell") else None),
         "has_sfx": bool(scene.get("sound_effects", {}).get("soundscape")),
     }

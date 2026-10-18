@@ -24,7 +24,7 @@ def test_system_prompt_injects_all_skills():
             "integrated_multimodal_description",  # h3-prompting
             "update_yaml",                        # agent-workflow
             "17n+5",                              # schema
-            "comfy_mode: stub"):                  # troubleshooting
+            "reel.py"):                           # app-troubleshooting
         assert marker in prompt, f"missing: {marker}"
 
 

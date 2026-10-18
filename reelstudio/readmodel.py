@@ -10,9 +10,10 @@ a JSON envelope; the agent tool adds nothing at all.
 from pathlib import Path
 
 from . import assets as assets_mod
+from . import audio as audio_mod
 from . import manifest as manifest_mod
 from . import timeline
-from .assemble import music_overlays, music_segments
+from .audio import music_segments
 
 
 def project_view(state, api: str = "/reelstudio/api") -> dict:
@@ -46,15 +47,17 @@ def project_view(state, api: str = "/reelstudio/api") -> dict:
             "url": f"{api}/music/{m['name']}/artifact" if rendered else None,
         })
 
-    # the real-file overlays (`music_2`) — what the production mix actually uses
+    # the real audio tracks (`audio:`) — what the production mix actually uses
     overlays = []
-    for k, m in enumerate(music_overlays(project)):
-        p = Path(m["file"])
+    for m in audio_mod.audio_tracks(project):
+        p = Path(m["file"]).expanduser()
         overlays.append({
-            "name": m["name"], "start_s": m["start"], "duration_s": m["dur"],
-            "gain": m["gain"], "seek": m["seek"],
+            "index": m["index"], "name": m["name"],
+            "start_s": m["start"], "duration_s": m["dur"],
+            "gain": m["gain"], "seek": m["seek"], "fades": m["fades"],
             "present": p.is_file(),
-            "url": f"{api}/overlay/{k}/artifact" if p.is_file() else None,
+            "url": (f"{api}/audio/{m['index']}/artifact" if p.is_file()
+                    else None),
         })
 
     # referenced stills: `present: false` is the "unknown still ref on disk"
@@ -72,9 +75,9 @@ def project_view(state, api: str = "/reelstudio/api") -> dict:
         "total_s": timeline.total_dur(project),
         "final_path": project.meta.get("final"),
         "flags": project.raw.get("flags", {}),
+        "sfx_volume": project.raw.get("sfx_volume") or [],
         "alias_names": list(project.aliases),
         "stills": stills,
-        "comfy_mode": state.config.comfy_mode,
         "scenes": scenes,
         "music": music,
         "overlays": overlays,

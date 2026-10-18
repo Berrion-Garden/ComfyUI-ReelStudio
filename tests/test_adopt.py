@@ -55,7 +55,7 @@ async def test_adopt_marks_prev_last_junctions(config, workspace):
         ["s2_bowldrop"]
 
 
-async def test_adopt_endpoint(client, fake_comfy, workspace):
+async def test_adopt_endpoint(client, workspace):
     await client.post("/reelstudio/api/manifest/adopt")
     data = await (await client.get("/reelstudio/api/project")).json()
     # fixture workspace has no renders yet: nothing to adopt, still stale

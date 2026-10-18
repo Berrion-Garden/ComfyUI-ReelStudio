@@ -7,6 +7,7 @@ ComfyUI's PromptServer in production. One handler set, one adapter.
 
 import asyncio
 import json
+import subprocess
 import urllib.parse
 import uuid
 from pathlib import Path
@@ -16,15 +17,14 @@ from aiohttp import web
 from . import manifest as manifest_mod
 from . import assets as assets_mod
 from . import generate, timeline
+from . import audio as audio_mod
+from . import reel as reel_pipeline
 from .agent.loop import run as agent_run
 from .agent.tools import ToolBox
-from .assemble import music_overlays
-from .comfy_client import ComfyClient
 from .config import Config
 from .errors import ForbiddenError, NotFoundError, ReelStudioError, ValidationError
 from .project import load as load_project
 from .readmodel import asset_view, project_view
-from .stub import StubComfyClient
 
 API = "/reelstudio/api"
 
@@ -57,13 +57,6 @@ class ReelStudio:
     def project(self):
         return load_project(self.config)
 
-    def client(self, project=None):
-        if self.config.comfy_mode == "stub":
-            project = project or self.project()
-            return StubComfyClient(project.meta["reel_dir"],
-                                   self.config.comfy_input_dir)
-        return ComfyClient(self.config.comfy_url, self.config.comfy_input_dir)
-
     # -------------------------------------------------------------- jobs ---
     async def start(self, app):
         self._worker = asyncio.create_task(self._work(), name="reelstudio-worker")
@@ -86,7 +79,7 @@ class ReelStudio:
             try:
                 project = self.project()
                 job.result = await asyncio.to_thread(
-                    generate.run_job, project, self.client(project),
+                    generate.run_job, project, None,
                     self.config.workspace.as_posix() + "/.work",
                     job.kind, job.target)
             except Exception as e:  # noqa: BLE001 - job errors surface in the UI
@@ -199,7 +192,10 @@ async def get_scene_artifact(request: web.Request) -> web.Response:
             cache.mkdir(parents=True, exist_ok=True)
             png = cache / f"{prev['id']}.png"
             if not png.exists() or Path(src).stat().st_mtime > png.stat().st_mtime:
-                state.client().extract_last_frame(src, png)
+                subprocess.run(
+                    ["/usr/bin/ffmpeg", "-y", "-v", "error", "-sseof", "-0.05",
+                     "-i", str(src), "-frames:v", "1", str(png)],
+                    check=True)
             return web.FileResponse(png)
         if resolved["kind"] == "still":
             path = resolved.get("path")
@@ -222,22 +218,66 @@ async def get_music_artifact(request: web.Request) -> web.Response:
     return web.FileResponse(Path(file))
 
 
-async def get_overlay_artifact(request: web.Request) -> web.Response:
-    """A `music_2` overlay's source file, as declared in reel.yaml.
+async def get_audio_artifact(request: web.Request) -> web.Response:
+    """An `audio:` track's source file, as declared in reel.yaml.
 
     The index — not a client-supplied path — selects the file, so the
     operator's music library stays reachable without widening the asset roots.
     """
     state = _state(request)
     project = state.project()
-    overlays = music_overlays(project)
     try:
-        file = Path(overlays[int(request.match_info["index"])]["file"])
-    except (IndexError, ValueError):
-        raise NotFoundError("no such overlay")
+        t = audio_mod.track(project, int(request.match_info["index"]))
+    except ValueError:
+        raise NotFoundError("no such audio track")
+    file = Path(t["file"]).expanduser()
     if not file.is_file():
-        raise NotFoundError("overlay file missing")
+        raise NotFoundError("audio file missing")
     return web.FileResponse(file)
+
+
+async def get_audio_peaks(request: web.Request) -> web.Response:
+    """Waveform envelope for the audio graph lane."""
+    state = _state(request)
+    project = state.project()
+    try:
+        index = int(request.match_info["index"])
+    except ValueError:
+        raise NotFoundError("no such audio track")
+    try:
+        buckets = min(int(request.query.get("buckets", "600")), 4000)
+    except ValueError:
+        buckets = 600
+    peaks = await asyncio.to_thread(audio_mod.peaks, project, index, buckets)
+    return web.json_response({"peaks": peaks})
+
+
+async def put_audio_track(request: web.Request) -> web.Response:
+    """Update one track's timestamp note (at/seek/gain/fades) in reel.yaml."""
+    state = _state(request)
+    project = state.project()
+    body = await request.json()
+    try:
+        index = int(request.match_info["index"])
+    except ValueError:
+        raise NotFoundError("no such audio track")
+    try:
+        t = audio_mod.update_track(project, state.config, index, body)
+    except ValueError:
+        raise NotFoundError("no such audio track")
+    return web.json_response(t)
+
+
+async def get_bell_artifact(request: web.Request) -> web.Response:
+    """The synth bell sample, rendered by reel.py (one bell implementation)."""
+    state = _state(request)
+    project = state.project()
+    cache = Path(project.meta.get("work", "")) / "bell.wav"
+    if not cache.is_file():
+        await asyncio.to_thread(
+            reel_pipeline.run_sync,
+            Path(state.config.workspace), "bell", [str(cache)])
+    return web.FileResponse(cache)
 
 
 async def get_assets(request: web.Request) -> web.Response:
@@ -327,7 +367,10 @@ def create_app(config: Config) -> web.Application:
     app.router.add_get(f"{API}/assets", get_assets)
     app.router.add_get(f"{API}/asset/file", get_asset_file)
     app.router.add_get(f"{API}/music/{{name}}/artifact", get_music_artifact)
-    app.router.add_get(f"{API}/overlay/{{index}}/artifact", get_overlay_artifact)
+    app.router.add_get(f"{API}/audio/{{index}}/artifact", get_audio_artifact)
+    app.router.add_get(f"{API}/audio/{{index}}/peaks", get_audio_peaks)
+    app.router.add_put(f"{API}/audio/{{index}}", put_audio_track)
+    app.router.add_get(f"{API}/bell/artifact", get_bell_artifact)
     app.router.add_post(f"{API}/manifest/adopt", post_manifest_adopt)
     app.router.add_get(f"{API}/scene/{{scene_id}}/artifact/{{kind}}", get_scene_artifact)
     app.router.add_post(f"{API}/agent/chat", post_agent_chat)

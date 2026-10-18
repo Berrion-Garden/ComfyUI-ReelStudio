@@ -71,7 +71,7 @@ async def test_asset_file_serves_within_roots_only(client, workspace):
     assert directory.status == 404
 
 
-async def test_project_exposes_music_urls(client, workspace, fake_comfy):
+async def test_project_exposes_music_urls(client, workspace):
     import yaml as yaml_mod
 
     from reelstudio.project import load
@@ -111,40 +111,38 @@ def config_of(ws):
     return make_config(ws)
 
 
-async def test_overlays_come_from_music_2(client, workspace, tmp_path):
-    """The timeline's real audio tracks: `music_2` overlays with their actual
-    span (scene start + `at` → last fades keyframe), served from wherever
+async def test_overlays_come_from_audio_array(client, workspace, tmp_path):
+    """The timeline's real audio tracks: top-level `audio:` entries with their
+    actual span (absolute `at` → last fades keyframe), served from wherever
     reel.yaml points — including outside the workspace."""
     track = tmp_path / "music" / "01 - Test Artist - Night Run.mp3"
     track.parent.mkdir()
     track.write_bytes(b"mp3bytes")
 
     text = (workspace / "reel.yaml").read_text()
-    (workspace / "reel.yaml").write_text(text.replace(
-        "      soundscape: slurp\n",
-        "      soundscape: slurp\n"
-        "    music_2:\n"
-        f"      - file: \"{track}\"\n"
-        "        at: 0.1\n"
-        "        seek: 71.0\n"
-        "        gain: 1.0\n"
-        "        fades: [[0.5, 1.0], [2.0, 0.0]]\n",
-        1))
+    (workspace / "reel.yaml").write_text(text + (
+        "\naudio:\n"
+        f"  - file: \"{track}\"\n"
+        "    at: 0.1\n"
+        "    seek: 71.0\n"
+        "    gain: 1.0\n"
+        "    fades: [[0.5, 1.0], [2.0, 0.0]]\n"))
 
     data = await (await client.get("/reelstudio/api/project")).json()
     assert len(data["overlays"]) == 1
     ov = data["overlays"][0]
-    assert ov["name"] == "Test Artist - Night Run"  # track number stripped
+    assert ov["name"] == "01 - Test Artist - Night Run"  # derived from the file
     assert ov["start_s"] == 0.1
     assert ov["duration_s"] == 1.9  # last fades keyframe
+    assert ov["fades"] == [[0.5, 1.0], [2.0, 0.0]]
     assert ov["present"] is True
-    assert ov["url"].endswith("/api/overlay/0/artifact")
+    assert ov["url"].endswith("/api/audio/0/artifact")
 
     served = await client.get(ov["url"])
     assert served.status == 200
     assert b"mp3bytes" in await served.read()
 
-    missing_index = await client.get("/reelstudio/api/overlay/7/artifact")
+    missing_index = await client.get("/reelstudio/api/audio/7/artifact")
     assert missing_index.status == 404
 
 
@@ -153,10 +151,9 @@ async def test_overlay_without_fades_runs_to_reel_end(client, workspace, tmp_pat
     track.parent.mkdir()
     track.write_bytes(b"x")
     text = (workspace / "reel.yaml").read_text()
-    (workspace / "reel.yaml").write_text(text.replace(
-        "      soundscape: slurp\n",
-        f"      soundscape: slurp\n    music_2:\n      - file: \"{track}\"\n",
-        1))
+    (workspace / "reel.yaml").write_text(text + (
+        "\naudio:\n"
+        f"  - file: \"{track}\"\n"))
 
     data = await (await client.get("/reelstudio/api/project")).json()
     ov = data["overlays"][0]
