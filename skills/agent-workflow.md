@@ -52,7 +52,7 @@ always: true
     `ref` — or you tag it yourself with `update_asset_labels` when they say
     which one.
   - `still` — render a background/location plate from a `locations:` entry
-    (`slug:`) — 10 seed/prompt variants into `backgrounds/`.
+    (`slug:`) — 10 seed/prompt variants into `backgrounds/<location>/`.
   - `image_edit` — render a `shots:` entry's anchor stills (`name:`) —
     character refs + background plate, strict identity/scene roles, 10
     variants into the stills dir. The operator picks (and verifies) in the
@@ -78,10 +78,9 @@ always: true
 - `adopt_renders` declares the CURRENT deliverables current so staleness
   starts from truth — explicit operator instruction only (their ✓ adopt on
   a timeline thumbnail does one scene).
-- `get_studio` is the scene registry (every studio scene, the current one,
-  each scene's characters/backgrounds); `import_assets` copies pools and
-  plates from another scene into the current one. Cross-scene work starts
-  here — the operator's File menu creates scenes; you cannot.
+- `get_studio` is the scene registry (every studio scene, the current one).
+  Cross-scene work starts here — the operator's File menu creates scenes;
+  you cannot.
 - `get_skill` loads an on-demand skill's full body (`film-grammar`,
   `junction-doctrine`, `asset-library`, `app-troubleshooting`). The system
   prompt carries the always-on skills (this workflow, reel-yaml-schema,
@@ -107,12 +106,11 @@ Two "scene" levels, never confuse them: a **reel-scene** (a `scenes:` entry in
 reel.yaml) and a **studio scene** (a directory under the studio wrapper,
 File → New scene). The full pipeline for a fresh story chunk:
 
-1. **Studio scene** — the operator does File → New scene (optionally
-   importing characters/locations from another scene). You cannot create one;
-   `get_studio` shows what exists, `import_assets` brings pools and plates
-   over when asked.
+1. **Studio scene** — the operator does File → New scene. You cannot create
+   one; `get_studio` shows what exists.
 2. **Places** — add the location to `locations:` (update_yaml), then
-   `generate kind=still` → 10 plates in `backgrounds/` → one gets tagged
+   `generate kind=still` → 10 plates in `backgrounds/<location>/` → one gets
+   tagged
    `ref` (the operator ✓-picks, or tags it themselves; you set the label
    with `update_asset_labels` when they say which).
 3. **Cast** — the operator drops reference images into the Characters section

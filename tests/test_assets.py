@@ -178,16 +178,19 @@ async def test_sfx_assets_get_their_own_group_and_label(config, workspace):
     assert "sfx" not in {a["slug"]: a for a in data["groups"]["audio"]}
 
 
-async def test_backgrounds_are_their_own_group(config, workspace):
+async def test_backgrounds_are_location_pools(config, workspace):
     from reelstudio import assets as assets_mod
     from reelstudio.project import load
 
-    (workspace / "backgrounds").mkdir()
-    (workspace / "backgrounds" / "campus_sunset.png").write_bytes(b"x")
+    (workspace / "backgrounds" / "campus_sunset").mkdir(parents=True)
+    (workspace / "backgrounds" / "campus_sunset" / "bg_campus01_.png") \
+        .write_bytes(b"x")
+    (workspace / "backgrounds" / "loose.png").write_bytes(b"y")
     data = assets_mod.index_assets(workspace, load(config))
     bg = data["groups"]["backgrounds"]
-    assert [a["slug"] for a in bg] == ["campus_sunset"]
-    assert bg[0]["labels"] == ["background"]
+    # only files inside a location pool are indexed
+    assert [a["slug"] for a in bg] == ["bg_campus01"]
+    assert bg[0]["labels"] == ["loc:campus_sunset", "background"]
 
 
 async def test_put_labels_round_trips_through_assets_yaml(client, workspace):

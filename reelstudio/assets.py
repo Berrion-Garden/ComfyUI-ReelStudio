@@ -108,12 +108,17 @@ def index_assets(workspace: str | Path, project) -> dict:
             if p.is_file() and p.suffix.lower() in IMAGE_EXTS:
                 groups["custom"].append(mk(p, "custom", ["custom"]))
 
-    # backgrounds — location/environment plates for the Qwen reference flow
+    # backgrounds — location pools under backgrounds/<location>/ (the plate
+    # a shot references), labeled like character pools
     bg_root = ws / "backgrounds"
     if bg_root.exists():
-        for p in sorted(bg_root.rglob("*")):
-            if p.is_file() and p.suffix.lower() in IMAGE_EXTS:
-                groups["backgrounds"].append(mk(p, "backgrounds", ["background"]))
+        for loc in sorted(bg_root.iterdir()):
+            if not loc.is_dir():
+                continue
+            for p in sorted(loc.iterdir()):
+                if p.suffix.lower() in IMAGE_EXTS:
+                    groups["backgrounds"].append(mk(
+                        p, "backgrounds", [f"loc:{loc.name}", "background"]))
 
     # themes — LORA/style descriptors as yaml: {slug, lora, trigger, labels}
     themes_root = ws / "themes"

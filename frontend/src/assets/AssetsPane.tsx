@@ -12,19 +12,21 @@ interface Props {
   onChanged: () => void;
 }
 
-/** Groups characters by their `char:<slug>` label into per-pool subsections. */
-function characterPools(items: AssetItem[]): { pool: string; assets: AssetItem[] }[] {
+/** Groups a section's assets by their `<prefix>:<slug>` label into
+ * subsections — character pools (`char:`) and location pools (`loc:`). */
+function labeledPools(items: AssetItem[], prefix: string): { pool: string; assets: AssetItem[] }[] {
   const pools = new Map<string, AssetItem[]>();
   for (const a of items) {
-    const label = a.labels.find((l) => l.startsWith("char:")) ?? "char:unsorted";
+    const label = a.labels.find((l) => l.startsWith(prefix)) ?? `${prefix}unsorted`;
     if (!pools.has(label)) pools.set(label, []);
     pools.get(label)!.push(a);
   }
-  return [...pools.entries()].map(([pool, assets]) => ({ pool: pool.slice(5), assets }));
+  return [...pools.entries()].map(([pool, assets]) => ({ pool: pool.slice(prefix.length), assets }));
 }
 
 // where the section's + / drag-and-drop uploads land (workspace-relative);
-// the Characters section appends the pool name at upload time
+// pool sections (Characters, Backgrounds) ask for the pool/location name
+// first and append it
 const UPLOAD_DIRS: Record<string, string> = {
   "Characters": "characters",
   "Backgrounds": "backgrounds",
@@ -32,6 +34,7 @@ const UPLOAD_DIRS: Record<string, string> = {
   "Audio": "audio",
   "Sound FX": "sfx",
 };
+const POOL_SECTIONS = new Set(["Characters", "Backgrounds"]);
 
 /** A drop on the pane background lands by extension: images in Custom,
  * audio in Audio. Sections carry their own dir. */
@@ -47,15 +50,15 @@ export function AssetsPane({ assets, selected, selectedPaths, onSelect, onChange
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [poolForm, setPoolForm] = useState(false);
+  const [poolForm, setPoolForm] = useState<string | null>(null);
   const [poolName, setPoolName] = useState("unsorted");
   const [uploading, setUploading] = useState(0);
   const fileInput = useRef<HTMLInputElement | null>(null);
   const uploadTitle = useRef<string>("");
 
   const pick = (title: string) => {
-    if (title === "Characters") {
-      setPoolForm((v) => !v);  // the pool needs a name before the picker
+    if (POOL_SECTIONS.has(title)) {
+      setPoolForm((v) => (v === title ? null : title));  // the pool needs a name before the picker
       return;
     }
     uploadTitle.current = title;
@@ -63,8 +66,8 @@ export function AssetsPane({ assets, selected, selectedPaths, onSelect, onChange
   };
 
   const chooseFiles = () => {
-    setPoolForm(false);
-    uploadTitle.current = "Characters";
+    setPoolForm(null);
+    uploadTitle.current = poolForm ?? "Characters";
     fileInput.current?.click();
   };
 
@@ -72,8 +75,8 @@ export function AssetsPane({ assets, selected, selectedPaths, onSelect, onChange
     const title = uploadTitle.current;
     const base = UPLOAD_DIRS[title];
     if (!base || files.length === 0) return;
-    const dir = title === "Characters"
-      ? `characters/${poolName.trim() || "unsorted"}` : base;
+    const dir = POOL_SECTIONS.has(title)
+      ? `${base}/${poolName.trim() || "unsorted"}` : base;
     setUploading((n) => n + files.length);
     setError(null);
     try {
@@ -235,7 +238,7 @@ export function AssetsPane({ assets, selected, selectedPaths, onSelect, onChange
             if (!base || e.dataTransfer.files.length === 0) return;
             e.preventDefault(); e.stopPropagation();
             uploadTitle.current = s.title;
-            if (s.title === "Characters") setPoolName("unsorted");
+            if (POOL_SECTIONS.has(s.title)) setPoolName("unsorted");
             void upload(e.dataTransfer.files);
           }}>
           <summary>
@@ -247,18 +250,20 @@ export function AssetsPane({ assets, selected, selectedPaths, onSelect, onChange
                 disabled={uploading > 0}
               >{uploading > 0 ? `↑${uploading}` : "+"}</button>
             )}
-            {s.title === "Characters" && poolForm && (
+            {POOL_SECTIONS.has(s.title) && poolForm === s.title && (
               <span className="pool-form" onClick={(e) => e.stopPropagation()}>
                 <input value={poolName} autoFocus
                   onChange={(e) => setPoolName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") chooseFiles(); }}
-                  placeholder="pool name" aria-label="character pool name" />
+                  placeholder="pool name"
+                  aria-label={`${s.title.toLowerCase()} pool name`} />
                 <button type="button" onClick={chooseFiles}>choose files…</button>
               </span>
             )}
           </summary>
-          {s.title === "Characters" && s.assets.length > 0 ? (
-            characterPools(s.assets).map(({ pool, assets }) => (
+          {POOL_SECTIONS.has(s.title) && s.assets.length > 0 ? (
+            labeledPools(s.assets, s.title === "Characters" ? "char:" : "loc:")
+              .map(({ pool, assets }) => (
               <div key={pool} className="asset-pool">
                 <div className="pool-name">{pool}</div>
                 <div className="asset-grid">{assets.map(card)}</div>

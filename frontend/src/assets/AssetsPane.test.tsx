@@ -20,7 +20,15 @@ const data: AssetsData = {
       { path: "/out/dunk01_.png", slug: "dunk01", group: "scenes",
         labels: ["char:tony", "non-verified"], used_by: [], url: "/f/dunk.png" },
     ],
-    custom: [], themes: [], backgrounds: [], stills: [],
+    custom: [], themes: [], stills: [],
+    backgrounds: [
+      { path: "/ws/backgrounds/campus_sunset/bg_campus01_.png", slug: "bg_campus01",
+        group: "backgrounds", labels: ["loc:campus_sunset", "background"],
+        used_by: [], url: "/f/bg_campus.png" },
+      { path: "/ws/backgrounds/court_sunset/bg_court01_.png", slug: "bg_court01",
+        group: "backgrounds", labels: ["loc:court_sunset", "background"],
+        used_by: [], url: "/f/bg_court.png" },
+    ],
     sfx: [],
     audio: [
       { path: "/out/music_opening_1.wav", slug: "music_opening_1", group: "audio",
@@ -107,6 +115,14 @@ describe("AssetsPane", () => {
     // the pane re-renders on every asset poll — the user's collapse sticks
     rerender(<AssetsPane {...paneProps()} />);
     expect(section().open).toBe(false);
+  });
+
+  it("backgrounds group into location pools like characters", () => {
+    render(<AssetsPane {...paneProps()} />);
+    expect(screen.getByText("campus_sunset")).toBeTruthy();
+    expect(screen.getByText("court_sunset")).toBeTruthy();
+    expect(screen.getByTestId("asset-backgrounds-bg_campus01")).toBeTruthy();
+    expect(screen.getByTestId("asset-backgrounds-bg_court01")).toBeTruthy();
   });
 
   it("the ... menu copies an asset:<path> reference and offers delete", async () => {
