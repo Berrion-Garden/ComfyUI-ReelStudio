@@ -119,13 +119,22 @@ export REELSTUDIO_WORKSPACE=/home/kyle/Side_Projects/llm_engine_management/anime
 or `~/.config/reelstudio/config.json`:
 
 ```json
-{ "workspace": "...", "comfy_url": "http://localhost:8188",
+{ "workspace": "...",
   "agent_model": "orchestrator",
   "agent_base_url": "https://llms.berrion.garden/v1" }
 ```
 
 The web UI is prebuilt into `web/dist/`. To rebuild it:
-`cd frontend && npm ci && npm run build && cp -r dist ../web/`.
+`cd frontend && npm run build && cp -r dist/* ../web/dist/`.
+
+### Standalone (no ComfyUI)
+
+The app runs without ComfyUI around it — useful for development and for
+scripting against the HTTP API:
+
+```bash
+.venv/bin/reelstudio serve --port 8287     # or: python -m reelstudio.server
+```
 
 ## Testing
 
@@ -133,58 +142,66 @@ Two-tier, all runnable without a GPU:
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
-.venv/bin/python -m pytest                # 29 tests
-cd frontend && npm ci && npm test         # 19 tests
+.venv/bin/python -m pytest                # backend, incl. agent loop tests
+cd frontend && npm ci && npm test         # frontend
 ```
 
-Integration tests run against a **fake ComfyUI on the isolated endpoint
-`127.0.0.1:8288`** with real ffmpeg tiny clips — the live GPU node at 8188 is
-never touched by tests. The fake server executes graphs synchronously and
-writes deliverables exactly where `SaveVideo` would.
+Tests execute the pipeline through a STUB `reel.py` shipped in the fixture
+workspace — the same CLI contract as the real pipeline (render, music,
+assemble, bell, collapse), writing real tiny deliverables. The live GPU node
+at 8188 is never touched by tests.
 
 ## Architecture
 
 ```
 reelstudio/
-  project.py      reel.yaml model + validation (chain, anchors, music, post)
-  timeline.py     duration math, config hashes, staleness (config + junction identity)
+  project.py      reel.yaml model + validation (chain, anchors, looks, post)
+  timeline.py     duration math; staleness = collapse diff, hash fallback
+  collapse.py     the collapse: reel.py's merged generation input, cached
   manifest.py     .reelstudio_manifest.json — what was rendered from what
-  graphs/         pure graph builders (h3_video, music3) — golden-tested
-  comfy_client.py the only HTTP seam to Comfy (/prompt, /history, inputs)
-  render.py       scene render + freeze post + music segments
-  assemble.py     music bed + bell + concat + mix (the ONLY concat step)
-  agent/          gateway client, tool box, SSE agentic loop
+  reel.py         the subprocess seam to the workspace's pipeline script
+  generate.py     the generation registry — one entry per generator kind
+  readmodel.py    one project/asset read model, shared by API and agent
+  agent/          gateway client, tool box, SSE agentic loop, skill loader
   app.py          aiohttp routes + render queue (single GPU worker)
   server.py       the one adapter: mounts app.py onto ComfyUI's PromptServer
+                  (`reelstudio serve` runs the same app standalone)
 ```
 
-Design rule: everything except `comfy_client.py` and `server.py` is testable
-without a server. The isolated endpoint (`8288`) exists so worktree and CI
-testing can never interfere with the live node.
+Design rule: the workspace's `reel.py` is the only pipeline implementation
+(the single source of truth for touching ComfyUI/ffmpeg); everything in this
+repo is testable without a server.
 
 ## Skills (agent injection)
 
 The in-app agent's system prompt is assembled from the markdown skills in
-[`skills/`](skills/) — one concern per file, open Agent Skills format:
+[`skills/`](skills/) — one concern per file, open Agent Skills format.
+Skills flagged `always: true` in their frontmatter are injected whole every
+turn (the editing spine: `agent-workflow`, `reel-yaml-schema`,
+`h3-prompting`); the rest are advertised as a one-line index and the agent
+pulls them whole with its `get_skill` tool when a task matches — deep
+vocabulary is a roundtrip, not always-on context:
 
-- `reel-yaml-schema` — the full YAML contract
+- `reel-yaml-schema` *(always)* — the full YAML contract
+- `h3-prompting` *(always)* — writing H3 descriptions/negatives/soundscapes
+- `agent-workflow` *(always)* — the tool protocol (validate-gated
+  `update_yaml`, the `generate` kinds, render only what changed)
 - `film-grammar` — condensed shot/lighting/color vocabulary, every term with
   pro (prompt) and con (negative) words
-- `h3-prompting` — writing H3 descriptions/negatives/soundscapes
 - `junction-doctrine` — chaining, `prev_last` frame-exactness, the
   "never show the landing" lesson
-- `agent-workflow` — the tool protocol (validate-gated `update_yaml`,
-  the `generate` kinds, render only what changed)
 - `asset-library` — the derived library: groups, labels, `used_by`
 - `app-troubleshooting` — failure modes and fixes
 
 Edit a skill and the agent knows it on the next chat turn; nothing to rebuild.
 Override the directory with `REELSTUDIO_SKILLS_DIR`.
 
-## Stub mode (no GPU needed)
+## Stub pipeline (no GPU needed)
 
-Set `comfy_mode: "stub"` (or `REELSTUDIO_COMFY_MODE=stub`) and renders execute
-locally — real ffmpeg test-pattern clips written exactly where SaveVideo
-writes them. The whole flow works: chain rendering, `prev_last` extraction,
-freeze post, assembly, the agent. The UI shows a STUB badge so stub output is
-never mistaken for delivery. Live mode is the default.
+There is no stub mode in the app — the app only runs the workspace's
+`reel.py`. To exercise the whole flow without a GPU (chain rendering,
+`prev_last` junctions, freeze post, assembly, the agent, collapse staleness),
+point `REELSTUDIO_WORKSPACE` at a workspace whose `reel.py` is a stub
+implementing the same CLI contract: `render <id...>`, `music`, `assemble`,
+`bell [out]`, `collapse` — see the reference stub in `tests/conftest.py`.
+Live workspaces use the real pipeline unchanged.

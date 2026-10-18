@@ -1,8 +1,11 @@
 """Skill loading for the chat agent.
 
 Skills live in the repo's skills/ directory (open Agent Skills format:
-frontmatter name/description + markdown body). They are injected whole into
-the agent's system prompt — the agent is the primary consumer, and the same
+frontmatter name/description + markdown body). A skill's own frontmatter
+decides how it loads: `always: true` skills are injected whole into the
+system prompt (the editing spine the agent needs every turn); the rest are
+advertised as an index and pulled on demand with the agent's `get_skill`
+tool — deep vocabulary is a roundtrip, not always-on context. The same
 files document the pipeline for human readers and coding agents.
 """
 
@@ -22,7 +25,7 @@ def skills_dir() -> Path:
 
 
 def load_skills(dir_path: Path | None = None) -> list[dict]:
-    """All skills in the directory: {name, description, body, path}.
+    """All skills in the directory: {name, description, body, path, always}.
     Sorted by name for a stable prompt."""
     d = dir_path or skills_dir()
     if not d.is_dir():
@@ -42,16 +45,23 @@ def load_skills(dir_path: Path | None = None) -> list[dict]:
             "description": meta.get("description", ""),
             "body": body,
             "path": str(path),
+            "always": bool(meta.get("always")),
         })
     return out
 
 
 def render_skills_block(loaded: list[dict]) -> str:
-    if not loaded:
-        return ""
+    """Always-on skills whole; the rest as a one-line index. The agent loads
+    the rest with get_skill when a task matches its description."""
     sections = [
-        f"## Skill: {s['name']}\n{s['body']}" for s in loaded
+        f"## Skill: {s['name']}\n{s['body']}" for s in loaded if s["always"]
     ]
+    on_demand = [s for s in loaded if not s["always"]]
+    if on_demand:
+        index = "\n".join(f"- {s['name']} — {s['description']}"
+                          for s in on_demand)
+        sections.append(
+            "# Skills on demand (get_skill <name>)\n\n" + index)
     return "\n\n".join(sections)
 
 

@@ -60,3 +60,28 @@ def _static(request):
         # SPA fallback: unknown paths render the app shell
         return web.FileResponse(UI_DIST / "index.html")
     return web.FileResponse(target)
+
+
+def main():
+    """Standalone dev server: the same app, no ComfyUI around it.
+    `reelstudio serve` (installed script) or `python -m reelstudio.server`."""
+    import argparse
+
+    from aiohttp import web
+
+    parser = argparse.ArgumentParser(
+        prog="reelstudio", description="Reel Studio standalone server")
+    parser.add_argument("cmd", nargs="?", default="serve",
+                        help="only 'serve' today")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8287)
+    args = parser.parse_args()
+    app = create_app(load_config())
+    if UI_DIST.exists():
+        app.router.add_get("/reelstudio", _index)
+        app.router.add_get("/reelstudio/{tail:.*}", _static)
+    web.run_app(app, host=args.host, port=args.port)
+
+
+if __name__ == "__main__":
+    main()

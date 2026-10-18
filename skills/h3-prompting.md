@@ -1,6 +1,7 @@
 ---
 name: h3-prompting
 description: Writing video.description / negative / soundscape for MiniMax H3 — integrated_multimodal_description shape, what H3 bakes into audio, failure lessons. Load before writing or editing any scene prompt.
+always: true
 ---
 # H3 prompt writing
 

@@ -127,10 +127,10 @@ async def put_yaml(request: web.Request) -> web.Response:
         return web.json_response({"error": "body must be {text: yaml}"}, status=400)
     project = state.project()
     try:
-        project.save(text)
+        warnings = project.save(text)
     except ValidationError as e:
         return _json_error(e)
-    return web.json_response({"saved": True})
+    return web.json_response({"saved": True, "warnings": warnings})
 
 
 async def post_render(request: web.Request) -> web.Response:

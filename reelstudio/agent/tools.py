@@ -1,9 +1,9 @@
 """Agent tools — the exact operations a human has, executed server-side.
 
-get_project / get_assets / get_yaml / update_yaml / generate / get_status.
-update_yaml validates before saving and generate validates before queueing —
-the agent cannot save a broken chain or queue a bogus job, and every rejection
-teaches what would be valid.
+get_project / get_assets / get_yaml / update_yaml / generate / get_skill /
+get_status. update_yaml validates before saving and generate validates
+before queueing — the agent cannot save a broken chain or queue a bogus
+job, and every rejection teaches what would be valid.
 """
 
 import json
@@ -11,6 +11,7 @@ import json
 from .. import generate
 from .. import readmodel
 from ..errors import ReelStudioError
+from .skills import load_skills
 
 TOOLS = [
     {"type": "function", "function": {
@@ -41,6 +42,15 @@ TOOLS = [
                        "properties": {"text": {"type": "string"}},
                        "required": ["text"]}}},
     generate.tool(),
+    {"type": "function", "function": {
+        "name": "get_skill",
+        "description": "Load an on-demand skill's full body by name. The "
+                       "system prompt's 'Skills on demand' index lists the "
+                       "names and what each covers; call this when your "
+                       "current task matches one.",
+        "parameters": {"type": "object",
+                       "properties": {"name": {"type": "string"}},
+                       "required": ["name"]}}},
     {"type": "function", "function": {
         "name": "get_status",
         "description": "Current queued/running/done/error jobs.",
@@ -86,6 +96,15 @@ class ToolBox:
         specs = generate.plan(project, args.get("kind"), args)
         jobs = [self.state.enqueue(kind, target) for kind, target in specs]
         return json.dumps({"queued": [j.view() for j in jobs]})
+
+    async def _get_skill(self, args):
+        name = args.get("name")
+        skills = load_skills()
+        for skill in skills:
+            if skill["name"] == name:
+                return skill["body"]
+        return json.dumps({"error": f"unknown skill {name!r}",
+                           "known_skills": [s["name"] for s in skills]})
 
     async def _get_status(self, _):
         return json.dumps({"jobs": [j.view() for j in self.state.jobs.values()]})

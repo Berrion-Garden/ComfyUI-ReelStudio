@@ -1,5 +1,7 @@
 """Skill loading and agent injection."""
 
+import json
+
 
 def test_all_skills_load_with_frontmatter():
     from reelstudio.agent.skills import load_skills
@@ -13,19 +15,43 @@ def test_all_skills_load_with_frontmatter():
         assert len(s["body"]) > 200, f"{s['name']} body too thin"
 
 
-def test_system_prompt_injects_all_skills():
+def test_system_prompt_keeps_the_spine_and_indexes_the_rest():
+    """Always-on skills are injected whole; deep vocabulary is an index line
+    the agent pulls with get_skill — lean context, full reach."""
     from reelstudio.agent.llm import SYSTEM_PROMPT
     from reelstudio.agent.skills import system_prompt
 
     prompt = system_prompt(SYSTEM_PROMPT)
     assert prompt.startswith("You are the Reel Studio agent")
     for marker in (
-            "NEVER show the landing",             # junction-doctrine
-            "integrated_multimodal_description",  # h3-prompting
-            "update_yaml",                        # agent-workflow
-            "17n+5",                              # schema
-            "reel.py"):                           # app-troubleshooting
+            "update_yaml",                        # agent-workflow (always)
+            "integrated_multimodal_description",  # h3-prompting (always)
+            "17n+5",                              # reel-yaml-schema (always)
+    ):
         assert marker in prompt, f"missing: {marker}"
+    # on-demand skills appear as an index, not their body
+    assert "film-grammar" in prompt
+    assert "junction-doctrine" in prompt
+    assert "get_skill" in prompt
+    assert "NEVER show the landing" not in prompt  # junction-doctrine body
+
+
+def test_get_skill_tool_loads_and_teaches(config, workspace):
+    from reelstudio.agent.tools import TOOLS, ToolBox
+    from reelstudio.app import ReelStudio
+
+    assert any(t["function"]["name"] == "get_skill" for t in TOOLS)
+    box = ToolBox(ReelStudio(config))
+    body = sync_call(box.call("get_skill", {"name": "film-grammar"}))
+    assert "extreme wide shot" in body and "golden hour" in body
+    miss = json.loads(sync_call(box.call("get_skill", {"name": "nope"})))
+    assert "film-grammar" in miss["known_skills"]
+
+
+def sync_call(coro):
+    import asyncio
+
+    return asyncio.run(coro)
 
 
 def test_missing_explicit_skills_dir_is_an_error(tmp_path):

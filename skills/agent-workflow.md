@@ -1,6 +1,7 @@
 ---
 name: agent-workflow
-description: The Reel Studio agent tool protocol — get_project staleness reading, validate-gated update_yaml, the generate kinds (scene/music/assemble; still/image_edit unwired), get_assets, and what to report. Load before using any tool.
+description: The Reel Studio agent tool protocol — get_project staleness reading, validate-gated update_yaml, the generate kinds (scene/music/assemble; still/image_edit unwired), get_assets, get_skill, and what to report. Always on; the reference for every tool call.
+always: true
 ---
 # Agent workflow
 
@@ -33,6 +34,12 @@ description: The Reel Studio agent tool protocol — get_project staleness readi
     `still:<name>`.
 - `get_status` reports queued/running/done/error jobs. Renders are minutes
   per scene on the GPU node; report what was queued, do not poll silently.
+- `get_skill` loads an on-demand skill's full body (`film-grammar`,
+  `junction-doctrine`, `asset-library`, `app-troubleshooting`). The system
+  prompt carries the always-on skills (this workflow, reel-yaml-schema,
+  h3-prompting) and the index of the rest — pull one when your task matches
+  its description, e.g. film-grammar before writing shot notes, and
+  app-troubleshooting when a job errors.
 
 ## The loop for "change X"
 

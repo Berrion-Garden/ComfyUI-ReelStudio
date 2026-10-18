@@ -1,6 +1,7 @@
 ---
 name: reel-yaml-schema
-description: The reel.yaml contract — meta, aliases, stills, scene layers (video/sound_effects/music/post), anchor refs, frames. Load before reading or editing reel.yaml.
+description: The reel.yaml contract — meta, aliases, styles/locations, stills, scene layers (video/sound_effects/music/post), anchor refs, frames, the collapse staleness. Load before reading or editing reel.yaml.
+always: true
 ---
 # reel.yaml schema
 

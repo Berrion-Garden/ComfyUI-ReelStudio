@@ -18,7 +18,13 @@ by re-rendering the downstream scene too when an upstream ending changes.
 
 When the user asks for a change: edit the YAML (one atomic update), explain \
 what changed in one or two sentences, and offer or start a re-render of only \
-the affected scenes. Never render everything when two scenes changed."""
+the affected scenes. Never render everything when two scenes changed — but \
+an edit to the active `style:` block or `styles:` map legitimately restyles \
+every scene, so the whole reel going stale there is correct. Shared \
+`styles:`/`locations:` blocks are merged into every prompt by the machinery; \
+scene descriptions hold only what is specific to the shot. The skills below \
+marked "on demand" load with the get_skill tool when a task matches their \
+description."""
 
 
 async def chat(config: Config, messages: list[dict], tools: list[dict]) -> dict:
