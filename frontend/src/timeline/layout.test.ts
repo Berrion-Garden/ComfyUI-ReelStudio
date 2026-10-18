@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { videoCell } from "./layout";
-import { spanCols } from "./Timeline";
+import { spanCols, videoCell } from "./layout";
 import type { SceneView } from "../types";
 
 function scene(id: string, startS: number, durationS: number, partial: Partial<SceneView> = {}): SceneView {

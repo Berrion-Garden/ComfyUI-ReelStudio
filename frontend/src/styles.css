@@ -89,7 +89,7 @@ button:disabled { opacity: 0.45; cursor: default; }
   /* short scenes get proportional slots; the floor keeps labels legible
      on narrow viewports (track scrolls) instead of slices overflowing */
   min-width: 900px; width: 100%;
-  touch-action: none; user-select: none; cursor: text;
+  touch-action: none; user-select: none; cursor: crosshair;
 }
 .lane { min-width: 0; }
 .lane-ruler { position: relative; height: 16px; }

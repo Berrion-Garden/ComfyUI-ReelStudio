@@ -63,6 +63,12 @@ async def test_asset_file_serves_within_roots_only(client, workspace):
         params={"path": str(workspace / "images" / "nope.png")})
     assert missing.status == 404
 
+    # a directory inside the roots is not an asset
+    directory = await client.get(
+        "/reelstudio/api/asset/file",
+        params={"path": str(workspace / "images")})
+    assert directory.status == 404
+
 
 async def test_project_exposes_music_urls(client, workspace, fake_comfy):
     import yaml as yaml_mod

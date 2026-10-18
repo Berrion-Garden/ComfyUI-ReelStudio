@@ -311,7 +311,7 @@ async def get_asset_file(request: web.Request) -> web.Response:
     target = assets_mod.asset_file(request.query.get("path", ""), [
         state.config.workspace, project.meta["still_dir"], project.meta["reel_dir"],
     ])
-    if not target.exists():
+    if not target.is_file():
         raise NotFoundError(f"no such asset: {target.name}")
     return web.FileResponse(target)
 

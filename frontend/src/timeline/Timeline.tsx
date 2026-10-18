@@ -1,5 +1,5 @@
 import type { MusicView, SceneView } from "../types";
-import { videoCell } from "./layout";
+import { spanCols, videoCell } from "./layout";
 
 interface Props {
   scenes: SceneView[];
@@ -25,17 +25,6 @@ function AnchorThumb({ label, kind, url }: { label: string; kind: string; url: s
       <span className="thumb-label">{label}</span>
     </div>
   );
-}
-
-/** Grid line span (1-based, inclusive-exclusive) of a time span over scenes. */
-export function spanCols(scenes: SceneView[], startS: number, durationS: number) {
-  let first = scenes.findIndex((s) => s.start_s + s.duration_s > startS + 1e-6);
-  if (first === -1) first = 0;
-  let last = first;
-  for (let i = first; i < scenes.length; i++) {
-    if (scenes[i].start_s < startS + durationS - 1e-6) last = i;
-  }
-  return { start: first + 1, end: last + 2 };
 }
 
 export function Timeline({ scenes, music, totalS, artifactUrl, onSceneClick, onRenderScene, playheadPct, onSeek }: Props) {

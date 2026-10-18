@@ -100,23 +100,34 @@ export function Player({ scenes, onPlayhead, selectedAsset, seekRequest }: Props
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seekRequest?.n]);
 
-  // keep the active <video> element in sync with the queue state
+  // keep the active <video> element in sync with the queue state.
+  // Runs on index change, play/pause, or an explicit seek — NOT on every
+  // elapsed-frame update (elapsedInClip ticks at rAF rate; reassigning src
+  // and currentTime that often would reset playback).
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const applied = useRef<{ index: number; seek: number }>({ index: -1, seek: -1 });
   useEffect(() => {
-    const active = state?.index ?? -1;
+    const cur = stateRef.current;
+    const active = cur?.index ?? -1;
+    const seekN = seekRequest?.n ?? -1;
+    const fresh = applied.current.index !== active || applied.current.seek !== seekN;
     for (const [i, el] of [videoA.current, videoB.current].entries()) {
       if (!el) continue;
       if (i === active % 2) {
-        el.src = current ? (current.video_url as string) : "";
-        if (current) {
-          el.currentTime = Math.min(state!.elapsedInClip, el.duration || Infinity);
+        const url = current ? (current.video_url as string) : "";
+        if (el.getAttribute("src") !== url) el.src = url;
+        if (fresh && cur) {
+          el.currentTime = Math.min(cur.elapsedInClip, el.duration || Infinity);
         }
         if (playing) void el.play().catch(() => setPlaying(false));
       } else {
         el.pause();
       }
     }
+    applied.current = { index: active, seek: seekN };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state?.index, state?.elapsedInClip, playing]);
+  }, [state?.index, playing, seekRequest?.n, current?.id]);
 
   if (playable.length === 0) {
     return (

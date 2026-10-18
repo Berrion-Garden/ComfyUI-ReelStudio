@@ -73,7 +73,6 @@ def index_assets(workspace: str | Path, project) -> dict:
                 refs.append(a[len("still:"):])
         return [r for r in refs if r]
 
-    used: dict[Path, list[str]] = {}
     for name, _ in project.stills.items():
         p = project.still_path(name)
         if p is None or not p.exists():
@@ -81,7 +80,6 @@ def index_assets(workspace: str | Path, project) -> dict:
         users = [s["id"] for s in project.scenes if name in _still_refs(s)]
         groups["scenes"].append(mk(
             p, "scenes", ["still", f"still:{name}"], users))
-        used[p.resolve()] = users
 
     # characters — pools of poses under characters/<slug>/
     for pool in sorted((ws / "characters").glob("*") if (ws / "characters").exists() else []):
