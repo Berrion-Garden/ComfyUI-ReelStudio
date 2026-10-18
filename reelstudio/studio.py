@@ -10,7 +10,6 @@ studio that `save_as()` turns into the real nested structure.
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
 
 import yaml
 
@@ -116,19 +115,22 @@ def save_as(workspace: str | Path, slug: str, title: str | None) -> Path:
     performs the migration — the project moves into scenes/<slug>/ and the
     wrapper is written — and returns the new scene dir. On a saved studio it
     just persists current/title and returns that scene's dir."""
-    root = Path(workspace).expanduser().resolve()
-    if not (slug := str(slug).strip()) or not slug.replace("-", "").replace("_", "").isalnum():
+    studio = resolve(workspace)
+    slug = str(slug).strip()
+    if not slug or not slug.replace("-", "").replace("_", "").isalnum():
         raise ValidationError(["slug must be alphanumeric (-, _)"])
-    if (root / STUDIO_YAML).is_file():
-        studio = resolve(root)
-        studio.scene(slug)  # must exist
+    if studio.saved:
+        # the configured workspace may be a scene dir whose registry lives
+        # at an ancestor — update THAT registry, never re-migrate in place
+        studio.scene(slug)
         updated = Scene(slug, title or studio.scene(slug).title,
                         studio.scene(slug).dir)
-        _write(Studio(root, title or studio.title, True,
+        _write(Studio(studio.root, title or studio.title, True,
                       tuple(updated if s.slug == slug else s
                             for s in studio.scenes), slug))
         return studio.dir_of(slug)
 
+    root = studio.root
     scene = root / SCENES_DIR / slug
     if scene.exists():
         raise ValidationError([f"{scene} already exists"])
@@ -219,94 +221,8 @@ def create_scene(workspace: str | Path, slug: str, title: str | None,
 
 
 def view_of(workspace: str | Path) -> dict:
-    """The studio read model: the registry plus each scene's character
-    pools and background plates (for import pickers)."""
+    """The studio read model: the scene registry."""
     studio = resolve(workspace)
-
-    def extra(scene) -> dict:
-        d = studio.dir_of(scene.slug)
-        chars = d / "characters"
-        bgs = d / "backgrounds"
-        return {
-            "characters": sorted(p.name for p in chars.iterdir())
-            if chars.is_dir() else [],
-            "backgrounds": sorted(p.name for p in bgs.iterdir() if p.is_file())
-            if bgs.is_dir() else [],
-        }
-
-    view = studio.view(extra)
+    view = studio.view()
     view["workspace"] = str(studio.scene_dir)
     return view
-
-
-def _declared_labels(scene_dir: Path) -> dict[str, list[str]]:
-    f = scene_dir / "assets.yaml"
-    if not f.is_file():
-        return {}
-    doc = yaml.safe_load(f.read_text()) or {}
-    labels = doc.get("labels")
-    return {str(k): [str(x) for x in v] for k, v in labels.items()} \
-        if isinstance(labels, dict) else {}
-
-
-def _merge_labels(dst_scene: Path, additions: dict[str, list[str]]) -> None:
-    """Add label entries to a scene's assets.yaml, never clobbering."""
-    f = dst_scene / "assets.yaml"
-    doc = yaml.safe_load(f.read_text()) or {}
-    labels = doc.setdefault("labels", {})
-    labels.update({k: v for k, v in additions.items() if k not in labels})
-    f.write_text(yaml.safe_dump(doc, sort_keys=False, allow_unicode=True)
-                 if doc else "")
-
-
-def _clean_labels(labels: list[str]) -> list[str]:
-    # scene:* foreign keys point at the SOURCE project's scene ids — they
-    # mean nothing in the importing scene.
-    return [x for x in labels if not x.startswith("scene:")]
-
-
-def import_assets(workspace: str | Path, from_slug: str,                  characters: Iterable[str] = (),
-                  backgrounds: Iterable[str] = ()) -> dict:
-    """Copy character pools and background plates from another scene into
-    the CURRENT scene, re-keying their declared labels (scene:* stripped).
-    Name collisions are refused — nothing partial is left behind."""
-    studio = resolve(workspace)
-    if not studio.saved:
-        raise NotFoundError("importing needs a saved scene registry")
-    src_dir = studio.dir_of(from_slug)
-    dst_dir = studio.scene_dir
-    if src_dir == dst_dir:
-        raise ValidationError(["cannot import a scene into itself"])
-    src_labels = _declared_labels(src_dir)
-
-    copied: dict[str, list[str]] = {}
-    import shutil
-    for name in characters:
-        name = str(name).strip()
-        src, dst = src_dir / "characters" / name, dst_dir / "characters" / name
-        if not src.is_dir():
-            raise NotFoundError(f"{from_slug} has no character pool {name!r}")
-        if dst.exists():
-            raise ValidationError(
-                [f"characters/{name} already exists in this scene"])
-        shutil.copytree(src, dst)
-        for rel in sorted(p.relative_to(src_dir).as_posix()
-                          for p in src.rglob("*") if p.is_file()):
-            if rel in src_labels:
-                copied[rel] = _clean_labels(src_labels[rel])
-    for name in backgrounds:
-        name = str(name).strip()
-        src, dst = src_dir / "backgrounds" / name, dst_dir / "backgrounds" / name
-        if not src.is_file():
-            raise NotFoundError(f"{from_slug} has no background {name!r}")
-        if dst.exists():
-            raise ValidationError(
-                [f"backgrounds/{name} already exists in this scene"])
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
-        rel = f"backgrounds/{name}"
-        if rel in src_labels:
-            copied[rel] = _clean_labels(src_labels[rel])
-    if copied:
-        _merge_labels(dst_dir, copied)
-    return {"imported": sorted(copied), "from": from_slug}

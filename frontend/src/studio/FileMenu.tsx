@@ -4,8 +4,13 @@ import {
   type StudioScene, type StudioView,
 } from "../api";
 
+const slugify = (s: string) =>
+  s.toLowerCase().replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
 /** The top-left File menu: save the scene reference, open another scene,
- * create a new one (optionally importing characters/locations). */
+ * create a new one (title-first — the slug derives from the title unless
+ * overridden). */
 export function FileMenu({ studio, onChanged, busy }: {
   studio: StudioView | null;
   onChanged: () => Promise<void>;
@@ -16,9 +21,6 @@ export function FileMenu({ studio, onChanged, busy }: {
   const [error, setError] = useState<string | null>(null);
   const [slug, setSlug] = useState("");
   const [title, setTitle] = useState("");
-  const [source, setSource] = useState<string>("");
-  const [picks, setPicks] = useState<{ characters: string[]; backgrounds: string[] }>(
-    { characters: [], backgrounds: [] });
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -34,8 +36,6 @@ export function FileMenu({ studio, onChanged, busy }: {
   }, [open]);
 
   if (!studio) return null;
-  const currentScene = studio.scenes.find((s) => s.current);
-  const sourceScene = studio.scenes.find((s) => s.slug === source) ?? currentScene;
 
   const run = async (fn: () => Promise<unknown>) => {
     setError(null);
@@ -49,13 +49,11 @@ export function FileMenu({ studio, onChanged, busy }: {
     }
   };
 
-  const togglePick = (kind: "characters" | "backgrounds", name: string) =>
-    setPicks((p) => ({
-      ...p,
-      [kind]: p[kind].includes(name)
-        ? p[kind].filter((x) => x !== name)
-        : [...p[kind], name],
-    }));
+  const create = () => {
+    const finalSlug = slug.trim() || slugify(title);
+    if (!finalSlug) return;
+    void run(() => newScene(finalSlug, title.trim() || undefined));
+  };
 
   return (
     <div className="file-menu" ref={ref}>
@@ -88,42 +86,20 @@ export function FileMenu({ studio, onChanged, busy }: {
               setCreating(true);
               setSlug("");
               setTitle("");
-              setPicks({ characters: [], backgrounds: [] });
             }}>
               ＋ New scene…
             </button>
           )}
           {creating && (
             <div className="file-create">
-              <label>slug <input value={slug} placeholder="ep2"
-                onChange={(e) => setSlug(e.target.value)} /></label>
               <label>title <input value={title} placeholder="Episode 2"
                 onChange={(e) => setTitle(e.target.value)} /></label>
-              {studio.saved && sourceScene && (
-                <>
-                  <div className="file-section">Import from</div>
-                  <select value={sourceScene.slug}
-                    onChange={(e) => {
-                      setSource(e.target.value);
-                      setPicks({ characters: [], backgrounds: [] });
-                    }}>
-                    {studio.scenes.map((s) => (
-                      <option key={s.slug} value={s.slug}>{s.title}</option>
-                    ))}
-                  </select>
-                  <PickList kind="characters" scene={sourceScene}
-                    picks={picks.characters} onPick={(n) => togglePick("characters", n)} />
-                  <PickList kind="backgrounds" scene={sourceScene}
-                    picks={picks.backgrounds} onPick={(n) => togglePick("backgrounds", n)} />
-                </>
-              )}
+              <label>slug <input value={slug}
+                placeholder={slugify(title) || "ep2"}
+                onChange={(e) => setSlug(e.target.value)} /></label>
               <button
-                disabled={busy || !slug.trim()}
-                onClick={() => void run(() => newScene(
-                  slug.trim(), title.trim() || undefined,
-                  sourceScene && (picks.characters.length || picks.backgrounds.length)
-                    ? { from: sourceScene.slug, ...picks } : undefined))}
-              >
+                disabled={busy || !(slug.trim() || slugify(title))}
+                onClick={create}>
                 Create scene
               </button>
             </div>
@@ -144,25 +120,5 @@ function SceneRow({ scene, onOpen, busy }: {
       title={scene.current ? "the open scene" : `open ${scene.title}`}>
       {scene.current ? "✓ " : "　"}{scene.title}
     </button>
-  );
-}
-
-function PickList({ kind, scene, picks, onPick }: {
-  kind: "characters" | "backgrounds";
-  scene: StudioScene; picks: string[]; onPick: (name: string) => void;
-}) {
-  const names = scene[kind];
-  if (names.length === 0) return null;
-  return (
-    <div className="file-picks">
-      <div className="file-section">{kind} ({picks.length} picked)</div>
-      {names.map((n) => (
-        <button key={n}
-          className={`file-pick ${picks.includes(n) ? "on" : ""}`}
-          onClick={() => onPick(n)}>
-          {picks.includes(n) ? "☑" : "☐"} {n}
-        </button>
-      ))}
-    </div>
   );
 }

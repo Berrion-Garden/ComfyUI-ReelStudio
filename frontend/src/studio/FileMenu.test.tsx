@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { FileMenu } from "./FileMenu";
-import { openScene, type StudioView } from "../api";
+import { newScene, openScene, type StudioView } from "../api";
 
 vi.mock("../api", () => ({
   openScene: vi.fn(),
@@ -16,10 +16,8 @@ function studio(partial: Partial<StudioView> = {}): StudioView {
     saved: true,
     workspace: "/w/scenes/ep1",
     scenes: [
-      { slug: "ep1", title: "Episode 1", dir: "scenes/ep1", current: true,
-        characters: ["fox_boy"], backgrounds: ["campus.png"] },
-      { slug: "ep2", title: "Episode 2", dir: "scenes/ep2", current: false,
-        characters: [], backgrounds: [] },
+      { slug: "ep1", title: "Episode 1", dir: "scenes/ep1", current: true },
+      { slug: "ep2", title: "Episode 2", dir: "scenes/ep2", current: false },
     ],
     ...partial,
   };
@@ -43,6 +41,44 @@ describe("FileMenu", () => {
     fireEvent.click(screen.getByText(/Episode 2/));
     await waitFor(() => expect(openScene).toHaveBeenCalledWith("ep2"));
     await waitFor(() => expect(onChanged).toHaveBeenCalled());
+  });
+
+  it("creates a scene from a title alone — the slug derives", async () => {
+    vi.mocked(newScene).mockResolvedValue(studio());
+    render(<FileMenu studio={studio()} onChanged={vi.fn()} busy={false} />);
+    fireEvent.click(screen.getByText(/^File/));
+    fireEvent.click(screen.getByText(/New scene…/));
+    fireEvent.change(screen.getByPlaceholderText("Episode 2"),
+      { target: { value: "Amun's Reveal" } });
+    // the slug field previews the derived slug before anything is typed
+    expect(screen.getByPlaceholderText("amuns-reveal")).toBeTruthy();
+    const create = screen.getByText("Create scene") as HTMLButtonElement;
+    expect(create.disabled).toBe(false);
+    fireEvent.click(create);
+    await waitFor(() =>
+      expect(newScene).toHaveBeenCalledWith("amuns-reveal", "Amun's Reveal"));
+  });
+
+  it("an explicit slug overrides the derived one", async () => {
+    vi.mocked(newScene).mockResolvedValue(studio());
+    render(<FileMenu studio={studio()} onChanged={vi.fn()} busy={false} />);
+    fireEvent.click(screen.getByText(/^File/));
+    fireEvent.click(screen.getByText(/New scene…/));
+    fireEvent.change(screen.getByPlaceholderText("Episode 2"),
+      { target: { value: "Amun's Reveal" } });
+    fireEvent.change(screen.getByPlaceholderText("amuns-reveal"),
+      { target: { value: "ep2" } });
+    fireEvent.click(screen.getByText("Create scene"));
+    await waitFor(() =>
+      expect(newScene).toHaveBeenCalledWith("ep2", "Amun's Reveal"));
+  });
+
+  it("Create stays disabled with no title and no slug", () => {
+    render(<FileMenu studio={studio()} onChanged={vi.fn()} busy={false} />);
+    fireEvent.click(screen.getByText(/^File/));
+    fireEvent.click(screen.getByText(/New scene…/));
+    expect((screen.getByText("Create scene") as HTMLButtonElement).disabled)
+      .toBe(true);
   });
 
   it("hides itself until the studio is fetched", () => {

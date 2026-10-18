@@ -185,3 +185,50 @@ Milestones:
   M14a..d
 
 Critical path M14a → M14b → M14d → M14e (M14c parallel).
+
+## M15 addendum — Fresh scenes, location pools, env-configured deployment (2026-10-18)
+
+Requirements:
+
+- FR-29: Scene creation is title-first: the dialog needs only a title; the
+  slug derives from it (slugify) and the slug field is an optional override
+  shown as the input's placeholder. A filled title always enables Create.
+- FR-30: `save_as()` never re-migrates: a workspace that resolves to a SAVED
+  studio through an ancestor updates that studio's registry, whatever
+  directory is configured. (Regression: 2026-10-18 12:18 — a Save click with
+  the scene dir configured re-migrated, moving the scene into
+  `scenes/court_aftermath/scenes/court_aftermath/`; the live workspace was
+  repaired by hand.)
+- FR-31: Import is removed by operator decision (2026-10-18): no import UI in
+  scene creation, no `import` param on POST /studio/scenes, no
+  `import_assets` (studio.py, route, agent tool), no per-scene
+  characters/backgrounds lists in the studio view. Git history keeps it.
+- FR-32: Backgrounds are location pools, modeled exactly like characters:
+  `backgrounds/<location>/*.png`, derived `loc:<location>` labels, the Assets
+  pane groups Backgrounds by location, uploads into Backgrounds ask for the
+  location first, reel.py `bg` writes `backgrounds/<slug>/` and `plate_ref`
+  finds plates there. The live scene's 20 flat plates migrate into
+  `campus_sunset/` and `court_sunset/`.
+- FR-33: Deployment is env-configured: every runtime knob is a REELSTUDIO_*
+  env var (workspace, agent model, agent gateway URL, config path); a `.env`
+  at the repo root is loaded by config.py (real env wins); `.env.example`
+  owns the variable list; `docs/deployment.md` owns the deploy/migration
+  story so any agent can ship this to another machine or gateway without
+  re-deriving it. The local `.env` points at the garden gateway and the local
+  ComfyUI.
+
+Milestones:
+
+- M15a — Live workspace repair + `save_as` ancestor fix + import removal
+  (studio.py, app.py, agent/tools.py, agent skill docs) — blocked on nothing
+- M15b — Location pools: assets.py indexer, reel.py bg/plate_ref, live
+  backgrounds migration — blocked on nothing (parallel with M15a)
+- M15c — Env config: config.py `.env` loader, `.env` + `.env.example`,
+  docs/deployment.md, comfyui.service EnvironmentFile — blocked on nothing
+  (parallel)
+- M15d — FE: FileMenu title-first (no import), AssetsPane location pools,
+  api.ts — blocked on M15a, M15b
+- M15e — Tests (BE + FE), frontend build → web/dist, deploy (comfyui
+  restart) + live verify — blocked on M15a..d
+
+Critical path M15a/M15b/M15c → M15d → M15e.

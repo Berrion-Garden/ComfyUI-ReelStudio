@@ -165,8 +165,6 @@ export interface StudioScene {
   title: string;
   dir: string;
   current: boolean;
-  characters: string[];
-  backgrounds: string[];
 }
 
 export interface StudioView {
@@ -199,11 +197,8 @@ export function openScene(slug: string): Promise<StudioView> {
   return postStudio("/open", { slug });
 }
 
-export function newScene(
-  slug: string, title: string | undefined,
-  imp?: { from: string; characters: string[]; backgrounds: string[] },
-): Promise<StudioView> {
-  return postStudio("/scenes", { slug, title, import: imp });
+export function newScene(slug: string, title?: string): Promise<StudioView> {
+  return postStudio("/scenes", { slug, title });
 }
 
 /** Upload one file into a workspace library dir (the studio's paperclip,

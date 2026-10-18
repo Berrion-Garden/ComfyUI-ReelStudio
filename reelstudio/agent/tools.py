@@ -1,7 +1,7 @@
 """Agent tools — the exact operations a human has, executed server-side.
 
 get_project / get_assets / get_yaml / update_yaml / generate /
-currently_selected / view_image / get_studio / import_assets /
+currently_selected / view_image / get_studio /
 update_asset_labels / adopt_renders / get_provenance / get_skill /
 get_status. update_yaml validates before saving and generate validates before queueing — the agent
 cannot save a broken chain or queue a bogus job, and every rejection teaches
@@ -104,25 +104,10 @@ TOOLS = [
                        "required": ["path"]}}},
     {"type": "function", "function": {
         "name": "get_studio",
-        "description": "The scene registry: every scene in the studio, the "
-                       "current one, and each scene's characters/backgrounds. "
-                       "Read before cross-scene work (imports, references).",
+        "description": "The scene registry: every scene in the studio and "
+                       "the current one. Read before cross-scene work "
+                       "(references, comparisons).",
         "parameters": {"type": "object", "properties": {}, "required": []}}},
-    {"type": "function", "function": {
-        "name": "import_assets",
-        "description": "Import character pools and background plates from "
-                       "another scene into the CURRENT one (copies files + "
-                       "labels, scene: foreign keys stripped). Name "
-                       "collisions are refused.",
-        "parameters": {"type": "object",
-                       "properties": {
-                           "from": {"type": "string",
-                                    "description": "source scene slug"},
-                           "characters": {"type": "array",
-                                          "items": {"type": "string"}},
-                           "backgrounds": {"type": "array",
-                                           "items": {"type": "string"}}},
-                       "required": ["from"]}}},
     {"type": "function", "function": {
         "name": "get_provenance",
         "description": "How one generated file was made: its job id, the "
@@ -237,12 +222,6 @@ class ToolBox:
     async def _get_studio(self, _):
         return json.dumps(
             studio_mod.view_of(self.state.config.workspace), ensure_ascii=False)
-
-    async def _import_assets(self, args):
-        result = studio_mod.import_assets(
-            self.state.config.workspace, str(args.get("from", "")),
-            args.get("characters") or [], args.get("backgrounds") or [])
-        return json.dumps(result, ensure_ascii=False)
 
     async def _get_provenance(self, args):
         path = str(args.get("path", ""))

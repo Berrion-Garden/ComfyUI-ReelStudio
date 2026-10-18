@@ -521,7 +521,7 @@ async def post_studio_open(request: web.Request) -> web.Response:
 
 async def post_studio_scenes(request: web.Request) -> web.Response:
     """New scene: (implicitly saving an implicit workspace first), scaffold,
-    switch to it, optionally importing characters/locations from a source."""
+    switch to it."""
     state = _state(request)
     body = await request.json()
     ws = state.config.workspace
@@ -532,24 +532,7 @@ async def post_studio_scenes(request: web.Request) -> web.Response:
                                     str(body.get("slug", "")),
                                     body.get("title"), project.meta)
     state.reopen(scene)
-    imp = body.get("import") or {}
-    imported = None
-    if imp.get("from"):
-        imported = studio_mod.import_assets(
-            state.config.workspace, str(imp["from"]),
-            imp.get("characters") or [], imp.get("backgrounds") or [])
-    view = _studio_view(state)
-    view["import"] = imported
-    return web.json_response(view)
-
-
-async def post_studio_import(request: web.Request) -> web.Response:
-    """Import characters/locations from another scene into the current one."""
-    state = _state(request)
-    body = await request.json()
-    return web.json_response(studio_mod.import_assets(
-        state.config.workspace, str(body.get("from", "")),
-        body.get("characters") or [], body.get("backgrounds") or []))
+    return web.json_response(_studio_view(state))
 
 
 # -------------------------------------------------------------- upload -----
@@ -673,7 +656,6 @@ def create_app(config: Config) -> web.Application:
     app.router.add_post(f"{API}/studio/save", post_studio_save)
     app.router.add_post(f"{API}/studio/open", post_studio_open)
     app.router.add_post(f"{API}/studio/scenes", post_studio_scenes)
-    app.router.add_post(f"{API}/studio/import", post_studio_import)
     app.router.add_post(f"{API}/upload", post_upload)
     app.router.add_get(f"{API}/scene/{{scene_id}}/artifact/{{kind}}", get_scene_artifact)
     app.router.add_post(f"{API}/agent/chat", post_agent_chat)
