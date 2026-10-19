@@ -306,14 +306,14 @@ export function AssetsPane({ assets, studio, selected, selectedPaths, onSelect, 
           {a.used_by.length > 0 && (
             <span className="usedby">in {a.used_by.length} scene{a.used_by.length > 1 ? "s" : ""}</span>
           )}
-          {unverified && (
-            <span className="card-verify" onClick={(e) => e.stopPropagation()}>
+          <span className="card-verify" onClick={(e) => e.stopPropagation()}>
+            {unverified && (
               <button type="button" className="verify-ok" title="keep — accept this image"
                 aria-label={`accept ${a.slug}`} onClick={() => accept(a)}>✓</button>
-              <button type="button" className="verify-del" title="delete this image"
-                aria-label={`delete ${a.slug}`} onClick={() => remove(a)}>✕</button>
-            </span>
-          )}
+            )}
+            <button type="button" className="verify-del" title="delete this image"
+              aria-label={`delete ${a.slug}`} onClick={() => remove(a)}>✕</button>
+          </span>
           <button type="button" className="card-menu-btn" title="more actions"
             aria-label={`actions for ${a.slug}`}
             onClick={(e) => { e.stopPropagation(); setMenuFor(menuFor === a.path ? null : a.path); }}

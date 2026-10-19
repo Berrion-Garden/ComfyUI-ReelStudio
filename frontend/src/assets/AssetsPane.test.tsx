@@ -104,7 +104,7 @@ describe("AssetsPane", () => {
     expect(vi.mocked(setAssetLabels)).toHaveBeenCalledWith(
       "/out/dunk01_.png", ["char:tony"]);
 
-    // verified assets carry no inline controls
+    // verified assets carry no accept control — but the delete ✕ stays
     expect(screen.queryByLabelText("accept opening_still")).toBeNull();
 
     vi.mocked(deleteAsset).mockResolvedValue(undefined);
@@ -189,6 +189,26 @@ describe("AssetsPane", () => {
     fireEvent.click(screen.getByLabelText("actions for dunk01"));
     fireEvent.click(screen.getByText("Delete"));
     expect(deleteAsset).toHaveBeenCalledWith("/out/dunk01_.png");
+  });
+
+  it("every asset card carries the delete ✕, verified or not", () => {
+    render(<AssetsPane {...paneProps()} />);
+    // verified, unverified, character reference and audio alike
+    expect(screen.getByLabelText("delete opening_still")).toBeTruthy();
+    expect(screen.getByLabelText("delete dunk01")).toBeTruthy();
+    expect(screen.getByLabelText("delete base")).toBeTruthy();
+    expect(screen.getByLabelText("delete music_opening_1")).toBeTruthy();
+  });
+
+  it("a refused delete shows the server's message in the error banner", async () => {
+    vi.mocked(deleteAsset).mockRejectedValue(
+      new Error("tied to scene start/end: s1_ramen"));
+    render(<AssetsPane {...paneProps()} />);
+
+    fireEvent.click(screen.getByLabelText("delete opening_still"));
+    await screen.findByText(/tied to scene start\/end: s1_ramen/);
+    const banner = document.querySelector(".assets-error");
+    expect(banner?.textContent).toContain("tied to scene start/end: s1_ramen");
   });
 
   it("copy falls back to execCommand on insecure origins", async () => {
