@@ -29,6 +29,23 @@ function labeledPools(items: AssetItem[], prefix: string): { pool: string; asset
   return [...pools.entries()].map(([pool, assets]) => ({ pool: pool.slice(prefix.length), assets }));
 }
 
+/** Fallback for plain-http origins (LAN access) where the async clipboard
+ * API is absent: a hidden textarea and the deprecated-but-working
+ * execCommand. False when even that is rejected. */
+function copyViaTextarea(text: string): boolean {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    ta.remove();
+  }
+}
+
 /** One character's collapsible pool: reference (the operator's uploaded
  * base images) and posed stills (generated), each collapsible on its own.
  * `closed` holds keys the user collapsed — defaults open, and the periodic
@@ -250,7 +267,17 @@ export function AssetsPane({ assets, studio, selected, selectedPaths, onSelect, 
   const copyReference = async (a: AssetItem) => {
     // the agent's unique id: `asset:<path>` resolves through get_assets /
     // currently_selected
-    await navigator.clipboard.writeText(`asset:${a.path}`);
+    const ref = `asset:${a.path}`;
+    try {
+      await navigator.clipboard.writeText(ref);
+    } catch {
+      if (!copyViaTextarea(ref)) {
+        setError("copy failed — clipboard is unavailable on this origin");
+        return;
+      }
+    }
+    // feedback lives in the still-open menu, so the click handler must not
+    // close it
     setCopied(a.path);
     setTimeout(() => setCopied((c) => (c === a.path ? null : c)), 1500);
   };
@@ -293,7 +320,7 @@ export function AssetsPane({ assets, studio, selected, selectedPaths, onSelect, 
           >⋯</button>
           {menuFor === a.path && (
             <span className="card-menu" onClick={(e) => e.stopPropagation()}>
-              <button type="button" onClick={() => { void copyReference(a); setMenuFor(null); }}>
+              <button type="button" onClick={() => void copyReference(a)}>
                 {copied === a.path ? "copied ✓" : "Copy reference"}
               </button>
               <button type="button" onClick={() => { remove(a); setMenuFor(null); }}>

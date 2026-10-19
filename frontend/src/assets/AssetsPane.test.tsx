@@ -182,7 +182,25 @@ describe("AssetsPane", () => {
 
     fireEvent.click(screen.getByLabelText("actions for opening_still"));
     fireEvent.click(screen.getByText("Copy reference"));
-    await Promise.resolve();
+    await screen.findByText("copied ✓");
     expect(writeText).toHaveBeenCalledWith("asset:/stills/opening_still_.png");
+
+    // Delete goes straight to the API — any asset, verified or not
+    fireEvent.click(screen.getByLabelText("actions for dunk01"));
+    fireEvent.click(screen.getByText("Delete"));
+    expect(deleteAsset).toHaveBeenCalledWith("/out/dunk01_.png");
+  });
+
+  it("copy falls back to execCommand on insecure origins", async () => {
+    // plain-http LAN origins have no navigator.clipboard at all
+    Object.assign(navigator, { clipboard: undefined });
+    const exec = vi.fn(() => true);
+    document.execCommand = exec as unknown as typeof document.execCommand;
+    render(<AssetsPane {...paneProps()} />);
+
+    fireEvent.click(screen.getByLabelText("actions for opening_still"));
+    fireEvent.click(screen.getByText("Copy reference"));
+    await screen.findByText("copied ✓");
+    expect(exec).toHaveBeenCalled();
   });
 });

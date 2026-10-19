@@ -481,8 +481,7 @@ def _record_approved_seed(state, path) -> None:
 
 
 async def delete_asset(request: web.Request) -> web.Response:
-    """The operator's ✗ on a non-verified generation: delete the file and
-    its label entry. Only assets labelled non-verified are deletable."""
+    """The operator's ✗ or ⋯ menu: delete the file and its label entry."""
     state = _state(request)
     body = await request.json()
     project = state.project()
@@ -491,8 +490,8 @@ async def delete_asset(request: web.Request) -> web.Response:
     index = assets_mod.index_assets(state.config.workspace, project)
     item = next((a for items in index["groups"].values() for a in items
                  if a["path"] == str(target)), None)
-    if item is None or "non-verified" not in item["labels"]:
-        raise ForbiddenError("only assets labelled non-verified can be deleted")
+    if item is None:
+        raise NotFoundError("no such asset")
     await asyncio.to_thread(target.unlink)
     await asyncio.to_thread(
         assets_mod.set_labels, state.config.workspace,

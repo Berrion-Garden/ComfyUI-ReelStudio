@@ -276,7 +276,7 @@ async def test_unanchored_stills_are_candidates(config, workspace):
     assert "opening_still" not in slugs  # anchored stills stay in scenes
 
 
-async def test_delete_only_non_verified(client, workspace):
+async def test_delete_asset(client, workspace):
     import hashlib
     (workspace / "images").mkdir()
     (workspace / "images" / "gen_a_.png").write_bytes(b"x")
@@ -287,13 +287,20 @@ async def test_delete_only_non_verified(client, workspace):
             "path": str(workspace / name), "labels": labels})
         assert r.status == 200
 
-    # a verified asset is not deletable
+    # an unknown path is a 404, not a blind unlink
     bad = await client.delete("/reelstudio/api/asset", json={
-        "path": str(workspace / "images" / "keep_.png")})
-    assert bad.status == 403
-    assert (workspace / "images" / "keep_.png").exists()
+        "path": str(workspace / "images" / "nope_.png")})
+    assert bad.status == 404
 
-    # a non-verified asset deletes the file and drops its label entry
+    # an approved (verified) asset is deletable from the ⋯ menu too —
+    # the file goes and the label entry with it
+    ok = await client.delete("/reelstudio/api/asset", json={
+        "path": str(workspace / "images" / "keep_.png")})
+    assert ok.status == 200
+    assert not (workspace / "images" / "keep_.png").exists()
+    assert "keep_" not in (workspace / "assets.yaml").read_text()
+
+    # a non-verified asset deletes the same way
     ok = await client.delete("/reelstudio/api/asset", json={
         "path": str(workspace / "images" / "gen_a_.png")})
     assert ok.status == 200

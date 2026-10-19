@@ -148,7 +148,7 @@ export async function setAssetLabels(path: string, labels: string[]): Promise<vo
   await json_or_throw(resp);
 }
 
-/** Delete a non-verified generated asset (the operator's ✗). */
+/** Delete an asset (the operator's ✗ or the card ⋯ menu). */
 export async function deleteAsset(path: string): Promise<void> {
   const resp = await fetch(`${API}/asset`, {
     method: "DELETE",
