@@ -91,15 +91,28 @@ def index_assets(workspace: str | Path, project) -> dict:
         if p.is_file() and p.resolve() not in anchored:
             groups["stills"].append(mk(p, "stills", ["candidate"]))
 
-    # characters — pools of poses under characters/<slug>/
+    # characters — two pools per character: references/ (the operator's
+    # uploaded base images — the source `attributes` are pulled from) and
+    # posed_stills/ (generated reference stills). Legacy flat files keep
+    # working; the _refNN/_sheetNN filename convention marks them posed.
     for pool in sorted((ws / "characters").glob("*") if (ws / "characters").exists() else []):
         if not pool.is_dir():
             continue
-        for p in sorted(pool.iterdir()):
-            if p.suffix.lower() in IMAGE_EXTS:
-                pose = p.stem.rstrip("_") or p.stem
-                groups["characters"].append(mk(
-                    p, "characters", [f"char:{pool.name}", f"pose:{pose}"]))
+        refs_dir, stills_dir = pool / "references", pool / "posed_stills"
+        files: list[tuple[Path, str]] = \
+            ([(p, "reference") for p in sorted(refs_dir.iterdir())
+              if p.suffix.lower() in IMAGE_EXTS] if refs_dir.is_dir() else []) + \
+            ([(p, "posed") for p in sorted(stills_dir.iterdir())
+              if p.suffix.lower() in IMAGE_EXTS] if stills_dir.is_dir() else []) + \
+            [(p, "posed" if ("_posed_" in p.stem or "_ref" in p.stem
+              or "_sheet_" in p.stem)
+              else "reference")
+             for p in sorted(pool.iterdir())
+             if p.is_file() and p.suffix.lower() in IMAGE_EXTS]
+        for p, kind in files:
+            pose = p.stem.rstrip("_") or p.stem
+            groups["characters"].append(mk(
+                p, "characters", [f"char:{pool.name}", f"pose:{pose}", kind]))
 
     # custom — anything the operator drops into images/
     custom_root = ws / "images"

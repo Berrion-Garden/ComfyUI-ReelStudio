@@ -1,6 +1,6 @@
 ---
 name: reel-yaml-schema
-description: The reel.yaml contract — meta, aliases, styles/locations, stills, scene layers (video/sound_effects/music/post), anchor refs, frames, the collapse staleness. Load before reading or editing reel.yaml.
+description: The reel.yaml contract — meta, aliases, characters, styles/locations, stills, scene layers (video/sound_effects/music/post), anchor refs, frames, the collapse staleness. Load before reading or editing reel.yaml.
 always: true
 ---
 # reel.yaml schema
@@ -26,6 +26,31 @@ single source of truth; code never holds a second copy.
   references one with `location: <slug>` and only those scenes get the
   injection (consistent location across a subset, one edit). EXT/INT, D/N,
   time-of-day and weather belong here.
+- `characters` — map of slug → character reference block; drives
+  `generate kind=sheet` (CHARACTER images — stills/refs/poses, never scenes).
+  TEXT-driven: the pool images are the SOURCE of `attributes` (pulled out
+  once, then corrected by the operator's feedback — feedback overwrites
+  pulled info, never the reverse) and are NEVER fed to the model as image
+  inputs — feeding them pins every output to the image and kills variety.
+  `attributes` — THE identity anchors as named keys (hair, skin, eyes,
+  bandages, accessories, outfit), joined in yaml order into every prompt;
+  edit ONE key to change one trait, never restate a trait in two places.
+  `ref` — provenance only: which pool image the description was pulled
+  from; not a model input. `backdrop` — the blank studio background text;
+  reference stills are ALWAYS one character on a blank backdrop.
+  `variants` — one directive per still: a pose, a framing (full-body or
+  close-up), or an attribute variance (hair, clothes, style). `negatives`
+  (inside attributes) — BARE CONCEPT WORDS ONLY, the engine SUBTRACTS each
+  named concept ("undercut, bandaged mouth" removes those things); "no X"
+  wording would instead condition X into the image — forbidden here. The
+  value rides the negative input (informative at cfg 1 — the positive text
+  must also omit the concept).
+  `seeds` —
+  seeds of APPROVED stills, recorded automatically on ✓ approval; the next
+  run starts its seed ladder from what worked. Style comes from the active
+  `styles:` block, never from the character. Still outputs are born
+  `non-verified` in the `characters/<slug>/` pool. A legacy `description:`
+  string still works (joined whole) but attributes is the interface.
 - `stills` — named anchor images resolved into `meta.still_dir` with a
   `_.png` suffix appended (`opening: qwen_image_2_1_00008` →
   `still_dir/qwen_image_2_1_00008_.png`).

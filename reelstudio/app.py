@@ -419,7 +419,10 @@ async def get_asset_file(request: web.Request) -> web.Response:
 
 
 async def put_asset_labels(request: web.Request) -> web.Response:
-    """Rewrite one asset's declared labels: {path, labels: [..]}."""
+    """Rewrite one asset's declared labels: {path, labels: [..]}. Approving
+    (removing `non-verified` from a generated character still) also records
+    its seed into reel.yaml `characters.<slug>.seeds:` — approved seeds are
+    the base for future pose runs."""
     state = _state(request)
     body = await request.json()
     labels = body.get("labels")
@@ -429,7 +432,52 @@ async def put_asset_labels(request: web.Request) -> web.Response:
     result = await asyncio.to_thread(
         assets_mod.set_labels, state.config.workspace,
         project.meta["still_dir"], str(body.get("path", "")), labels)
+    if "non-verified" not in labels and labels:
+        await asyncio.to_thread(_record_approved_seed, state, body.get("path"))
     return web.json_response(result)
+
+
+def _record_approved_seed(state, path) -> None:
+    """An approved generation's seed joins the yaml `characters.<slug>.seeds:`
+    ladder — the next pose run starts from what worked (best effort: a
+    missing seed or slug is skipped, never blocks the approval)."""
+    p = Path(str(path))
+    ws = Path(state.config.workspace)
+    labels = assets_mod._labels_file(ws).get(
+        assets_mod._rel(p, [ws, Path(state.project().meta["still_dir"])]), [])
+    slug = next((lab.split(":", 1)[1] for lab in labels
+                 if lab.startswith("char:")), None)
+    if not slug:
+        return
+    seed = None
+    try:
+        from PIL import Image
+        with Image.open(p) as im:
+            meta = im.info.get("prompt")  # ComfyUI embeds the graph JSON
+            if meta:
+                for node in json.loads(meta).values():
+                    if node.get("class_type") == "KSampler":
+                        seed = node.get("inputs", {}).get("seed")
+                        break
+    except Exception:  # noqa: BLE001 - provenance is best-effort
+        return
+    if seed is None:
+        return
+    try:
+        from ruamel.yaml import YAML
+        ry = YAML()
+        ry.preserve_quotes = True
+        ry.width = 4096
+        doc = ry.load(state.config.yaml_path) or {}
+        chars = doc.setdefault("characters", {}).setdefault(slug, {})
+        ladder = [int(s) for s in (chars.get("seeds") or [])]
+        if seed in ladder:
+            return
+        chars["seeds"] = sorted(ladder + [int(seed)])
+        with open(state.config.yaml_path, "w") as fh:
+            ry.dump(doc, fh)
+    except Exception:  # noqa: BLE001 - a bad yaml must not block approval
+        return
 
 
 async def delete_asset(request: web.Request) -> web.Response:

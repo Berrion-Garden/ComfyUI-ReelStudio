@@ -57,3 +57,26 @@ description: Reel Studio failure modes — validation errors, missing renders, j
   description words, move labels to `post.freeze.names`.
 - Camera drifts when it should hold → restate "The camera holds a
   near-static shot" and pin the background as FIXED in the description.
+
+## The operator says the generation "didn't change / looks the same"
+
+Suspect the THUMBNAIL, not the pipeline: asset cards cache previews under a
+filenames. Character stills are seed-stamped (`<slug>_posed_r<seed>…`) so
+names never collide across rounds — if a run predates that, cached previews
+lie. Prove what was actually generated: check the file's mtime, then
+`get_provenance <path>` — it reads the prompt the model REALLY got from the
+PNG metadata. If the prompt is right but the pixels disagree, the fix is
+prompt language / seeds, never a re-run of the same text.
+
+## Character stills (Qwen image path)
+
+- The negative channel SUBTRACTS bare concept words; "no X" wording
+  conditions X into the image — see reel-yaml-schema `characters`.
+negatives.
+- Feeding reference images into the edit graph pins every output to the
+  canvas (or montages a same-subject pool into one collage). Character
+  stills are TEXT-DRIVEN from the yaml block; the pool images are only
+  the source of `attributes`.
+- Models must stay resident (`--highvram` on the ComfyUI service) and the
+  run submits the whole batch before joining — a 10-still round is ~2 min,
+  not 7. Slow rounds = staging per prompt, a pipeline bug, not the GPU.

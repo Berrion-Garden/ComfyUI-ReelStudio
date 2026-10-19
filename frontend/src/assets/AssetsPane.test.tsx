@@ -9,10 +9,12 @@ vi.mock("../api", () => (
 const data: AssetsData = {
   groups: {
     characters: [
-      { path: "/ws/characters/fox_boy/sit_.png", slug: "sit", group: "characters",
-        labels: ["char:fox_boy", "pose:sit"], used_by: [], url: "/f/sit.png" },
-      { path: "/ws/characters/fox_boy/run_.png", slug: "run", group: "characters",
-        labels: ["char:fox_boy", "pose:run"], used_by: [], url: "/f/run.png" },
+      { path: "/ws/characters/fox_boy/references/base.webp", slug: "base", group: "characters",
+        labels: ["char:fox_boy", "pose:base", "reference"], used_by: [], url: "/f/base.png" },
+      { path: "/ws/characters/fox_boy/posed_stills/fox_boy_ref01.png", slug: "fox_boy_ref01",
+        group: "characters",
+        labels: ["char:fox_boy", "pose:fox_boy_ref01", "posed", "non-verified"],
+        used_by: [], url: "/f/fox_boy_ref01.png" },
     ],
     scenes: [
       { path: "/stills/opening_still_.png", slug: "opening_still", group: "scenes",
@@ -70,14 +72,14 @@ describe("AssetsPane", () => {
   it("shift-click adds to the multi-selection", () => {
     const onSelect = vi.fn();
     render(<AssetsPane {...paneProps({ onSelect })} />);
-    fireEvent.click(screen.getByTestId("asset-characters-sit"), { shiftKey: true });
+    fireEvent.click(screen.getByTestId("asset-characters-base"), { shiftKey: true });
     expect(onSelect).toHaveBeenCalledWith(data.groups.characters[0], true);
   });
 
   it("arrow keys walk the flat asset order", () => {
     const onSelect = vi.fn();
     const { rerender } = render(<AssetsPane {...paneProps({ onSelect })} />);
-    expect(screen.getByTestId("asset-characters-sit")).toBeTruthy();
+    expect(screen.getByTestId("asset-characters-base")).toBeTruthy();
 
     const pane = screen.getByTestId("assets-pane");
     fireEvent.keyDown(pane, { key: "ArrowDown" });
@@ -133,6 +135,26 @@ describe("AssetsPane", () => {
     expect(screen.getByText("court_sunset")).toBeTruthy();
     expect(screen.getByTestId("asset-backgrounds-bg_campus01")).toBeTruthy();
     expect(screen.getByTestId("asset-backgrounds-bg_court01")).toBeTruthy();
+  });
+
+  it("character pools split into reference and posed stills, each collapsible", () => {
+    const { rerender } = render(<AssetsPane {...paneProps()} />);
+    expect(screen.getByTestId("asset-characters-base")).toBeTruthy();
+    expect(screen.getByTestId("asset-characters-fox_boy_ref01")).toBeTruthy();
+
+    const refSub = () =>
+      screen.getByText("reference").closest("details") as HTMLDetailsElement;
+    const posedSub = () =>
+      screen.getByText("posed stills").closest("details") as HTMLDetailsElement;
+    expect(refSub().open).toBe(true);
+    expect(posedSub().open).toBe(true);
+
+    // collapse the reference side — the periodic refresh keeps it collapsed
+    refSub().open = false;
+    fireEvent(refSub(), new Event("toggle", { bubbles: false }));
+    rerender(<AssetsPane {...paneProps()} />);
+    expect(refSub().open).toBe(false);
+    expect(posedSub().open).toBe(true);
   });
 
   it("the Characters + panel imports another scene's pool into a named pool", () => {

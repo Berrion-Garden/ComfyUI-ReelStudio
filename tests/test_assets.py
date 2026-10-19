@@ -35,9 +35,10 @@ async def test_index_derives_groups_and_labels(config, workspace):
 
     poses = {a["slug"]: a for a in g["characters"]}
     assert set(poses) == {"sit", "run"}
-    assert poses["sit"]["labels"] == ["char:fox_boy", "pose:sit"]
+    assert poses["sit"]["labels"] == ["char:fox_boy", "pose:sit", "reference"]
     # declared labels cross-group onto the derived ones, order-stable
-    assert poses["run"]["labels"] == ["char:fox_boy", "pose:run", "hero", "main-walk"]
+    assert poses["run"]["labels"] == ["char:fox_boy", "pose:run", "reference",
+                                      "hero", "main-walk"]
 
     assert [a["slug"] for a in g["custom"]] == ["moodboard"]
     theme = g["themes"][0]
@@ -244,7 +245,8 @@ async def test_agent_currently_selected_tool(config, workspace):
         "slug": "face", "group": "characters"}])
     out = json.loads(await box.call("currently_selected", {}))
     assert out["selected"][0]["slug"] == "face"
-    assert out["selected"][0]["labels"] == ["char:tony", "pose:face"]
+    assert out["selected"][0]["labels"] == ["char:tony", "pose:face",
+                                            "reference"]
     assert out["primary"]["slug"] == "face" and out["count"] == 1
 
     # multi-select: every picked asset comes back, last = primary

@@ -43,14 +43,13 @@ always: true
     A `location:` edit cascades only to the scenes referencing it.
   - `music` — regenerate one anchored segment (`name:`).
   - `assemble` — the final production mix; only when the user asks for it.
-  - `sheet` — generate a character's multi-view identity sheet (`slug:`) —
-    10 seed/prompt variants into `characters/<slug>/`, collapsing the whole
-    reference pool into one identity. The pool must already hold reference
-    images; the operator uploads them (the + button or drag-and-drop on the
-    Characters section — they land in `characters/<pool>/` and label
-    `char:<pool>`). Born `non-verified`; the operator ✓-picks one and tags it
-    `ref` — or you tag it yourself with `update_asset_labels` when they say
-    which one.
+  - `sheet` — CHARACTER images (stills, refs, poses — never scenes or
+    video). Anime stills of one character, one pose/directive, BLANK
+    backdrop, per image. Driven ENTIRELY by the yaml `characters:` block
+    (see reel-yaml-schema: attributes/backdrop/variants/seeds/negatives) —
+    art direction goes into those KEYS first, then queue the run; every
+    still is born `non-verified` with `posed`. The full contract lives in
+    reel-yaml-schema and asset-library — do not restate it here.
   - `still` — render a background/location plate from a `locations:` entry
     (`slug:`) — 10 seed/prompt variants into `backgrounds/<location>/`.
   - `image_edit` — render a `shots:` entry's anchor stills (`name:`) —
@@ -119,7 +118,8 @@ File → New scene). The full pipeline for a fresh story chunk:
    with `update_asset_labels` when they say which).
 3. **Cast** — the operator drops reference images into the Characters section
    (+ button or drag-and-drop; they label `char:<pool>`), then
-   `generate kind=sheet` → 10 identity sheets → one gets tagged `ref`
+   `generate kind=sheet` → 10 reference stills (one character, one pose,
+   blank backdrop) → one gets tagged `ref`
    (same as above).
 4. **Shot anchors** — add a `shots:` entry (characters + background +
    description), `generate kind=image_edit` → 10 variants → the operator
@@ -144,3 +144,31 @@ yourself with view_image and recommend a pick; the operator confirms.
 4. When an edit only touches the audio layers or `sound_effects:`, say so —
    sound changes still re-render the scene (H3 bakes the soundscape) but
    never cascade to still-anchored neighbours.
+5. An explicitly requested generation is QUEUED IN THE SAME TURN. "Generate
+   10" means `generate` now, then report what was queued — never a
+   "shall I…?" question for what was just asked. Questions are for real
+   ambiguity, not for proceeding.
+6. The operator's words map to kinds: "images/stills/refs/pictures of a
+   character" → `sheet`; "background/plate" → `still`; "scene still/shot" →
+   `image_edit`; "render/animate/video" → `scene`. Character images are
+   NEVER scenes, and a character request must not be answered with YAML
+   video edits.
+7. Anchoring the selection ("make this the first/last scene anchor"):
+   `currently_selected` → `update_yaml` (add the image to `stills:` as
+   `<name>: <path>`, set `video.first:`/`video.last:` to
+   `still:<name>`) → re-render the affected scene. That is the whole
+   recipe — no questions between steps when the operator named the anchor
+   and the scene.
+8. Operator feedback about generated images LANDS IN THE YAML, then the
+   run: write their words into the `characters.<slug>` keys that drive the
+   generation (attributes/variants/backdrop) with `update_yaml`, then queue
+   `generate kind=sheet`. Feedback is never just acknowledged in chat —
+   the yaml is the single source of truth and the run proves it. When the
+   operator names good variants (by number or seed), record those seeds
+   into `characters.<slug>.seeds:` — the next run ladders from what worked.
+   Exclusions go into `attributes.negatives` as BARE words — the negative
+   channel SUBTRACTS those concepts; writing "no X" CONDITIONS X instead.
+   NEVER delete or clear existing pool files when regenerating — a run
+   ADDS files (fresh seed-and-timestamp names); approved/kept assets are
+   untouchable. Clearing the pool happens only when the operator says so
+   in words, after their picks are recorded.

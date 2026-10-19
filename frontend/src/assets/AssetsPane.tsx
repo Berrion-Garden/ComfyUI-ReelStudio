@@ -29,6 +29,40 @@ function labeledPools(items: AssetItem[], prefix: string): { pool: string; asset
   return [...pools.entries()].map(([pool, assets]) => ({ pool: pool.slice(prefix.length), assets }));
 }
 
+/** One character's collapsible pool: reference (the operator's uploaded
+ * base images) and posed stills (generated), each collapsible on its own.
+ * `closed` holds keys the user collapsed — defaults open, and the periodic
+ * asset refresh can't snap them back. */
+function CharacterPool({ name, assets, card, openKey, closed, onToggle }: {
+  name: string; assets: AssetItem[]; card: (a: AssetItem) => React.ReactNode;
+  openKey: string; closed: Set<string>; onToggle: (key: string) => void;
+}) {
+  const refs = assets.filter((a) => a.labels.includes("reference"));
+  const posed = assets.filter((a) => a.labels.includes("posed"));
+  // legacy unlabeled assets (pre-split files without set labels) read as
+  // reference — they are the operator's uploaded material
+  const loose = assets.filter(
+    (a) => !a.labels.includes("reference") && !a.labels.includes("posed"));
+  const toggle = (key: string) => (e: React.SyntheticEvent<HTMLDetailsElement>) => {
+    if (e.currentTarget.open === closed.has(key)) onToggle(key);
+  };
+  const sub = (kind: string, items: AssetItem[]) => (
+    <details className="pool-sub" open={!closed.has(`${openKey}/${kind}`)}
+      onToggle={toggle(`${openKey}/${kind}`)}>
+      <summary>{kind} <span className="count">{items.length}</span></summary>
+      <div className="asset-grid">{items.map(card)}</div>
+    </details>
+  );
+  return (
+    <details className="asset-pool" open={!closed.has(openKey)}
+      onToggle={toggle(openKey)}>
+      <summary>{name} <span className="count">{assets.length}</span></summary>
+      {sub("reference", [...refs, ...loose])}
+      {sub("posed stills", posed)}
+    </details>
+  );
+}
+
 // where the section's + / drag-and-drop uploads land (workspace-relative);
 // pool sections (Characters, Backgrounds) ask for the pool/location name
 // first and append it
@@ -170,6 +204,16 @@ export function AssetsPane({ assets, studio, selected, selectedPaths, onSelect, 
   // snap the user's collapsed sections back open
   const [openSections, setOpenSections] = useState<Set<string>>(
     () => new Set(["Characters", "Scenes"]));
+  // character pools + their reference/posed-stills sub-pools: `closed`
+  // holds keys the user collapsed — everything defaults open, and the
+  // periodic asset refresh can't snap them back open
+  const [closedPools, setClosedPools] = useState<Set<string>>(() => new Set());
+  const toggleClosedPool = (key: string) =>
+    setClosedPools((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
   const setOpen = (title: string, open: boolean) =>
     setOpenSections((prev) => {
       if (prev.has(title) === open) return prev;
@@ -375,12 +419,18 @@ export function AssetsPane({ assets, studio, selected, selectedPaths, onSelect, 
           )}
           {POOL_SECTIONS.has(s.title) && s.assets.length > 0 ? (
             labeledPools(s.assets, s.title === "Characters" ? "char:" : "loc:")
-              .map(({ pool, assets }) => (
-              <div key={pool} className="asset-pool">
-                <div className="pool-name">{pool}</div>
-                <div className="asset-grid">{assets.map(card)}</div>
-              </div>
-            ))
+              .map(({ pool, assets }) =>
+              s.title === "Characters" ? (
+                <CharacterPool key={pool} name={pool}
+                  openKey={`Characters/${pool}`}
+                  closed={closedPools} onToggle={toggleClosedPool}
+                  card={card} assets={assets} />
+              ) : (
+                <div key={pool} className="asset-pool">
+                  <div className="pool-name">{pool}</div>
+                  <div className="asset-grid">{assets.map(card)}</div>
+                </div>
+              ))
           ) : (
             <div className="asset-grid">{s.assets.map(card)}</div>
           )}

@@ -211,7 +211,8 @@ def _validate_sheet(project, args):
             ["a sheet (a character's multi-view identity) needs slug — the "
              "characters/<slug>/ pool holding its reference images"])
     pool = Path(project.config.workspace) / "characters" / slug
-    refs = sorted(pool.glob("*.png")) + sorted(pool.glob("*.jpg"))
+    refs = sorted(sum(([f] for ext in ("*.png", "*.jpg", "*.jpeg", "*.webp")
+                       for f in pool.glob(ext)), []))
     if not refs:
         raise ValidationError(
             [f"no reference images in characters/{slug}/ — the operator "
@@ -267,9 +268,14 @@ GENERATORS: tuple[Generator, ...] = (
         validate=_validate_assemble, execute=_execute_assemble),
     Generator(
         kind="sheet",
-        summary="generate a character's multi-view identity sheet — 10 "
-                "seed/prompt variants into characters/<slug>/, from the "
-                "reference images the operator uploaded there",
+        summary="CHARACTER images (stills, refs, poses, pictures of a "
+                "character — never scenes or video) — one character, one "
+                "directive, blank backdrop; driven by the yaml "
+                "`characters:` block (attributes/backdrop/variants/seeds/"
+                "negatives); ADDS fresh seed+timestamp-named files into "
+                "characters/<slug>/posed_stills/ — never touches approved "
+                "assets; falls back to a multi-view identity sheet "
+                "without a block",
         args={
             "slug": {"type": "string",
                      "description": "character slug (sheet kind)"},
