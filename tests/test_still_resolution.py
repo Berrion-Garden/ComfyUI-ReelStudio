@@ -192,27 +192,19 @@ async def test_anchor_still_tool_wires_label_not_paths(config, workspace):
     opt2 = pool / "tony_dunk02_00001_.png"
     opt2.write_bytes(b"x")
 
-    # the legacy world: a path entry for the name exists
-    text = config.yaml_path.read_text().replace(
-        "stills:\n  opening: opening_still",
-        f"stills:\n  dunk_pick: {opt2}\n  opening: opening_still")
-    config.yaml_path.write_text(text)
-
     box = ToolBox(ReelStudio(config))
     out = json.loads(await box.call("anchor_still", {
         "path": f"asset:{opt1}", "scene_id": "s1_ramen",
         "anchor": "first", "name": "dunk_pick"}))
     assert out["ref"] == "still:dunk_pick"
-    assert out["removed_stills_entry"] is True
+    
     assert out["picked"]["picked"] == \
         "characters/tony/posed_stills/tony_dunk01_00001_.png"
 
     raw = yaml_mod.safe_load(config.yaml_path.read_text())
     assert raw["scenes"][0]["video"]["first"] == "still:dunk_pick"
-    assert raw["stills"]["dunk_pick"] is None  # nulled, the key stays
-    assert raw["stills"]["opening"] == "opening_still"  # the others stayed
-    # the yaml never grows absolute paths (meta.wiring aside)
-    assert all("/" not in str(v) for v in raw["stills"].values())
+    assert "dunk_pick" not in raw["stills"]  # the pick lives in the label alone
+    assert all(v is None for v in raw["stills"].values())
 
     # the pick is the label in assets.yaml, and it re-resolves
     labels = yaml_mod.safe_load((workspace / "assets.yaml").read_text())["labels"]

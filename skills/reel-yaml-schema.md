@@ -48,9 +48,12 @@ single source of truth; code never holds a second copy.
   The character block is an inheritance TREE:
   `attributes` (Base) → `layers` (named uniform/scene edits, e.g.
   `layers.archery` = "Archery Uniform Amun": outfit + magic canon) →
-  `variants` (leaves). A variant is a plain string (a pose on the base) or
-  a MAP: `layer: <name>` attaches a mid-node, any non-control key replaces
-  the same-named attribute for THIS still, everything absent inherits.
+  `variants` (leaves). Every variant is a MAP — the string pose form is
+  retired (the validator rejects it): `slug` (unique across the tree,
+  names the pose pool), `pose` (required), optional `layer: <name>`
+  attaching a mid-node; any non-control key replaces the same-named
+  attribute for THIS still, everything absent inherits. Variant seeds are
+  unique across the tree (the validator rejects dupes).
   YAML anchors + merge keys keep a leaf family single-source
   (`- &archery_anchor {…}` then `{<<: *archery_anchor, seed: 915000}`).
   CONTROL KEYS (`pose`, `seed`, `layer`, `negatives`) never reach the
@@ -65,14 +68,16 @@ single source of truth; code never holds a second copy.
   `styles:` block, never from the character. Still outputs are born
   `non-verified` in the `characters/<slug>/` pool. A legacy `description:`
   string still works (joined whole) but attributes is the interface.
-- `stills` — legacy named anchor paths (`opening: qwen_image_2_1_00008` →
-  `still_dir/qwen_image_2_1_00008_.png`). Do not grow it: the resolver also
-  finds the file tagged `still:<name>` in `assets.yaml`, then a unique pool
-  slug match. New picks land with the `anchor_still` tool, never a path
-  entry.
+- `stills` — the anchor-NAME registry only: every entry must be null
+  (the validator rejects path values). The pick for a name lives in
+  `assets.yaml` tagged `still:<name>`; the resolver also accepts the
+  `<name>_.png` render convention, then a unique pool slug match. New
+  picks land with the `anchor_still` tool, never a path entry.
 - `shots` — Qwen-Image-2.1 per-shot anchor-still recipes (`reel.py shot
   <name>` or `generate kind=image_edit name=<name>`): `characters` (slugs —
-  each resolves to the sheet tagged `ref` in `assets.yaml`), `background`
+  each resolves to the sheet tagged `ref` in `assets.yaml`; a dict
+  `{slug: Amun, ref: <label>}` picks a different approved body by its label
+  instead — the archery base for the kyudo shots), `background`
   (a `backgrounds/` plate), `description` (what happens). Every run renders
   10 seed/prompt variants into the stills dir, born `non-verified`; anchor
   the pick with `anchor_still` (tags it `still:<name>`, sets the scene ref).
@@ -93,7 +98,8 @@ single source of truth; code never holds a second copy.
 
 - `location` — optional slug into `locations:`; injected pro/con for this
   scene only.
-- `video` — `mode` (`i2v` image-to-video, `fl2v` first+last, `t2v` text),
+- `video` — `mode` (only `i2v` remains; the graph stages first+last when
+  both anchors resolve, so the old fl2v/t2v names are retired),
   `first`/`last` anchor refs, `description` (H3-Context-IR — see
   h3-prompting), optional `negative`. The description holds only what is
   specific to this shot: action, blocking, shot size, camera move.

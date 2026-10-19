@@ -94,7 +94,7 @@ def test_still_and_upstream_edits_cascade(config, workspace):
     assert _stale(project, config) == []
 
     # a changed still invalidates the scenes that anchor on it
-    (workspace / "stills" / "impact_still_.png").write_bytes(b"changed")
+    (workspace / "stills" / "impact_.png").write_bytes(b"changed")
     assert "s3_pinkburst" in _stale(project, config)
     assert "s1_ramen" not in _stale(project, config)
 

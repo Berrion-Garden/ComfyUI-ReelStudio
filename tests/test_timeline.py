@@ -109,4 +109,4 @@ def test_anchor_resolution(config):
     assert resolve_anchor(project, None)["kind"] == "none"
     assert resolve_anchor(project, "prev_last")["kind"] == "prev_last"
     still = resolve_anchor(project, "still:opening")
-    assert still["kind"] == "still" and still["path"].endswith("opening_still_.png")
+    assert still["kind"] == "still" and still["path"].endswith("opening_.png")

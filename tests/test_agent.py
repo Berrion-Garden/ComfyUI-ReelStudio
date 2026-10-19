@@ -64,9 +64,9 @@ async def test_toolbox_labels_tag_refs_without_freezing_derived(config, workspac
     from reelstudio.app import ReelStudio
 
     (workspace / "assets.yaml").write_text(
-        "labels:\n  stills/opening_still_.png: [scene:s1_ramen, non-verified]\n")
+        "labels:\n  stills/opening_.png: [scene:s1_ramen, non-verified]\n")
     box = ToolBox(ReelStudio(config))
-    still = str(workspace / "stills" / "opening_still_.png")
+    still = str(workspace / "stills" / "opening_.png")
 
     out = json.loads(await box.call("update_asset_labels", {
         "path": f"asset:{still}",
@@ -96,7 +96,7 @@ async def test_toolbox_adopt_renders(config, workspace):
 
     reel_dir = workspace / "output" / "reel"
     reel_dir.mkdir(parents=True)
-    shutil.copy(workspace / "stills" / "opening_still_.png",
+    shutil.copy(workspace / "stills" / "opening_.png",
                 reel_dir / "s1_ramen_0001.mp4")
 
     box = ToolBox(ReelStudio(config))
@@ -169,16 +169,16 @@ async def test_currently_selected_delivers_pictures(config, workspace):
     from reelstudio.app import ReelStudio
 
     box = ToolBox(ReelStudio(config), selected=[
-        {"slug": "opening", "path": str(workspace / "stills" / "opening_still_.png"),
+        {"slug": "opening", "path": str(workspace / "stills" / "opening_.png"),
          "group": "stills", "labels": []},
-        {"slug": "impact", "path": str(workspace / "stills" / "impact_still_.png"),
+        {"slug": "impact", "path": str(workspace / "stills" / "impact_.png"),
          "group": "stills", "labels": []},
     ])
     out = json.loads(await box.call("currently_selected", {}))
     assert out["count"] == 2
     assert out["images_following"] == 2
     # primary first — reversed pick order
-    assert box.image_requests[-1].endswith("opening_still_.png")
+    assert box.image_requests[-1].endswith("opening_.png")
 
     # a text-only selection delivers nothing
     box2 = ToolBox(ReelStudio(config), selected=[
@@ -195,9 +195,9 @@ def test_vision_content_parts_and_guards(config, workspace):
     from reelstudio.errors import ValidationError
 
     roots = [workspace, workspace / "stills"]
-    label, url = vision.data_url(workspace / "stills" / "opening_still_.png",
+    label, url = vision.data_url(workspace / "stills" / "opening_.png",
                                  roots)
-    assert label == "opening_still_.png"
+    assert label == "opening_.png"
     assert url.startswith("data:image/png;base64,")
 
     with pytest.raises(ValidationError):

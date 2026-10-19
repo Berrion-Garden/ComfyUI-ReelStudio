@@ -29,9 +29,9 @@ async def test_index_derives_groups_and_labels(config, workspace):
     g = data["groups"]
 
     by_slug = {a["slug"]: a for a in g["scenes"]}
-    assert by_slug["opening_still"]["labels"] == ["still", "still:opening"]
-    assert by_slug["opening_still"]["used_by"] == ["s1_ramen"]
-    assert by_slug["impact_still"]["used_by"] == ["s3_pinkburst"]
+    assert by_slug["opening"]["labels"] == ["still", "still:opening"]
+    assert by_slug["opening"]["used_by"] == ["s1_ramen"]
+    assert by_slug["impact"]["used_by"] == ["s3_pinkburst"]
 
     poses = {a["slug"]: a for a in g["characters"]}
     assert set(poses) == {"sit", "run"}
@@ -311,7 +311,7 @@ async def test_delete_asset(client, workspace):
 async def test_delete_refuses_stills_a_scene_anchors_on(client, workspace):
     """The operator's rule: every library image is deletable except one
     tied to a scene start/end anchor — that one is a 409 naming the scenes."""
-    anchored = workspace / "stills" / "opening_still_.png"
+    anchored = workspace / "stills" / "opening_.png"
     refused = await client.delete("/reelstudio/api/asset", json={
         "path": str(anchored)})
     assert refused.status == 409
@@ -322,7 +322,7 @@ async def test_delete_refuses_stills_a_scene_anchors_on(client, workspace):
 
     # an end anchor refuses the same way
     end = await client.delete("/reelstudio/api/asset", json={
-        "path": str(workspace / "stills" / "end_still_.png")})
+        "path": str(workspace / "stills" / "end_.png")})
     assert end.status == 409
     assert "s3_pinkburst" in (await end.json())["error"]
 

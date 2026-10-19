@@ -48,9 +48,9 @@ locations:
     con: indoor, night, rain
 
 stills:
-  opening: opening_still
-  impact: impact_still
-  end: end_still
+  opening: null
+  impact: null
+  end: null
 
 scenes:
   - id: s1_ramen
@@ -80,7 +80,7 @@ scenes:
   - id: s3_pinkburst
     next: null
     video:
-      mode: fl2v
+      mode: i2v
       first: still:impact
       last: still:end
       description: |
@@ -140,9 +140,8 @@ def _anchor(ref, prev_sid):
         hits = sorted(glob.glob(os.path.join(M["reel_dir"], f"{prev_sid}_*.mp4")))
         return {"kind": "prev_last", "file_hash": fh(hits[-1] if hits else "")}
     if ref.startswith("still:"):
-        p = os.path.join(M["still_dir"], CFG["stills"][ref[6:]] + "_.png")
+        p = os.path.join(M["still_dir"], ref[6:] + "_.png")
         return {"kind": "still", "path": p, "file_hash": fh(p)}
-    return {"kind": "path", "path": ref}
 
 
 def _collapse():
@@ -224,9 +223,9 @@ def write_stub_reel(workspace: Path) -> Path:
 def workspace(tmp_path: Path) -> Path:
     ws = tmp_path / "workspace"
     ws.mkdir()
-    for name, color in (("opening_still_.png", "blue"),
-                        ("impact_still_.png", "green"),
-                        ("end_still_.png", "purple")):
+    for name, color in (("opening_.png", "blue"),
+                        ("impact_.png", "green"),
+                        ("end_.png", "purple")):
         make_still(ws / "stills" / name, color)
     (ws / "reel.yaml").write_text(
         YAML_BODY.format(comfy="http://127.0.0.1:9", workspace=ws))

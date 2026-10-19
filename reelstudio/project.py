@@ -20,7 +20,7 @@ from .errors import ValidationError
 
 H3_FRAME_GRID = 17  # valid clip lengths are 17n + 5
 
-VALID_VIDEO_MODES = ("i2v", "t2v", "fl2v")
+VALID_VIDEO_MODES = ("i2v",)
 
 
 def file_hash(path: str | os.PathLike) -> str:
@@ -270,16 +270,10 @@ def anchor_still(config: Config, scene_id: str,
     if scene is None:
         raise ValidationError([f"unknown scene {scene_id!r}"])
     scene.setdefault("video", {})[anchor] = f"still:{name}"
-    stills = doc.get("stills") or {}
-    removed = None
-    if name in stills and stills[name] is not None:
-        removed = stills[name]
-        stills[name] = None  # null out the path, keep the key
     validate(Project(doc, config))
     with open(config.yaml_path, "w") as fh:
         ry.dump(doc, fh)
-    return {"scene": scene_id, "anchor": anchor,
-            "ref": f"still:{name}", "removed_stills_entry": removed is not None}
+    return {"scene": scene_id, "anchor": anchor, "ref": f"still:{name}"}
 
 
 # ---------------------------------------------------------------- rules ----
@@ -339,6 +333,51 @@ def validate(project: Project) -> list[str]:
         problems.append("style: selector without a styles map")
     _validate_look_block(project, "locations", project.locations, problems)
 
+    # the character tree contract: every variant is a dict with a slug and a
+    # pose, slugs and seeds unique, any layer a declared one — the string
+    # variant and alternate key names are retired shapes
+    layers = set(project.raw.get("characters", {}).get("Amun", {})
+                 .get("layers", {}) if isinstance(
+                     project.raw.get("characters", {}).get("Amun", {}), dict)
+                 else [])
+    seen_slugs: list[str] = []
+    seen_seeds: list[int] = []
+    for cname, char in (project.raw.get("characters") or {}).items():
+        if not isinstance(char, dict):
+            continue
+        for j, v in enumerate(char.get("variants") or []):
+            where = f"characters.{cname}.variants[{j}]"
+            if not isinstance(v, dict):
+                problems.append(f"{where}: must be a mapping "
+                                f"(slug/pose/seed) — string poses are retired")
+                continue
+            if not v.get("slug"):
+                problems.append(f"{where}: slug is required")
+            else:
+                seen_slugs.append(v["slug"])
+            if not v.get("pose"):
+                problems.append(f"{where}: pose is required")
+            if "layer" in v and layers and v["layer"] not in layers:
+                problems.append(f"{where}: unknown layer {v['layer']!r} "
+                                f"(known: {sorted(layers)})")
+            if "seed" in v and not isinstance(v["seed"], int):
+                problems.append(f"{where}: seed must be an integer")
+            elif "seed" in v:
+                seen_seeds.append(v["seed"])
+    dup_slugs = sorted({s for s in seen_slugs if seen_slugs.count(s) > 1})
+    if dup_slugs:
+        problems.append(f"duplicate variant slugs: {dup_slugs}")
+    dup_seeds = sorted({s for s in seen_seeds if seen_seeds.count(s) > 1})
+    if dup_seeds:
+        problems.append(f"duplicate variant seeds: {dup_seeds}")
+    # the stills: map is the anchor-name registry — values were retired
+    for name, value in (project.stills or {}).items():
+        if value is not None:
+            problems.append(
+                f"stills.{name}: entries are name-registry only — the pick "
+                f"lives in assets.yaml as still:{name}, remove the path value")
+
+
     ids = [s.get("id") for s in scenes]
     if len(set(ids)) != len(ids):
         dupes = {i for i in ids if ids.count(i) > 1}
@@ -385,6 +424,10 @@ def validate(project: Project) -> list[str]:
                         warnings.append(
                             f"{sid}: {ref!r} does not resolve — no labeled "
                             f"pick and no unique pool match")
+            else:
+                problems.append(
+                    f"{sid}: {anchor} anchor must be null, \"prev_last\", "
+                    f"or \"still:<name>\" — got {ref!r}")
 
         music = s.get("music")
         if isinstance(music, dict) and not (music.get("name") and music.get("caption")):

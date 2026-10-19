@@ -203,7 +203,7 @@ async def test_per_scene_adopt_and_adoptable_flag(client, workspace):
     state = client.app[STATE_KEY]
     reel_dir = workspace / "output" / "reel"
     reel_dir.mkdir(parents=True)
-    shutil.copy(workspace / "stills" / "opening_still_.png",
+    shutil.copy(workspace / "stills" / "opening_.png",
                 reel_dir / "s1_ramen_0001.mp4")  # a deliverable nobody recorded
 
     view = await (await client.get("/reelstudio/api/project")).json()

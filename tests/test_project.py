@@ -141,7 +141,7 @@ def test_still_path_resolves_double_underscore(config):
     from reelstudio.project import load
 
     project = load(config)
-    assert project.still_path("opening").name == "opening_still_.png"
+    assert project.still_path("opening").name == "opening_.png"
 
 
 def test_file_hash_memo_tracks_content_changes(config):
