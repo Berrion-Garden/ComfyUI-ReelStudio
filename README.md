@@ -145,8 +145,10 @@ or `~/.config/reelstudio/config.json`:
   "agent_base_url": "https://llms.berrion.garden/v1" }
 ```
 
-The web UI is prebuilt into `web/dist/`. To rebuild it:
-`cd frontend && npm run build && cp -r dist/* ../web/dist/`.
+The web UI is prebuilt into `web/dist/`. To rebuild and roll out (build,
+ship `web/dist`, restart ComfyUI when backend code changed, verify the
+deployed endpoint): `./rollout.sh` — see `AGENTS.md` and
+`docs/deployment.md`.
 
 Every knob is a `REELSTUDIO_*` env var; a repo-root `.env` (see
 `.env.example`) configures a deployment without touching the unit or shell.

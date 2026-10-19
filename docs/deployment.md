@@ -2,7 +2,9 @@
 
 > **Keywords:** reelstudio, REELSTUDIO_WORKSPACE, REELSTUDIO_AGENT_MODEL,
 > REELSTUDIO_AGENT_BASE_URL, REELSTUDIO_CONFIG, REELSTUDIO_ENV, .env,
-> comfyui.service, custom_nodes, web/dist, EnvironmentFile, 8188, deployment.
+> rollout.sh, REELSTUDIO_COMFYUI_SERVICE, REELSTUDIO_LOCAL_URL,
+> REELSTUDIO_PUBLIC_URL, comfyui.service, custom_nodes, web/dist,
+> EnvironmentFile, 8188, deployment.
 > **Portability:** HIGH (mechanism); the Wiring section is CURRENT-STATE for
 > this node (2026-10-18).
 
@@ -39,7 +41,13 @@ need to re-derive the wiring.
 5. **Verify:** `curl localhost:8188/reelstudio/api/project` and
    `/reelstudio/api/studio` return 200; the UI is at
    `http://<host>:8188/reelstudio`.
-6. **Migrating the workspace:** a workspace is self-contained (studio.yaml,
+6. **Rollout (day-2, this machine):** `./rollout.sh` — builds the UI, ships
+   `web/dist`, restarts `comfyui.service` only when backend python changed
+   (python lives in the running process), and verifies the local and public
+   endpoints (public from `REELSTUDIO_PUBLIC_URL` in `.env`). Referenced from
+   the repo `AGENTS.md`; the manual build+copy line above is the install
+   step, not a rollout.
+7. **Migrating the workspace:** a workspace is self-contained (studio.yaml,
    scenes/, reel.py at the root) — copy the directory, point
    `REELSTUDIO_WORKSPACE` at it, restart. Nothing else moves.
 
