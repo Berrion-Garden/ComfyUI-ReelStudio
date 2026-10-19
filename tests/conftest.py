@@ -46,6 +46,9 @@ locations:
   campus_sunset:
     pro: university campus plaza at golden sunset, warm orange sky
     con: indoor, night, rain
+  campus_dawn:
+    pro: the campus at first light, cool blue dawn sky
+    con: indoors, night, crowds
 
 stills:
   opening: null
@@ -68,6 +71,7 @@ scenes:
 
   - id: s2_bowldrop
     next: s3_pinkburst
+    location: campus_dawn
     video:
       mode: i2v
       first: prev_last
@@ -79,6 +83,7 @@ scenes:
 
   - id: s3_pinkburst
     next: null
+    location: campus_dawn
     video:
       mode: i2v
       first: still:impact

@@ -44,7 +44,10 @@ def test_look_blocks_reject_bad_refs_and_aliases(config, workspace):
             "locations:\n"
             "  campus_sunset:\n"
             "    pro: university campus plaza at golden sunset, warm orange sky\n"
-            "    con: indoor, night, rain\n",
+            "    con: indoor, night, rain\n"
+            "  campus_dawn:\n"
+            "    pro: the campus at first light, cool blue dawn sky\n"
+            "    con: indoors, night, crowds\n",
             "locations: [nope]\n"))
     assert any("must be a map" in p for p in e.value.problems)
 
@@ -54,21 +57,30 @@ def test_look_blocks_reject_bad_refs_and_aliases(config, workspace):
 
 
 def test_look_blocks_are_optional(config, workspace):
-    """A yaml with no styles/locations at all stays valid — the machinery is
-    additive."""
+    """`styles:` may be absent — the style machinery is additive. A scene's
+    `location:` is required now: dropping the location chain is a loud
+    error, never an implicit default."""
     import yaml
 
+    import pytest
+
+    from reelstudio.errors import ValidationError
     from reelstudio.project import load
 
     project = load(config)
     raw = yaml.safe_load(config.yaml_path.read_text())
-    for key in ("styles", "style", "locations"):
+    for key in ("styles", "style"):
         raw.pop(key, None)
-    for s in raw["scenes"]:
-        s.pop("location", None)
     project.save(yaml.safe_dump(raw, sort_keys=False, allow_unicode=True))
     assert project.active_style() is None
-    assert project.scene_location(project.scenes[0]) is None
+    assert project.scene_location(project.scenes[0]) is not None
+
+    raw = yaml.safe_load(config.yaml_path.read_text())
+    raw.pop("locations", None)
+    for s in raw["scenes"]:
+        s.pop("location", None)
+    with pytest.raises(ValidationError, match="location is required"):
+        project.save(yaml.safe_dump(raw, sort_keys=False, allow_unicode=True))
 
 
 def test_off_grid_frames_warn_not_fail(config):

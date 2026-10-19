@@ -88,7 +88,8 @@ def test_generation_view_folds_shared_looks(config, workspace):
     v1, v2 = generation_view(project, s1), generation_view(project, s2)
     assert v1["style"]["pro"].startswith("2D anime")
     assert v1["location"]["pro"].startswith("university campus")
-    assert v2["location"] == {}  # s2 carries no location
+    assert v2["location"]["pro"].startswith("the campus at first light")  \
+        # s2 folds its own location, not s1's
 
     project.save(config.yaml_path.read_text().replace(
         "cel-shaded", "watercolor washes"))

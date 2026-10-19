@@ -178,18 +178,22 @@ styles:
     pro: 2D anime, cel-shaded, clean bold line art, vibrant flat colors
     con: photorealistic, 3D rendering, live action, text, watermark
 style: anime
-locations: {{}}
+locations:
+  open_plate:
+    pro: the opening environment for this narrative, held in one frame
+    con: blank void, placeholder text, watermark
 stills: {{}}
 
 scenes:
   - id: s1_open
     next: null
+    location: open_plate
     video:
       mode: i2v
       first: null
       last: null
       description: |
-        An establishing shot.
+        Describe the action of the opening beat here — one narrative chunk.
 """
 
 

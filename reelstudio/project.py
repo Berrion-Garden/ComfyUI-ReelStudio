@@ -308,7 +308,12 @@ def _validate_look_block(project: Project, kind: str, blocks: dict,
 
 def validate(project: Project) -> list[str]:
     """Raises ValidationError on structural errors; returns warnings (e.g.
-    off-grid frame counts) that do not block work."""
+    off-grid frame counts) that do not block work.
+
+    The inheritance chain is REQUIRED: every character render is
+    BASE (attributes) > additions (layer/variant); every shot/scene names
+    its location and its action. Missing required properties are loud
+    errors, never defaults — a silently dropped chain produces slop."""
     problems: list[str] = []
     warnings: list[str] = []
     scenes = project.scenes
@@ -377,6 +382,31 @@ def validate(project: Project) -> list[str]:
                 f"stills.{name}: entries are name-registry only — the pick "
                 f"lives in assets.yaml as still:{name}, remove the path value")
 
+    # required properties — the chain is never silently dropped
+    locations = set(project.locations)
+    for cname, char in (project.raw.get("characters") or {}).items():
+        if not isinstance(char, dict):
+            continue
+        attrs = char.get("attributes") or {}
+        for required in ("clothing", "backdrop"):
+            if not attrs.get(required):
+                problems.append(
+                    f"characters.{cname}.attributes.{required} is required "
+                    f"— the BASE canon every leaf inherits")
+    for slug, shot in (project.raw.get("shots") or {}).items():
+        if not shot.get("description"):
+            problems.append(f"shots.{slug}: description is required — the "
+                            f"action the render composes")
+        if not shot.get("characters"):
+            problems.append(f"shots.{slug}: characters is required")
+        bg = shot.get("background")
+        if not bg:
+            problems.append(f"shots.{slug}: background is required — the "
+                            f"location plate the render pins to")
+        elif bg not in locations:
+            problems.append(f"shots.{slug}: unknown background {bg!r} "
+                            f"(known: {sorted(locations)})")
+
 
     ids = [s.get("id") for s in scenes]
     if len(set(ids)) != len(ids):
@@ -400,6 +430,16 @@ def validate(project: Project) -> list[str]:
             warnings.append(
                 f"{sid}: {frames} frames is off the H3 17n+5 grid "
                 f"(nearest: {17 * round((frames - 5) / 17) + 5})")
+
+        if not s.get("location"):
+            problems.append(f"{sid}: location is required — the scene's "
+                            f"base plate")
+        elif s["location"] not in locations:
+            problems.append(f"{sid}: unknown location {s['location']!r} "
+                            f"(known: {sorted(locations)})")
+        if not (video.get("description") or "").strip():
+            problems.append(f"{sid}: video.description is required — the "
+                            f"action between the anchors")
 
         for anchor in ("first", "last"):
             ref = video.get(anchor)
