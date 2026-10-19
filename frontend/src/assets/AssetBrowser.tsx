@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { deleteAsset, getProvenance, setAssetLabels, type AssetItem, type AssetsData, type Provenance } from "../api";
+import { AssetImg } from "./AssetImg";
 
 interface Props {
   /** the library the app already fetched — known-labels source, no refetch */
@@ -148,7 +149,7 @@ function Inspector({ asset, known, onChanged, onSelect }:
   return (
     <div className="inspector">
       {isImage(asset)
-        ? <img className="inspector-media" src={asset.url} alt={asset.slug} />
+        ? <AssetImg className="inspector-media" src={asset.url} alt={asset.slug} loading="eager" />
         : <audio className="inspector-media" src={asset.url} controls />}
       <div className="inspector-meta">
         <span className="inspector-slug">{asset.slug}</span>

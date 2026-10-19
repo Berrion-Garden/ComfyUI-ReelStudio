@@ -111,17 +111,16 @@ def test_first_scene_cannot_be_prev_last(config):
         assert any("prev_last" in p for p in e.problems)
 
 
-def test_unknown_still_ref_rejected(config):
-    from reelstudio.errors import ValidationError
+def test_unresolvable_still_ref_warns(config):
+    """One missing image must never 500 the project: an unresolvable
+    `still:` anchor is a warning (the UI shows the bad-load slot), not a
+    ValidationError."""
     from reelstudio.project import Project, validate
 
     project = Project(yaml.safe_load(config.yaml_path.read_text()), config)
     project.raw["scenes"][1]["video"]["first"] = "still:nope"
-    try:
-        validate(project)
-        raise AssertionError("expected ValidationError")
-    except ValidationError as e:
-        assert any("unknown still ref" in p for p in e.problems)
+    warnings = validate(project)
+    assert any("still:nope" in w and "no labeled pick" in w for w in warnings)
 
 
 def test_duplicate_music_names_rejected(config):

@@ -3,6 +3,7 @@ import {
   deleteAsset, importAssets, importAudioFromUrl, setAssetLabels, uploadFile,
   type AssetItem, type AssetsData, type StudioView,
 } from "../api";
+import { AssetImg } from "./AssetImg";
 
 interface Props {
   assets: AssetsData | null;
@@ -298,7 +299,7 @@ export function AssetsPane({ assets, studio, selected, selectedPaths, onSelect, 
           data-testid={`asset-${a.group}-${a.slug}`}
         >
           {isImage ? (
-            <img src={a.url} alt={a.slug} loading="lazy" />
+            <AssetImg src={a.url} alt={a.slug} />
           ) : (
             <span className="asset-audio">♪</span>
           )}

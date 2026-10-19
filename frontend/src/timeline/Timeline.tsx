@@ -1,4 +1,5 @@
 import type { MusicView, OverlayView, SceneView } from "../types";
+import { AssetImg } from "../assets/AssetImg";
 import { spanCols, videoCell } from "./layout";
 import { AudioLane } from "./AudioLane";
 import { SfxBar } from "./SfxBar";
@@ -24,7 +25,7 @@ function AnchorThumb({ label, kind, url }: { label: string; kind: string; url: s
   return (
     <div className="anchor-thumb" title={`${label} (${kind})`}>
       {url ? (
-        <img src={url} alt={label} loading="lazy" />
+        <AssetImg src={url} alt={label} />
       ) : (
         <div className={`thumb-empty ${kind === "none" ? "empty" : ""}`}>
           {kind === "none" ? "" : kind === "prev_last" ? "⟵ prev" : "…"}

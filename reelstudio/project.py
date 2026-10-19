@@ -100,10 +100,10 @@ class Project:
 
     def still_path(self, name: str) -> Path | None:
         """Resolve a `still:<name>` anchor to its file. Order: (a) the legacy
-        `stills:` entry (existing behavior), (b) the `still:<name>` label
-        pick in assets.yaml, (c) a unique slug match in the standardized
-        pools. None when ambiguous or unknown — validation names the
-        candidates."""
+        `stills:` entry (existing behavior), (b) the `<name>_.png` render
+        convention in meta.still_dir, (c) the `still:<name>` label pick in
+        assets.yaml, (d) a unique slug match in the standardized pools.
+        None when ambiguous or unknown — validation names the candidates."""
         p, _ = self._still_resolution(name)
         return p
 
@@ -121,6 +121,12 @@ class Project:
             for cand in _legacy_still_candidates(ws, still_dir, value):
                 if cand.is_file():
                     return cand, []
+        # the `<name>_.png` render convention in still_dir — a null (slug-only)
+        # entry or a stale one rides it too; null never means a path
+        conventional = still_dir / f"{name}_.png"
+        if conventional.is_file():
+            return conventional, []
+        if rel is not None:
             # the entry is stale — the app figures it out below: the pick
             # label, then the pool scan; slugs are the anchor name and the
             # entry's own basename (heals paths written from another root)
@@ -216,10 +222,11 @@ def load(config: Config) -> Project:
 def anchor_still(config: Config, scene_id: str,
                  anchor: str, name: str) -> dict:
     """The pick flow's yaml half: point the scene's `video.<anchor>` at
-    `still:<name>` and drop the legacy `stills:` path entry for that name
-    (other entries stay) — reel.yaml never grows absolute paths again.
-    Comment-preserving (the reels are heavily annotated); the mutated tree
-    is validated before it reaches disk."""
+    `still:<name>` and null any legacy `stills:` path entry for that name —
+    the KEY stays (the map remains the registry of names, and the collapse's
+    staleness cache key rides it), the path goes. reel.yaml never grows
+    absolute paths again. Comment-preserving (the reels are heavily
+    annotated); the mutated tree is validated before it reaches disk."""
     from ruamel.yaml import YAML
 
     ry = YAML()
@@ -233,8 +240,9 @@ def anchor_still(config: Config, scene_id: str,
     scene.setdefault("video", {})[anchor] = f"still:{name}"
     stills = doc.get("stills") or {}
     removed = None
-    if name in stills:
-        removed = stills.pop(name)
+    if name in stills and stills[name] is not None:
+        removed = stills[name]
+        stills[name] = None  # null out the path, keep the key
     validate(Project(doc, config))
     with open(config.yaml_path, "w") as fh:
         ry.dump(doc, fh)
@@ -340,7 +348,11 @@ def validate(project: Project) -> list[str]:
                             f"label pick, candidates: "
                             f"{', '.join(sorted(c.name for c in cands))}")
                     else:
-                        problems.append(f"{sid}: unknown still ref {ref!r}")
+                        # one missing image must never 500 the project: the
+                        # ref is a warning, the UI shows the bad-load slot
+                        warnings.append(
+                            f"{sid}: {ref!r} does not resolve — no labeled "
+                            f"pick and no unique pool match")
 
         music = s.get("music")
         if isinstance(music, dict) and not (music.get("name") and music.get("caption")):

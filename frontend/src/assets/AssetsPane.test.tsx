@@ -69,6 +69,18 @@ describe("AssetsPane", () => {
     expect(onSelect).toHaveBeenCalledWith(data.groups.scenes[0], false);
   });
 
+  it("an image that fails to load shows the bad slot; the card still works", () => {
+    const onSelect = vi.fn();
+    render(<AssetsPane {...paneProps({ onSelect })} />);
+    fireEvent.error(screen.getByAltText("dunk01"));
+    const bad = screen.getByTestId("bad-img-dunk01");
+    expect(bad.textContent).toContain("✕");
+    expect(bad.textContent).toContain("dunk01");
+    // the pane survives the missing file: the card is still selectable
+    fireEvent.click(screen.getByTestId("asset-scenes-dunk01"));
+    expect(onSelect).toHaveBeenCalledWith(data.groups.scenes[1], false);
+  });
+
   it("shift-click adds to the multi-selection", () => {
     const onSelect = vi.fn();
     render(<AssetsPane {...paneProps({ onSelect })} />);

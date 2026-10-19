@@ -73,6 +73,52 @@ def test_missing_name_resolves_to_none_without_candidates(config):
     assert project.still_candidates("never_made") == []
 
 
+def test_render_convention_resolves_null_entry(config, workspace):
+    """Step 2: the `<name>_.png` render convention in meta.still_dir — a
+    null (slug-only) entry rides it; null never means a path."""
+    from reelstudio import project as pmod
+
+    plate = _pool(workspace, "stills", "dunk_.png")
+    project = _project(config)
+    project.raw["stills"]["dunk"] = None
+    project.raw["scenes"][1]["video"]["first"] = "still:dunk"
+    assert project.still_path("dunk") == plate
+    assert pmod.validate(project) == []
+
+
+def test_null_entry_resolves_via_label_never_as_path(config, workspace):
+    """`name: null` is a slug-only reference: the label owns the pick —
+    the null value is never treated as a path."""
+    face = _pool(workspace, "characters", "tony", "posed_stills", "face_.png")
+    _label(workspace, workspace / "stills", face, "posed", "still:face_pick")
+    project = _project(config)
+    project.raw["stills"]["face_pick"] = None
+    assert project.still_path("face_pick") == face
+
+
+def test_multi_label_pick_is_an_ambiguous_warning(config, workspace):
+    """The `still:<name>` label on two files — no single pick; a warning
+    naming both, never an error."""
+    from reelstudio import project as pmod
+
+    still_dir = workspace / "stills"
+    a = _pool(workspace, "characters", "tony", "posed_stills",
+              "gen1_r300000_00001_.png")
+    b = _pool(workspace, "characters", "tony", "posed_stills",
+              "gen2_r300001_00001_.png")
+    _label(workspace, still_dir, a, "still:dupe")
+    _label(workspace, still_dir, b, "still:dupe")
+    project = _project(config)
+    project.raw["scenes"][1]["video"]["first"] = "still:dupe"
+
+    assert project.still_path("dupe") is None
+    assert {c.name for c in project.still_candidates("dupe")} == \
+        {"gen1_r300000_00001_.png", "gen2_r300001_00001_.png"}
+    warnings = pmod.validate(project)
+    assert any("ambiguous" in w and "gen1_r300000_00001_.png" in w
+               and "gen2_r300001_00001_.png" in w for w in warnings)
+
+
 def test_legacy_absolute_path_resolves(config, workspace):
     ref = _pool(workspace, "characters", "Amun", "Amun_rainy.webp")
     project = _project(config)
@@ -131,7 +177,8 @@ def test_label_pick_needs_no_stills_map_entry(config, workspace):
 
 async def test_anchor_still_tool_wires_label_not_paths(config, workspace):
     """The pick flow end to end: label on the chosen file, scene ref wired,
-    the legacy `stills:` path entry for that name gone, other entries kept."""
+    the legacy `stills:` path entry for that name nulled (key kept), other
+    entries untouched."""
     import yaml as yaml_mod
 
     from reelstudio.agent.tools import ToolBox
@@ -162,7 +209,7 @@ async def test_anchor_still_tool_wires_label_not_paths(config, workspace):
 
     raw = yaml_mod.safe_load(config.yaml_path.read_text())
     assert raw["scenes"][0]["video"]["first"] == "still:dunk_pick"
-    assert "dunk_pick" not in raw["stills"]  # the path entry went
+    assert raw["stills"]["dunk_pick"] is None  # nulled, the key stays
     assert raw["stills"]["opening"] == "opening_still"  # the others stayed
     # the yaml never grows absolute paths (meta.wiring aside)
     assert all("/" not in str(v) for v in raw["stills"].values())

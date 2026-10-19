@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { Timeline } from "./Timeline";
 import type { SceneView } from "../types";
 
@@ -85,6 +85,24 @@ describe("Timeline", () => {
       />,
     );
     expect(screen.getByText("⟵ prev")).toBeTruthy();
+  });
+
+  it("an anchor still that fails to load shows the bad slot, not a broken image", () => {
+    render(
+      <Timeline
+        scenes={[scene({ id: "s1", first: { kind: "still" } })]}
+        music={[]}
+        totalS={4.5}
+        artifactUrl={() => "/reelstudio/api/scene/s1/artifact/thumb_first"}
+        playheadPct={null}
+      />,
+    );
+    fireEvent.error(screen.getByAltText("first"));
+    const bad = screen.getByTestId("bad-img-first");
+    expect(bad.textContent).toContain("✕");
+    // the timeline keeps working — the thumb slot is still there, labelled
+    expect(bad.closest(".anchor-thumb")?.querySelector(".thumb-label"))
+      .toBeTruthy();
   });
 
   it("renders one spanning lane per music segment", () => {

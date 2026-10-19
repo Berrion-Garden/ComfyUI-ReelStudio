@@ -162,6 +162,22 @@ button:disabled { opacity: 0.45; cursor: default; }
   align-items: center; justify-content: center; color: var(--dim); font-size: 11px;
 }
 .thumb-empty.empty { border-color: transparent; }
+/* a file that failed to load: bordered bad slot with the slug — one miss
+   never breaks the panel (cards, inspector, timeline anchor thumbs) */
+.img-bad {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 2px; border-radius: 4px;
+  border: 1px dashed var(--warn); color: var(--warn);
+  background: rgba(255, 184, 77, 0.07);
+  min-width: 0; overflow: hidden; text-align: center; font-size: 9px;
+}
+.img-bad .img-bad-x { font-size: 14px; line-height: 1; }
+.img-bad .img-bad-slug {
+  max-width: 92%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.asset-card .img-bad { width: 100%; aspect-ratio: 1; }
+.anchor-thumb .img-bad { width: 100%; height: 48px; }
+.img-bad.inspector-media { background: rgba(255, 184, 77, 0.07); min-height: 48px; }
 .thumb-label {
   position: absolute; top: 34px; left: 4px; font-size: 9px; color: var(--dim);
   background: rgba(0,0,0,0.55); padding: 0 3px; border-radius: 2px;
