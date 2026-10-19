@@ -33,7 +33,7 @@ def cache_key(project: Project) -> str:
     parts = [file_hash(project.config.yaml_path),
              file_hash(project.config.workspace / "reel.py")]
     parts += [f"{name}:{file_hash(project.still_path(name) or '')}"
-              for name in sorted(project.stills)]
+              for name in sorted(project.still_names())]
     parts.append(json.dumps(deliverables, sort_keys=True))
     return ":".join(parts)
 

@@ -241,3 +241,20 @@ async def test_anchor_still_tool_wires_label_not_paths(config, workspace):
         "path": f"asset:{opt1}", "scene_id": "s1_ramen",
         "anchor": "middle"}))
     assert "anchor must be" in refused["error"]
+
+
+def test_cache_key_survives_unresolvable_null_entries(config, workspace):
+    """A slug-only (`name: null`) stills entry that resolves to nothing hashes
+    as 'missing' — Path('') is Path('.'), a directory, and must not be read."""
+    import yaml as yaml_mod
+
+    from reelstudio import collapse
+    from reelstudio.project import file_hash, load
+
+    assert file_hash(".") == "missing"
+    reel_yaml = workspace / "reel.yaml"
+    reel_yaml.write_text(
+        reel_yaml.read_text().replace("stills:\n", "stills:\n  ghost_pick: null\n", 1))
+    assert yaml_mod.safe_load(reel_yaml.read_text())["stills"]["ghost_pick"] is None
+    project = load(config)
+    assert "ghost_pick:missing" in collapse.cache_key(project)

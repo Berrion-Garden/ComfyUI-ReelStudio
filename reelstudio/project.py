@@ -26,7 +26,7 @@ def file_hash(path: str | os.PathLike) -> str:
     import hashlib
 
     p = Path(path)
-    if not p.exists():
+    if not p.is_file():
         return "missing"
     return hashlib.sha256(p.read_bytes()).hexdigest()[:16]
 
