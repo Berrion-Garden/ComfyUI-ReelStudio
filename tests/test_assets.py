@@ -306,3 +306,29 @@ async def test_delete_asset(client, workspace):
     assert ok.status == 200
     assert not (workspace / "images" / "gen_a_.png").exists()
     assert "gen_a_" not in (workspace / "assets.yaml").read_text()
+
+
+async def test_delete_refuses_stills_a_scene_anchors_on(client, workspace):
+    """The operator's rule: every library image is deletable except one
+    tied to a scene start/end anchor — that one is a 409 naming the scenes."""
+    anchored = workspace / "stills" / "opening_still_.png"
+    refused = await client.delete("/reelstudio/api/asset", json={
+        "path": str(anchored)})
+    assert refused.status == 409
+    body = await refused.json()
+    assert body["error"].startswith("tied to scene start/end:")
+    assert "s1_ramen" in body["error"]  # the scene whose first: still:opening
+    assert anchored.exists()  # the file and its label entry stay
+
+    # an end anchor refuses the same way
+    end = await client.delete("/reelstudio/api/asset", json={
+        "path": str(workspace / "stills" / "end_still_.png")})
+    assert end.status == 409
+    assert "s3_pinkburst" in (await end.json())["error"]
+
+    # an unanchored candidate still in the same dir deletes as today
+    stray = workspace / "stills" / "tony_dunk01_00001_.png"
+    stray.write_bytes(b"x")
+    ok = await client.delete("/reelstudio/api/asset", json={"path": str(stray)})
+    assert ok.status == 200
+    assert not stray.exists()

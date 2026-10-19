@@ -27,7 +27,8 @@ from . import ytdlp as ytdlp_mod
 from .agent.loop import run as agent_run
 from .agent.tools import ToolBox
 from .config import Config
-from .errors import ForbiddenError, NotFoundError, ReelStudioError, ValidationError
+from .errors import (ConflictError, ForbiddenError, NotFoundError,
+                     ReelStudioError, ValidationError)
 from .project import load as load_project
 from .readmodel import asset_view, project_view
 
@@ -124,6 +125,8 @@ def _json_error(e: ReelStudioError):
     status = 404 if isinstance(e, NotFoundError) else 400
     if isinstance(e, ForbiddenError):
         status = 403
+    if isinstance(e, ConflictError):
+        status = 409
     body = {"error": str(e)}
     if isinstance(e, ValidationError):
         body["problems"] = e.problems
@@ -480,8 +483,23 @@ def _record_approved_seed(state, path) -> None:
         return
 
 
+def _anchored_stills(project) -> dict[str, list[str]]:
+    """Resolved still path -> the scene ids that anchor it: a scene's
+    video.first/last `still:<slug>` pins that file to the timeline."""
+    anchored: dict[str, list[str]] = {}
+    for scene in project.scenes:
+        for key in ("first", "last"):
+            ref = scene.get("video", {}).get(key)
+            if isinstance(ref, str) and ref.startswith("still:"):
+                p = project.still_path(ref.split(":", 1)[1])
+                if p is not None:
+                    anchored.setdefault(str(p.resolve()), []).append(scene["id"])
+    return anchored
+
+
 async def delete_asset(request: web.Request) -> web.Response:
-    """The operator's ✗ or ⋯ menu: delete the file and its label entry."""
+    """The operator's ✗ or ⋯ menu: delete the file and its label entry.
+    A still a scene anchors on is not deletable — unanchor it first."""
     state = _state(request)
     body = await request.json()
     project = state.project()
@@ -492,6 +510,9 @@ async def delete_asset(request: web.Request) -> web.Response:
                  if a["path"] == str(target)), None)
     if item is None:
         raise NotFoundError("no such asset")
+    tied = _anchored_stills(project).get(str(target.resolve()))
+    if tied:
+        raise ConflictError("tied to scene start/end: " + ", ".join(tied))
     await asyncio.to_thread(target.unlink)
     await asyncio.to_thread(
         assets_mod.set_labels, state.config.workspace,

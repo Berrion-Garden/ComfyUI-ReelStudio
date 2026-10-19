@@ -19,3 +19,8 @@ class NotFoundError(ReelStudioError):
 
 class ForbiddenError(ReelStudioError):
     """A request is valid but outside the allow-list (e.g. asset sandbox)."""
+
+
+class ConflictError(ReelStudioError):
+    """A request collides with the project's current state (e.g. deleting
+    a still a scene anchors on)."""
