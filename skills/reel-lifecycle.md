@@ -1,3 +1,11 @@
+---
+name: reel-lifecycle
+description: The reel pipeline lifecycle — the one-way stages from original
+  script to delivered animations, the judgment gates between them, and the
+  review discipline at each gate. Use when planning reel work, judging
+  renders, or auditing script fidelity.
+always: true
+---
 # Reel lifecycle — stages and gates
 
 The pipeline is a one-way flow from an original prompt to delivered
