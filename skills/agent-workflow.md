@@ -55,7 +55,8 @@ always: true
   - `image_edit` — render a `shots:` entry's anchor stills (`name:`) —
     character refs + background plate, strict identity/scene roles, 10
     variants into the stills dir. The operator picks (and verifies) in the
-    asset view; anchor the pick by adding it to `stills:`.
+    asset view; anchor the pick with `anchor_still` (tag + scene ref in one
+    call).
 - `get_status` reports queued/running/done/error jobs. Renders are minutes
   per scene on the GPU node; report what was queued, do not poll silently.
 - `get_provenance` is the claw-back: one generated file's job id, its queued
@@ -138,7 +139,7 @@ File → New scene). The full pipeline for a fresh story chunk:
    (same as above).
 4. **Shot anchors** — add a `shots:` entry (characters + background +
    description), `generate kind=image_edit` → 10 variants → the operator
-   picks one → anchor it in `stills:`.
+   picks one → anchor it with `anchor_still`.
 5. **Video** — add the `scenes:` entry (reel-yaml-schema + h3-prompting),
    `generate kind=scene` for it.
 6. **Verify** — `get_project`; the operator ✓-adopts each finished scene's
@@ -169,9 +170,9 @@ yourself with view_image and recommend a pick; the operator confirms.
    NEVER scenes, and a character request must not be answered with YAML
    video edits.
 7. Anchoring the selection ("make this the first/last scene anchor"):
-   `currently_selected` → `update_yaml` (add the image to `stills:` as
-   `<name>: <path>`, set `video.first:`/`video.last:` to
-   `still:<name>`) → re-render the affected scene. That is the whole
+   `currently_selected` → `anchor_still` (path, scene_id, anchor; the tool
+   tags the file `still:<name>` and sets `video.first:`/`video.last:`) →
+   re-render the affected scene. That is the whole
    recipe — no questions between steps when the operator named the anchor
    and the scene.
 8. Operator feedback about generated images LANDS IN THE YAML, then the

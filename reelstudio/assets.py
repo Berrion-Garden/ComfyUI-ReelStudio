@@ -1,11 +1,12 @@
 """Asset library: images, character pools, themes, audio — slugs and labels.
 
-Derivation, not duplication: labels come from the reel itself (the stills map,
-which scenes use which anchor), from directory convention
+Derivation, not duplication: labels come from the reel itself (the scene
+anchors, which scenes use which still), from directory convention
 (`characters/<slug>/`, `images/`, `audio/`, `themes/`), and from the optional
 `assets.yaml`, which can attach extra labels to any relative path — that is how
-an image cross-groups. There is no second hand-maintained index: the API
-response is the index, computed over a cheap directory walk.
+an image cross-groups and how a `still:<name>` pick is recorded. There is no
+second hand-maintained index: the API response is the index, computed over a
+cheap directory walk.
 """
 
 from dataclasses import dataclass, field, asdict
@@ -45,6 +46,73 @@ def _rel(path: Path, roots: list[Path]) -> str:
     return path.name
 
 
+def _label_file(ws: Path, still_dir: Path, rel: str) -> Path:
+    """The inverse of _rel for an assets.yaml key: the file it declares
+    (workspace first, the still_dir serving its bare stem convention)."""
+    p = ws / rel
+    return p if p.is_file() else still_dir / rel
+
+
+def labeled_stills(workspace: str | Path, still_dir: str | Path) -> dict[str, list[Path]]:
+    """The `still:<name>` picks declared in assets.yaml: name -> tagged
+    file(s). The label is the single owner of "which option was picked"
+    among the generated candidates (project.still_path branch b)."""
+    ws, sd = Path(workspace), Path(still_dir)
+    out: dict[str, list[Path]] = {}
+    for rel, labels in _labels_file(ws).items():
+        for label in labels:
+            if label.startswith("still:"):
+                out.setdefault(label.split(":", 1)[1], []).append(
+                    _label_file(ws, sd, rel))
+    return out
+
+
+def pool_files(workspace: str | Path) -> list[Path]:
+    """Every image in the standardized pools — `characters/<char>/**`,
+    `backgrounds/<loc>/**`, `images/**`. The directory is the grouping
+    owner; the slug scan (project.still_path branch c) walks them."""
+    ws = Path(workspace)
+    files: list[Path] = []
+    for pool in ("characters", "backgrounds", "images"):
+        root = ws / pool
+        if root.is_dir():
+            files += [p for p in root.rglob("*")
+                      if p.is_file() and p.suffix.lower() in IMAGE_EXTS]
+    return sorted(files)
+
+
+def pool_matches(workspace: str | Path, slug: str) -> list[Path]:
+    """Pool files whose name carries the slug — exact stem first, then
+    partial (the reel's naming convention appends frame counters)."""
+    files = pool_files(workspace)
+    exact = [p for p in files if p.stem == slug]
+    return exact + [p for p in files if p.stem != slug and slug in p.stem]
+
+
+def pick_still(workspace: str | Path, still_dir: str | Path, path: str,
+               name: str) -> dict:
+    """The pick flow's label half: `still:<name>` moves to the chosen file
+    — off every other file it tags (a name can anchor exactly one pick) —
+    keeping the chosen file's other labels. set_labels is the writer:
+    assets.yaml stays the single owner of declared labels."""
+    ws, sd = Path(workspace), Path(still_dir)
+    p = asset_file(path, [ws, sd])
+    tag = f"still:{name}"
+    rel = _rel(p, [ws, sd])
+    declared = _labels_file(ws)
+    released: list[str] = []
+    for r, labels in declared.items():
+        if tag in labels and r != rel:
+            set_labels(ws, sd, str(_label_file(ws, sd, r)),
+                       [x for x in labels if x != tag])
+            released.append(r)
+    current = declared.get(rel) or []
+    if tag not in current:
+        current = [*current, tag]
+        set_labels(ws, sd, str(p), current)
+    return {"picked": rel, "released": released, "labels": current}
+
+
 def index_assets(workspace: str | Path, project) -> dict:
     ws = Path(workspace)
     still_dir = Path(project.meta["still_dir"])
@@ -75,7 +143,7 @@ def index_assets(workspace: str | Path, project) -> dict:
                 refs.append(a[len("still:"):])
         return [r for r in refs if r]
 
-    for name, _ in project.stills.items():
+    for name in project.still_names():
         p = project.still_path(name)
         if p is None or not p.exists():
             continue
@@ -84,9 +152,9 @@ def index_assets(workspace: str | Path, project) -> dict:
             p, "scenes", ["still", f"still:{name}"], users))
 
     # stills — every other image in still_dir: generation candidates the
-    # operator picks from (the stills map then anchors the pick by name)
+    # operator picks from (the pick then anchors by `still:<name>` label)
     anchored = {p.resolve() for p in
-                (project.still_path(n) for n in project.stills) if p}
+                (project.still_path(n) for n in project.still_names()) if p}
     for p in sorted(still_dir.glob("*.png") if still_dir.exists() else []):
         if p.is_file() and p.resolve() not in anchored:
             groups["stills"].append(mk(p, "stills", ["candidate"]))
@@ -95,21 +163,22 @@ def index_assets(workspace: str | Path, project) -> dict:
     # uploaded base images — the source `attributes` are pulled from) and
     # posed_stills/ (generated reference stills). Legacy flat files keep
     # working; the _refNN/_sheetNN filename convention marks them posed.
+    # Everything in characters/<char>/** belongs to that char — the pool
+    # directory is the grouping owner, no label required.
     for pool in sorted((ws / "characters").glob("*") if (ws / "characters").exists() else []):
         if not pool.is_dir():
             continue
-        refs_dir, stills_dir = pool / "references", pool / "posed_stills"
-        files: list[tuple[Path, str]] = \
-            ([(p, "reference") for p in sorted(refs_dir.iterdir())
-              if p.suffix.lower() in IMAGE_EXTS] if refs_dir.is_dir() else []) + \
-            ([(p, "posed") for p in sorted(stills_dir.iterdir())
-              if p.suffix.lower() in IMAGE_EXTS] if stills_dir.is_dir() else []) + \
-            [(p, "posed" if ("_posed_" in p.stem or "_ref" in p.stem
-              or "_sheet_" in p.stem)
-              else "reference")
-             for p in sorted(pool.iterdir())
-             if p.is_file() and p.suffix.lower() in IMAGE_EXTS]
-        for p, kind in files:
+        for p in sorted(pool.rglob("*")):
+            if not p.is_file() or p.suffix.lower() not in IMAGE_EXTS:
+                continue
+            parts = p.relative_to(pool).parts
+            if "references" in parts:
+                kind = "reference"
+            elif "posed_stills" in parts:
+                kind = "posed"
+            else:  # legacy flat file at the pool root
+                kind = ("posed" if ("_posed_" in p.stem or "_ref" in p.stem
+                                    or "_sheet_" in p.stem) else "reference")
             pose = p.stem.rstrip("_") or p.stem
             groups["characters"].append(mk(
                 p, "characters", [f"char:{pool.name}", f"pose:{pose}", kind]))
@@ -122,14 +191,15 @@ def index_assets(workspace: str | Path, project) -> dict:
                 groups["custom"].append(mk(p, "custom", ["custom"]))
 
     # backgrounds — location pools under backgrounds/<location>/ (the plate
-    # a shot references), labeled like character pools
+    # a shot references), labeled like character pools. Everything in
+    # backgrounds/<loc>/** belongs to that location — directory-derived.
     bg_root = ws / "backgrounds"
     if bg_root.exists():
         for loc in sorted(bg_root.iterdir()):
             if not loc.is_dir():
                 continue
-            for p in sorted(loc.iterdir()):
-                if p.suffix.lower() in IMAGE_EXTS:
+            for p in sorted(loc.rglob("*")):
+                if p.is_file() and p.suffix.lower() in IMAGE_EXTS:
                     groups["backgrounds"].append(mk(
                         p, "backgrounds", [f"loc:{loc.name}", "background"]))
 

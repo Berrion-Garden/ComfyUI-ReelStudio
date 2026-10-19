@@ -1,11 +1,11 @@
 """Agent tools — the exact operations a human has, executed server-side.
 
 get_project / get_assets / get_yaml / update_yaml / generate /
-currently_selected / view_image / get_studio /
-update_asset_labels / adopt_renders / get_provenance / get_skill /
-get_status. update_yaml validates before saving and generate validates before queueing — the agent
-cannot save a broken chain or queue a bogus job, and every rejection teaches
-what would be valid.
+currently_selected / view_image / get_studio / update_asset_labels /
+anchor_still / adopt_renders / get_provenance / get_skill / get_status.
+update_yaml validates before saving and generate validates before queueing —
+the agent cannot save a broken chain or queue a bogus job, and every
+rejection teaches what would be valid.
 """
 
 import json
@@ -79,6 +79,30 @@ TOOLS = [
                            "remove": {"type": "array", "items": {"type": "string"},
                                       "description": "labels to remove"}},
                        "required": ["path"]}}},
+    {"type": "function", "function": {
+        "name": "anchor_still",
+        "description": "The operator's pick flow in one call: make an image "
+                       "a scene's start or end. Tags the chosen file "
+                       "`still:<name>` in assets.yaml — the label is the "
+                       "single owner of 'which option was picked' — sets "
+                       "video.first/last to `still:<name>`, and removes any "
+                       "legacy `stills:` path entry for that name. Never "
+                       "hand-edit `stills:` entries in update_yaml: the yaml "
+                       "never grows absolute paths. Pass the asset's "
+                       "`asset:<path>` path.",
+        "parameters": {"type": "object",
+                       "properties": {
+                           "path": {"type": "string"},
+                           "scene_id": {"type": "string"},
+                           "anchor": {"type": "string",
+                                      "enum": ["first", "last"],
+                                      "description": "the scene's start or "
+                                                     "end"},
+                           "name": {"type": "string",
+                                    "description": "the anchor slug; "
+                                                   "defaults to the file's "
+                                                   "slug"}},
+                       "required": ["path", "scene_id", "anchor"]}}},
     {"type": "function", "function": {
         "name": "adopt_renders",
         "description": "Declare the CURRENT deliverables current so staleness "
@@ -301,6 +325,41 @@ class ToolBox:
                            "added": [l for l in add if l in result["labels"]],
                            "removed": [l for l in remove
                                        if l not in result["labels"]]})
+
+    async def _anchor_still(self, args):
+        """The operator's pick flow: the chosen image becomes the scene's
+        start/end. The `still:<name>` label moves to the chosen file (the
+        label is the pick), video.first/last is wired, and any legacy
+        `stills:` path entry for that name goes — labels, not paths."""
+        from .. import assets as assets_mod
+        from .. import project as project_mod
+
+        path = str(args.get("path", ""))
+        if path.startswith("asset:"):
+            path = path[len("asset:"):]
+        scene_id = str(args.get("scene_id", ""))
+        anchor = str(args.get("anchor", ""))
+        if anchor not in ("first", "last"):
+            return json.dumps({"error": "anchor must be 'first' or 'last'"})
+        if not scene_id:
+            return json.dumps({"error": "scene_id required"})
+        project = self.state.project()
+        if project.scene(scene_id) is None:
+            return json.dumps({
+                "error": f"unknown scene {scene_id!r}",
+                "known_scenes": [s["id"] for s in project.scenes]})
+        p = assets_mod.asset_file(path, [self.state.config.workspace,
+                                         project.meta["still_dir"],
+                                         project.meta["reel_dir"]])
+        if not p.is_file():
+            return json.dumps({"error": f"no such asset: {p}"})
+        name = str(args.get("name") or p.stem.rstrip("_") or p.stem)
+        picked = assets_mod.pick_still(
+            self.state.config.workspace, project.meta["still_dir"],
+            str(p), name)
+        wired = project_mod.anchor_still(
+            self.state.config, scene_id, anchor, name)
+        return json.dumps({**wired, "picked": picked}, ensure_ascii=False)
 
     async def _adopt_renders(self, args):
         from .. import manifest as manifest_mod

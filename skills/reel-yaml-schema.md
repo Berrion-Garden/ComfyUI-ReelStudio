@@ -65,15 +65,17 @@ single source of truth; code never holds a second copy.
   `styles:` block, never from the character. Still outputs are born
   `non-verified` in the `characters/<slug>/` pool. A legacy `description:`
   string still works (joined whole) but attributes is the interface.
-- `stills` — named anchor images resolved into `meta.still_dir` with a
-  `_.png` suffix appended (`opening: qwen_image_2_1_00008` →
-  `still_dir/qwen_image_2_1_00008_.png`).
+- `stills` — legacy named anchor paths (`opening: qwen_image_2_1_00008` →
+  `still_dir/qwen_image_2_1_00008_.png`). Do not grow it: the resolver also
+  finds the file tagged `still:<name>` in `assets.yaml`, then a unique pool
+  slug match. New picks land with the `anchor_still` tool, never a path
+  entry.
 - `shots` — Qwen-Image-2.1 per-shot anchor-still recipes (`reel.py shot
   <name>` or `generate kind=image_edit name=<name>`): `characters` (slugs —
   each resolves to the sheet tagged `ref` in `assets.yaml`), `background`
   (a `backgrounds/` plate), `description` (what happens). Every run renders
   10 seed/prompt variants into the stills dir, born `non-verified`; anchor
-  the pick by adding it to `stills:`.
+  the pick with `anchor_still` (tags it `still:<name>`, sets the scene ref).
 - `flags` — `skip_music: true` compiles video + sound effects only.
 - `audio` — top-level array of REAL-FILE overlay tracks (what the production
   mix actually uses). Each entry is an absolute timestamp note: `file` (path
@@ -114,7 +116,9 @@ single source of truth; code never holds a second copy.
 
 - `prev_last` — last frame of the previous scene's deliverable (junction
   mechanism; see junction-doctrine).
-- `still:<name>` — entry in `stills:`.
+- `still:<name>` — the file tagged `still:<name>` in assets.yaml (the pick;
+  a legacy `stills:` path entry also resolves). Ambiguous without the label —
+  anchor picks with the `anchor_still` tool.
 - absolute path — literal.
 - `null` — free ending (i2v) or no pin.
 

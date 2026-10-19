@@ -13,6 +13,7 @@ from pathlib import Path
 
 import yaml
 
+from . import assets as assets_mod
 from .config import Config
 from .errors import ValidationError
 
@@ -98,11 +99,70 @@ class Project:
         return self.meta.get("frames", 107)
 
     def still_path(self, name: str) -> Path | None:
-        """Resolve a `stills:` entry to its file in meta.still_dir."""
+        """Resolve a `still:<name>` anchor to its file. Order: (a) the legacy
+        `stills:` entry (existing behavior), (b) the `still:<name>` label
+        pick in assets.yaml, (c) a unique slug match in the standardized
+        pools. None when ambiguous or unknown — validation names the
+        candidates."""
+        p, _ = self._still_resolution(name)
+        return p
+
+    def still_candidates(self, name: str) -> list[Path]:
+        """The files among which the pick must be labeled — empty when the
+        name resolves to nothing at all."""
+        return self._still_resolution(name)[1]
+
+    def _still_resolution(self, name: str) -> tuple[Path | None, list[Path]]:
+        """The shared tail of still_path / still_candidates: {path, candidates}."""
+        ws, still_dir = self.config.workspace, Path(self.meta.get("still_dir", ""))
         rel = self.stills.get(name)
-        if rel is None:
-            return None
-        return Path(self.meta["still_dir"]) / (rel + "_.png")
+        if rel is not None:
+            value = str(rel)
+            for cand in _legacy_still_candidates(ws, still_dir, value):
+                if cand.is_file():
+                    return cand, []
+            # the entry is stale — the app figures it out below: the pick
+            # label, then the pool scan; slugs are the anchor name and the
+            # entry's own basename (heals paths written from another root)
+            slugs = [name, Path(value).stem]
+        else:
+            slugs = [name]
+
+        picks = assets_mod.labeled_stills(ws, still_dir).get(name) or []
+        if len(picks) == 1:
+            return picks[0], []
+        if picks:
+            return None, picks  # the pick itself is ambiguous
+
+        matches: list[Path] = []
+        for slug in slugs:
+            for p in assets_mod.pool_matches(ws, slug):
+                if p not in matches:
+                    matches.append(p)
+        if len(matches) == 1:
+            return matches[0], []
+        if matches:
+            return None, matches
+
+        if rel is not None:
+            # a named legacy entry is never "unknown": its conventional
+            # path (missing on disk) is the read model's present:false signal
+            return Path(still_dir) / (value + "_.png"), []
+        return None, []
+
+    def still_names(self) -> list[str]:
+        """Every `still:<name>` in play: the legacy stills: map plus the refs
+        the scenes actually anchor on (a label pick needs no map entry)."""
+        names = list(self.stills)
+        for s in self.scenes:
+            for key in ("first", "last"):
+                a = s.get("video", {}).get(key)
+                ref = a.get("ref") if isinstance(a, dict) else a
+                if isinstance(ref, str) and ref.startswith("still:"):
+                    name = ref.split(":", 1)[1]
+                    if name not in names:
+                        names.append(name)
+        return names
 
     # -------------------------------------------------------------- io -----
     def warnings(self) -> list[str]:
@@ -136,11 +196,50 @@ def _safe_load(text: str) -> dict:
     return data
 
 
+def _legacy_still_candidates(ws: Path, still_dir: Path, value: str) -> list[Path]:
+    """Every file a legacy `stills:` value may name: an absolute path, or
+    relative to the workspace or the still_dir — the still_dir stem
+    convention completing `name_` (same order reel.py resolves anchors in)."""
+    out = [Path(value)]
+    for base in (ws, still_dir):
+        out += [base / value, base / (value + "_.png")]
+    return list(dict.fromkeys(out))
+
+
 def load(config: Config) -> Project:
     raw = _safe_load(config.yaml_path.read_text())
     project = Project(raw, config)
     validate(project)
     return project
+
+
+def anchor_still(config: Config, scene_id: str,
+                 anchor: str, name: str) -> dict:
+    """The pick flow's yaml half: point the scene's `video.<anchor>` at
+    `still:<name>` and drop the legacy `stills:` path entry for that name
+    (other entries stay) — reel.yaml never grows absolute paths again.
+    Comment-preserving (the reels are heavily annotated); the mutated tree
+    is validated before it reaches disk."""
+    from ruamel.yaml import YAML
+
+    ry = YAML()
+    ry.preserve_quotes = True
+    ry.width = 4096
+    doc = ry.load(config.yaml_path) or {}
+    scene = next((s for s in (doc.get("scenes") or [])
+                  if s.get("id") == scene_id), None)
+    if scene is None:
+        raise ValidationError([f"unknown scene {scene_id!r}"])
+    scene.setdefault("video", {})[anchor] = f"still:{name}"
+    stills = doc.get("stills") or {}
+    removed = None
+    if name in stills:
+        removed = stills.pop(name)
+    validate(Project(doc, config))
+    with open(config.yaml_path, "w") as fh:
+        ry.dump(doc, fh)
+    return {"scene": scene_id, "anchor": anchor,
+            "ref": f"still:{name}", "removed_stills_entry": removed is not None}
 
 
 # ---------------------------------------------------------------- rules ----
@@ -232,8 +331,16 @@ def validate(project: Project) -> list[str]:
                     problems.append(f"{sid}: first scene cannot anchor on prev_last")
                 continue
             if isinstance(ref, str) and ref.startswith("still:"):
-                if ref.split(":", 1)[1] not in project.stills:
-                    problems.append(f"{sid}: unknown still ref {ref!r}")
+                name = ref.split(":", 1)[1]
+                if project.still_path(name) is None:
+                    cands = project.still_candidates(name)
+                    if cands:
+                        warnings.append(
+                            f"{sid}: {ref!r} is ambiguous — no still:<name> "
+                            f"label pick, candidates: "
+                            f"{', '.join(sorted(c.name for c in cands))}")
+                    else:
+                        problems.append(f"{sid}: unknown still ref {ref!r}")
 
         music = s.get("music")
         if isinstance(music, dict) and not (music.get("name") and music.get("caption")):

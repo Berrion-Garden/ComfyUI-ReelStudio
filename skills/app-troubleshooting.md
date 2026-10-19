@@ -10,8 +10,10 @@ description: Reel Studio failure modes — validation errors, missing renders, j
   at the following scene's id; the last scene gets `next: null`.
 - "first scene cannot anchor on prev_last" — the first scene needs a still or
   null first anchor.
-- "unknown still ref" — add the entry to `stills:` (value is the basename
-  WITHOUT the `_.png` suffix the resolver appends).
+- "unknown still ref" — anchor the pick with `anchor_still` (it tags the
+  file `still:<name>` and wires the scene ref; never write a `stills:` path
+  entry by hand). Ambiguous candidates are listed in the warning — label
+  the one the operator picked.
 - Off-grid warning (17n+5) — allowed, renders anyway. Do not "fix" a working
   scene length because of the warning.
 

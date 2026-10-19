@@ -71,7 +71,7 @@ def project_view(state, api: str = "/reelstudio/api") -> dict:
     # referenced stills: `present: false` is the "unknown still ref on disk"
     # signal the agent can act on
     stills = {}
-    for name in project.stills:
+    for name in project.still_names():
         p = project.still_path(name)
         stills[name] = p is not None and p.exists()
 
