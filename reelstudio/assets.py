@@ -10,6 +10,7 @@ cheap directory walk.
 """
 
 import os
+import time
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 
@@ -30,11 +31,15 @@ def _labels_file(workspace: Path) -> dict[str, list[str]]:
     """Declared extra labels from assets.yaml: `labels: {<rel path>: [..]}`."""
     import yaml
 
+    key = f"{workspace.resolve()}|labels"
+    cached = _scan_memo.get(key)
+    if cached and time.monotonic() - cached[0] < _SCAN_TTL:
+        return cached[1]
     f = Path(workspace) / "assets.yaml"
-    if not f.exists():
-        return {}
-    raw = yaml.safe_load(f.read_text()) or {}
-    return {str(k): [str(x) for x in v] for k, v in (raw.get("labels") or {}).items()}
+    raw = yaml.safe_load(f.read_text()) or {} if f.exists() else {}
+    out = {str(k): [str(x) for x in v] for k, v in (raw.get("labels") or {}).items()}
+    _scan_memo[key] = (time.monotonic(), out)
+    return out
 
 
 def _rel(path: Path, roots: list[Path]) -> str:
@@ -68,18 +73,46 @@ def labeled_stills(workspace: str | Path, still_dir: str | Path) -> dict[str, li
     return out
 
 
+# The scans below run per still-name per project read; without a memo each
+# read re-walks the pools ~2n times. Freshness: in-app writers invalidate
+# explicitly; renders landing from outside are picked up within
+# _SCAN_TTL seconds — invisible at UI polling rates.
+_SCAN_TTL = 2.0
+_scan_memo: dict[str, tuple[float, object]] = {}
+
+
+def _memo_scan(key: str, compute):
+    now = time.monotonic()
+    hit = _scan_memo.get(key)
+    if hit and now - hit[0] < _SCAN_TTL:
+        return hit[1]
+    value = compute()
+    _scan_memo[key] = (now, value)
+    return value
+
+
+def _invalidate_scans(workspace: str | Path) -> None:
+    prefix = f"{Path(workspace).resolve()}|"
+    for k in [k for k in _scan_memo if k.startswith(prefix)]:
+        del _scan_memo[k]
+
+
 def pool_files(workspace: str | Path) -> list[Path]:
     """Every image in the standardized pools — `characters/<char>/**`,
     `backgrounds/<loc>/**`, `images/**`. The directory is the grouping
     owner; the slug scan (project.still_path branch c) walks them."""
     ws = Path(workspace)
-    files: list[Path] = []
-    for pool in ("characters", "backgrounds", "images"):
-        root = ws / pool
-        if root.is_dir():
-            files += [p for p in root.rglob("*")
-                      if p.is_file() and p.suffix.lower() in IMAGE_EXTS]
-    return sorted(files)
+
+    def scan() -> list[Path]:
+        files: list[Path] = []
+        for pool in ("characters", "backgrounds", "images"):
+            root = ws / pool
+            if root.is_dir():
+                files += [p for p in root.rglob("*")
+                          if p.is_file() and p.suffix.lower() in IMAGE_EXTS]
+        return sorted(files)
+
+    return _memo_scan(f"{ws.resolve()}|pool", scan)
 
 
 def pool_matches(workspace: str | Path, slug: str) -> list[Path]:
@@ -281,4 +314,5 @@ def set_labels(workspace: str | Path, still_dir: str | Path, path: str,
     with open(tmp, "w") as fh:
         doc.dump(declared, fh)
     os.replace(tmp, f)
+    _invalidate_scans(workspace)
     return {"asset": rel, "labels": labels_map.get(rel, [])}

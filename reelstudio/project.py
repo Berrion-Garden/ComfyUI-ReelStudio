@@ -8,6 +8,7 @@ scenes that reference them) — lives here too. This module owns the structure
 rules; the timeline module owns the time math.
 """
 
+import hashlib
 import os
 from pathlib import Path
 
@@ -23,12 +24,43 @@ VALID_VIDEO_MODES = ("i2v", "t2v", "fl2v")
 
 
 def file_hash(path: str | os.PathLike) -> str:
-    import hashlib
+    """Content hash of a file, memoized by (mtime_ns, size).
 
+    Called for every anchor still on every project read (the collapse
+    staleness key); without the memo each request re-hashes the whole
+    anchor set — seconds of CPU inside the event loop."""
     p = Path(path)
     if not p.is_file():
         return "missing"
-    return hashlib.sha256(p.read_bytes()).hexdigest()[:16]
+    st = p.stat()
+    key = str(p)
+    hit = _hash_memo.get(key)
+    if hit and hit[0] == st.st_mtime_ns and hit[1] == st.st_size:
+        return hit[2]
+    h = hashlib.sha256(p.read_bytes()).hexdigest()[:16]
+    _hash_memo[key] = (st.st_mtime_ns, st.st_size, h)
+    return h
+
+
+_hash_memo: dict[str, tuple[int, int, str]] = {}
+
+
+_project_memo: dict[str, tuple[int, int, "Project"]] = {}
+
+
+def load_cached(config: Config) -> "Project":
+    """load(), memoized by the yaml's (mtime_ns, size) — the project read
+    model runs per HTTP request, and a full re-parse per request starves
+    the event loop. Any write to the yaml lands with a new mtime, so the
+    memo cannot serve a stale tree."""
+    st = config.yaml_path.stat()
+    key = str(config.yaml_path)
+    hit = _project_memo.get(key)
+    if hit and hit[0] == st.st_mtime_ns and hit[1] == st.st_size:
+        return hit[2]
+    project = load(config)
+    _project_memo[key] = (st.st_mtime_ns, st.st_size, project)
+    return project
 
 
 class Project:

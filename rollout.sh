@@ -34,10 +34,17 @@ py_ts=$(find reelstudio __init__.py -name '*.py' -printf '%T@\n' 2>/dev/null \
   | sort -n | tail -1 | cut -d. -f1)
 if [ "$py_ts" -gt "$svc_ts" ] 2>/dev/null; then
   step "backend is stale — drain the queue, restart $SERVICE"
-  until curl -sf -m 5 "$BASE_URL/queue" | grep -q '"queue_running": \[\]'; do
-    echo "   jobs running — waiting for an empty queue (Ctrl-C to abort)"
+  # a wedged loop never drains and never will: cap the wait, then restart
+  # anyway (a restart recovers the documented wedge) — never spin unbounded
+  drained=0
+  for _ in $(seq 1 24); do
+    if curl -sf -m 5 "$BASE_URL/queue" 2>/dev/null | grep -q '"queue_running": \[\]'; then
+      drained=1; break
+    fi
+    echo "   jobs running — waiting for an empty queue (2 min max)"
     sleep 5
   done
+  [ "$drained" = "1" ] || echo "   queue not drained (server wedged or jobs stuck) — restarting anyway"
   systemctl --user restart "$SERVICE"
 else
   step "backend is current — no restart needed"

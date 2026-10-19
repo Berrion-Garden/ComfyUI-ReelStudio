@@ -142,3 +142,34 @@ def test_still_path_resolves_double_underscore(config):
 
     project = load(config)
     assert project.still_path("opening").name == "opening_still_.png"
+
+
+def test_file_hash_memo_tracks_content_changes(config):
+    from reelstudio import project as project_mod
+
+    f = config.workspace / "memo_probe.txt"
+    f.write_text("v1")
+    h1 = project_mod.file_hash(f)
+    assert h1 != "missing"
+
+    # same content, touched mtime -> same hash served from the memo
+    import os
+    st = f.stat()
+    os.utime(f, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000))
+    assert project_mod.file_hash(f) == h1
+
+    f.write_text("v2")
+    assert project_mod.file_hash(f) != h1
+    assert project_mod.file_hash(config.workspace / "absent.txt") == "missing"
+
+
+def test_load_cached_reparses_only_when_yaml_changes(config):
+    from reelstudio.project import load_cached
+
+    a = load_cached(config)
+    assert load_cached(config) is a  # warm: same parsed tree
+
+    config.yaml_path.write_text(config.yaml_path.read_text())
+    b = load_cached(config)
+    assert b is not a  # the write bumped the mtime -> fresh parse
+    assert b.raw == a.raw

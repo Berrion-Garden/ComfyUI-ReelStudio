@@ -65,11 +65,12 @@ class ReelStudio:
 
     # ------------------------------------------------------------ project --
     def project(self):
-        return load_project(self.config)
+        from .project import load_cached
+        return load_cached(self.config)
 
     def reopen(self, workspace: Path) -> None:
-        """Point the app at another scene dir. project() reloads from disk
-        per call, so this rebinding is the whole scene switch."""
+        """Point the app at another scene dir. project() memoizes on the
+        yaml's mtime, so this rebinding is the whole scene switch."""
         self.config = dataclasses.replace(self.config, workspace=Path(workspace))
 
     # -------------------------------------------------------------- jobs ---
@@ -136,7 +137,11 @@ def _json_error(e: ReelStudioError):
 async def get_project(request: web.Request) -> web.Response:
     try:
         state = _state(request)
-        return web.json_response(project_view(state, api=API))
+        # the read model hashes anchor stills (cold) — keep it off the
+        # event loop so a slow first read cannot starve every other route
+        view = await asyncio.get_running_loop().run_in_executor(
+            None, project_view, state)
+        return web.json_response(view)
     except ValidationError as e:
         return _json_error(e)
 
