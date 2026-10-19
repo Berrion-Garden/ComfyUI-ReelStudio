@@ -18,8 +18,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-from reelstudio.storyboard_doc import (StrictLoader, compose_plate,
-                                       compose_still, emit, load, validate)
+from reelstudio.storyboard_doc import (StrictLoader, check_scene_yaml,
+                                       compose_plate, compose_still, emit,
+                                       emit_scene_yaml, load, validate)
 
 AMUNREKH_DOC = Path("/home/kyle/Desktop/amunrekh_breakdown.yaml")
 
@@ -74,6 +75,30 @@ def test_load_raises_on_duplicate_key():
     text = "style: a\noutfits:\n  base:\n    clothing: x\n    clothing: y\n"
     with pytest.raises(yaml.YAMLError, match="duplicate key"):
         yaml.load(text, Loader=StrictLoader)
+
+
+def test_merge_override_keeps_explicit_and_never_raises():
+    """The production yaml's leaf clones ({<<: *ref, seed: N}) are overrides,
+    not duplicates — and the explicit value must WIN."""
+    text = ("clones:\n"
+            "  - &ref\n"
+            "    slug: a\n"
+            "    seed: 300000\n"
+            "  - {<<: *ref, seed: 307919}\n"
+            "  - <<: *ref\n"
+            "    seed: 315838\n")
+    doc = yaml.load(text, Loader=StrictLoader)
+    assert doc["clones"][1]["seed"] == 307919
+    assert doc["clones"][2]["seed"] == 315838
+    assert doc["clones"][1]["slug"] == "a"          # inherited graft
+
+
+def test_merge_chain_and_sequence_earlier_wins():
+    text = ("base1: &b1\n  x: 1\n  y: 2\n"
+            "base2: &b2\n  y: 3\n  z: 4\n"
+            "leaf:\n  <<: [*b1, *b2]\n  x: 9\n")
+    assert yaml.load(text, Loader=StrictLoader)["leaf"] == \
+        {"x": 9, "y": 2, "z": 4}
 
 
 def test_missing_top_level_key():
@@ -221,6 +246,158 @@ def test_emit_renders_every_slug_and_refuses_invalid_docs():
     doc["scenes"][0]["variants"]["test_still"]["outfit"] = "ghost"
     with pytest.raises(ValueError, match="invalid"):
         emit(doc)
+
+
+def test_emit_scene_yaml_and_check_roundtrip():
+    scene = yaml.safe_load("""
+meta:
+  comfy: http://localhost:8188
+
+styles:
+  cinematic:
+    pro: test style
+style: cinematic
+
+characters:
+  test:
+    backdrop: blank
+    attributes:
+      eyes: green
+      expression: calm
+      negatives: "hair"
+    layers:
+      base:
+        clothing: tunic
+        carried: a satchel
+    seeds: [1]
+    variants:
+      - slug: test_reference
+        layer: base
+        pose: "standing neutral, full body"
+        seed: 100
+      - slug: test_still
+        layer: base
+        pose: standing, holding the lamp up
+        expression: bright
+        held: an oil lamp
+        effects: soft golden glow
+        seed: 200
+locations:
+  room_day:
+    pro: "INT a plain room. Bright daylight"
+""")
+    ok, findings = check_scene_yaml(_doc(), scene)
+    assert ok, "\n".join(findings)
+    # and the emitter produces the same text the seat can graft
+    blocks = emit_scene_yaml(_doc())
+    assert blocks["characters"]["test"]["attributes"]["negatives"] == "hair"
+    assert "worn" not in blocks["characters"]["test"]["layers"]["base"]
+    leaf = blocks["characters"]["test"]["variants"][0]
+    assert leaf["slug"] == "test_still" and "seed" not in leaf
+    assert blocks["locations"]["room_day"]["pro"] == \
+        "INT a plain room. Bright daylight"
+
+
+def test_scene_yaml_staleness_is_reported_by_name():
+    scene = yaml.safe_load("""
+characters:
+  test:
+    backdrop: blank
+    attributes:
+      eyes: green
+      expression: calm
+      negatives: "hair"
+    layers:
+      base:
+        clothing: tunic
+    variants:
+      - slug: test_reference
+        layer: base
+        pose: "standing neutral, full body"
+      - slug: test_still
+        layer: base
+        pose: standing, holding a DIFFERENT lamp
+        expression: bright
+locations:
+  room_day:
+    pro: "INT a plain room. Bright daylight"
+""")
+    ok, findings = check_scene_yaml(_doc(), scene)
+    assert not ok
+    assert any("leaf drift on 'test_still.pose'" in f for f in findings)
+    assert any("held missing" in f or "'test_still.held'" in f
+               for f in findings)
+    assert any("test_reference" not in f for f in findings)
+
+
+def test_scene_yaml_missing_leaf_and_unknown_layer():
+    scene = yaml.safe_load("""
+characters:
+  test:
+    backdrop: blank
+    attributes: {eyes: green, expression: calm, negatives: "hair"}
+    layers:
+      ghost_layer: {clothing: x}
+      base: {clothing: tunic}
+    variants:
+      - slug: test_reference
+        layer: base
+        pose: "standing neutral, full body"
+locations:
+  room_day:
+    pro: "INT a plain room. Bright daylight"
+""")
+    ok, findings = check_scene_yaml(_doc(), scene)
+    assert not ok
+    assert any("leaf missing: test_still" in f for f in findings)
+    assert any("unknown layer 'ghost_layer'" in f for f in findings)
+
+
+def test_scene_yaml_location_drift_and_unknown_location():
+    scene = yaml.safe_load("""
+characters:
+  test:
+    backdrop: blank
+    attributes: {eyes: green, expression: calm, negatives: "hair"}
+    layers: {base: {clothing: tunic}}
+    variants:
+      - slug: test_still
+        layer: base
+        pose: standing, holding the lamp up
+        expression: bright
+        held: an oil lamp
+        effects: soft golden glow
+locations:
+  room_day:
+    pro: "INT a plain room. Bright daylight, plus a skylight"
+  ghost_location:
+    pro: somewhere
+""")
+    ok, findings = check_scene_yaml(_doc(), scene)
+    assert not ok
+    assert any("location drift on 'room_day'" in f for f in findings)
+    assert any("unknown location 'ghost_location'" in f for f in findings)
+
+
+def test_scene_yaml_attribute_drift_names_the_key():
+    scene = yaml.safe_load("""
+characters:
+  test:
+    backdrop: blank
+    attributes: {eyes: blue, expression: calm, negatives: "hair"}
+    layers: {base: {clothing: tunic}}
+    variants:
+      - slug: test_still
+        layer: base
+        pose: standing, holding the lamp up
+        expression: bright
+        held: an oil lamp
+        effects: soft golden glow
+locations: {room_day: {pro: "INT a plain room. Bright daylight"}}
+""")
+    ok, findings = check_scene_yaml(_doc(), scene)
+    assert not ok
+    assert any("attribute drift on 'eyes'" in f for f in findings)
 
 
 @pytest.mark.skipif(not AMUNREKH_DOC.exists(),
