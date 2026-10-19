@@ -90,6 +90,21 @@ always: true
   its description, e.g. film-grammar before writing shot notes, and
   app-troubleshooting when a job errors.
 
+## The engine reads yaml vocabulary ONLY
+
+Every generation prompt is composed from the reel's own yaml — character
+`attributes`/`variants`/`backdrop`, the active `style` — and NOTHING else:
+never an asset filename, never "like the <name> still", never "the ref04
+look". A image model has no idea what those names mean: the phrase either
+does nothing or conditions a wrong concept (a referenced "chin wrap" became
+a mouth-eating mask for four rounds).
+
+When the operator says "take X from still N": that is a TRANSLATION job —
+`view_image` the named still, look at the quality they mean, and write
+those words into the right `characters.<slug>` key with `update_yaml`
+BEFORE queueing the run. The yaml is the merge point of all approvals;
+the prompt is yaml-only vocabulary.
+
 ## The loop for "change X"
 
 1. `get_project` → find the affected scene(s) and who anchors on them

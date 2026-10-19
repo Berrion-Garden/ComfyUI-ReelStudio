@@ -45,6 +45,20 @@ single source of truth; code never holds a second copy.
   wording would instead condition X into the image — forbidden here. The
   value rides the negative input (informative at cfg 1 — the positive text
   must also omit the concept).
+  The character block is an inheritance TREE:
+  `attributes` (Base) → `layers` (named uniform/scene edits, e.g.
+  `layers.archery` = "Archery Uniform Amun": outfit + magic canon) →
+  `variants` (leaves). A variant is a plain string (a pose on the base) or
+  a MAP: `layer: <name>` attaches a mid-node, any non-control key replaces
+  the same-named attribute for THIS still, everything absent inherits.
+  YAML anchors + merge keys keep a leaf family single-source
+  (`- &archery_anchor {…}` then `{<<: *archery_anchor, seed: 915000}`).
+  CONTROL KEYS (`pose`, `seed`, `layer`, `negatives`) never reach the
+  prompt text — a seed number in the text conditions garbage. A variant
+  `seed:` is used VERBATIM for that render (the seed ladder
+  `base + i*7919` applies only to variants without one); per-image proven
+  via the embedded PNG metadata (`Image.info['prompt']` → KSampler seed +
+  TextEncodeQwenImage21 text).
   `seeds` —
   seeds of APPROVED stills, recorded automatically on ✓ approval; the next
   run starts its seed ladder from what worked. Style comes from the active
