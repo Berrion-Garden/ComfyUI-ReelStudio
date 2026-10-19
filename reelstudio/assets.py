@@ -9,6 +9,7 @@ second hand-maintained index: the API response is the index, computed over a
 cheap directory walk.
 """
 
+import os
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 
@@ -273,6 +274,11 @@ def set_labels(workspace: str | Path, still_dir: str | Path, path: str,
         labels_map[rel] = [str(x) for x in labels]
     else:
         labels_map.pop(rel, None)
-    with open(f, "w") as fh:
+    # atomic replace: a concurrent reader (the asset index on every UI poll)
+    # must never see a half-written yaml — a partial parse there storms
+    # exceptions into the server loop and wedges it
+    tmp = f.with_suffix(f.suffix + ".tmp")
+    with open(tmp, "w") as fh:
         doc.dump(declared, fh)
+    os.replace(tmp, f)
     return {"asset": rel, "labels": labels_map.get(rel, [])}
