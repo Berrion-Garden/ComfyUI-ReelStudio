@@ -24,7 +24,7 @@ function isImage(a: AssetItem): boolean {
  * The stage's Images view: the highlighted asset, large and interactive —
  * images full-frame, audio a player — with its labels and verify/delete
  * controls. Selection lives in the Assets pane; a multi-selection becomes
- * a carousel (‹ › through everything picked).
+ * a carousel (« ‹ › » through everything picked).
  */
 export function AssetBrowser({ assets, selected, selectedList,
                                onChanged, onSelect, onPrimary }: Props) {
@@ -39,9 +39,9 @@ export function AssetBrowser({ assets, selected, selectedList,
   const index = selected
     ? selectedList.findIndex((a) => a.path === selected.path) : -1;
   const multi = selectedList.length > 1 && index >= 0;
-  const nav = (dir: 1 | -1) => {
+  const goTo = (i: number) => {
     if (!multi) return;
-    onPrimary(selectedList[(index + dir + selectedList.length) % selectedList.length]);
+    onPrimary(selectedList[i]);
   };
 
   return (
@@ -50,10 +50,14 @@ export function AssetBrowser({ assets, selected, selectedList,
         ? <div className={`inspector-wrap ${multi ? "carousel" : ""}`}>
             {multi && (
               <>
+                <button type="button" className="carousel-nav first" aria-label="first picked asset"
+                  onClick={() => goTo(0)}>«</button>
                 <button type="button" className="carousel-nav prev" aria-label="previous picked asset"
-                  onClick={() => nav(-1)}>‹</button>
+                  onClick={() => goTo((index - 1 + selectedList.length) % selectedList.length)}>‹</button>
                 <button type="button" className="carousel-nav next" aria-label="next picked asset"
-                  onClick={() => nav(1)}>›</button>
+                  onClick={() => goTo((index + 1) % selectedList.length)}>›</button>
+                <button type="button" className="carousel-nav last" aria-label="last picked asset"
+                  onClick={() => goTo(selectedList.length - 1)}>»</button>
                 <span className="carousel-count">{index + 1} / {selectedList.length}</span>
               </>
             )}

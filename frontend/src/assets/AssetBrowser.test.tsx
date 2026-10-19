@@ -118,6 +118,11 @@ describe("AssetBrowser", () => {
     expect(onPrimary).toHaveBeenCalledWith(picked[0]);
     fireEvent.click(screen.getByLabelText("previous picked asset"));
     expect(onPrimary).toHaveBeenCalledWith(picked[0]);
+    // « and » jump to the ends of the picked list
+    fireEvent.click(screen.getByLabelText("last picked asset"));
+    expect(onPrimary).toHaveBeenCalledWith(picked[1]);
+    fireEvent.click(screen.getByLabelText("first picked asset"));
+    expect(onPrimary).toHaveBeenCalledWith(picked[0]);
 
     // a single selection shows no carousel chrome
     rerender(<AssetBrowser {...browserProps(

@@ -282,8 +282,10 @@ button:disabled { opacity: 0.45; cursor: default; }
   width: 34px; height: 52px; font-size: 22px; line-height: 1;
   background: var(--panel); opacity: 0.85;
 }
-.carousel-nav.prev { left: 10px; }
-.carousel-nav.next { right: 10px; }
+.carousel-nav.prev { left: 52px; }
+.carousel-nav.first { left: 10px; }
+.carousel-nav.next { right: 52px; }
+.carousel-nav.last { right: 10px; }
 .carousel-count {
   position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
   z-index: 3; padding: 2px 10px; font-size: 12px; color: var(--text);
@@ -355,6 +357,17 @@ button:disabled { opacity: 0.45; cursor: default; }
 .asset-section .count { color: var(--xxx); font-size: 11px; margin-left: 4px; }
 .asset-pool { padding: 0 12px 8px; }
 .pool-name { font-size: 11px; color: var(--accent); margin: 4px 0; }
+/* collapsible character pools: <Name> > reference | posed stills */
+.asset-pool > summary { cursor: pointer; list-style: none; }
+.asset-pool > summary::-webkit-details-marker { display: none; }
+.asset-pool > summary::before { content: "▸ "; color: var(--accent); }
+.asset-pool[open] > summary::before { content: "▾ "; }
+.pool-sub { margin: 2px 0 6px 10px; }
+.pool-sub > summary { cursor: pointer; list-style: none; font-size: 11px;
+  color: var(--muted, #9aa); }
+.pool-sub > summary::-webkit-details-marker { display: none; }
+.pool-sub > summary::before { content: "▸ "; color: var(--muted, #9aa); }
+.pool-sub[open] > summary::before { content: "▾ "; }
 .asset-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
   gap: 8px; padding: 4px 12px 8px;
