@@ -415,8 +415,12 @@ button:disabled { opacity: 0.45; cursor: default; }
   background: var(--panel-2);
 }
 .assets-error {
-  margin: 4px 12px; padding: 6px 8px; font-size: 12px; color: #ff9db0;
-  background: #4a1d2a; border-radius: 6px; cursor: pointer;
+  /* action failures must be unmissable: the pane scrolls, so a banner at the
+   * top is invisible exactly when the operator is down in the grid — float it */
+  position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+  z-index: 60; margin: 0; padding: 8px 14px; font-size: 13px; color: #ff9db0;
+  background: #4a1d2a; border: 1px solid #a03050; border-radius: 6px;
+  cursor: pointer; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
 }
 
 /* ---- floating chat window: overlay, draggable, resizable, edge-snapping ---- */

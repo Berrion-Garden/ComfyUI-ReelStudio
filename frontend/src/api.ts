@@ -2,6 +2,19 @@ import type { ChatEvent, ProjectView } from "./types";
 
 const API = "/reelstudio/api";
 
+/** Every API call gets a hard timeout: a hung request must surface as an
+ * error, never leave the UI silently waiting (the asset grid would freeze).
+ * Uploads pass a longer budget. */
+async function apiFetch(path: string, init?: RequestInit, ms = 20_000): Promise<Response> {
+  try {
+    return await fetch(path, { ...init, signal: AbortSignal.timeout(ms) });
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "TimeoutError")
+      throw new Error(`request timed out after ${ms / 1000}s: ${path}`);
+    throw e;
+  }
+}
+
 async function json_or_throw<T>(resp: Response): Promise<T> {
   if (!resp.ok) {
     const body = await resp.json().catch(() => ({ error: resp.statusText }));
@@ -11,12 +24,12 @@ async function json_or_throw<T>(resp: Response): Promise<T> {
 }
 
 export async function fetchProject(): Promise<ProjectView> {
-  const resp = await fetch(`${API}/project`);
+  const resp = await apiFetch(`${API}/project`);
   return json_or_throw<ProjectView>(resp);
 }
 
 export async function renderScenes(sceneIds: string[]): Promise<void> {
-  const resp = await fetch(`${API}/render`, {
+  const resp = await apiFetch(`${API}/render`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ scene_ids: sceneIds }),
@@ -24,7 +37,7 @@ export async function renderScenes(sceneIds: string[]): Promise<void> {
   await json_or_throw(resp);
 }
 
-export async function renderStale(): Promise<void> {  const resp = await fetch(`${API}/render`, {
+export async function renderStale(): Promise<void> {  const resp = await apiFetch(`${API}/render`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ stale: true }),
@@ -33,7 +46,7 @@ export async function renderStale(): Promise<void> {  const resp = await fetch(`
 }
 
 export async function assemble(useMusic: boolean): Promise<void> {
-  const resp = await fetch(`${API}/assemble`, {
+  const resp = await apiFetch(`${API}/assemble`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ use_music: useMusic }),
@@ -71,14 +84,14 @@ export interface SfxScene {
 }
 
 export async function fetchSfxBoard(buckets = 0): Promise<SfxScene[]> {
-  const resp = await fetch(`${API}/sfx/board?peaks=${buckets}`);
+  const resp = await apiFetch(`${API}/sfx/board?peaks=${buckets}`);
   return json_or_throw<{ scenes: SfxScene[] }>(resp).then((j) => j.scenes);
 }
 
 export async function placeSfxEvent(
   sceneId: string, asset: string, at: number, gain = 0.6,
 ): Promise<void> {
-  const resp = await fetch(`${API}/sfx/board`, {
+  const resp = await apiFetch(`${API}/sfx/board`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ scene_id: sceneId, asset, at, gain }),
@@ -89,7 +102,7 @@ export async function placeSfxEvent(
 export async function removeSfxEvent(
   sceneId: string, index: number,
 ): Promise<void> {
-  const resp = await fetch(`${API}/sfx/board`, {
+  const resp = await apiFetch(`${API}/sfx/board`, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ scene_id: sceneId, index }),
@@ -98,7 +111,7 @@ export async function removeSfxEvent(
 }
 
 export async function fetchAudioPeaks(index: number, buckets = 600): Promise<number[]> {
-  const resp = await fetch(`${API}/audio/${index}/peaks?buckets=${buckets}`);
+  const resp = await apiFetch(`${API}/audio/${index}/peaks?buckets=${buckets}`);
   const body = await json_or_throw<{ peaks: number[] }>(resp);
   return body.peaks;
 }
@@ -107,7 +120,7 @@ export async function updateAudioTrack(
   index: number,
   patch: { at?: number; seek?: number; gain?: number; fades?: [number, number][] },
 ): Promise<void> {
-  const resp = await fetch(`${API}/audio/${index}`, {
+  const resp = await apiFetch(`${API}/audio/${index}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(patch),
@@ -134,13 +147,13 @@ export interface AssetsData {
 }
 
 export async function fetchAssets(): Promise<AssetsData> {
-  const resp = await fetch(`${API}/assets`);
+  const resp = await apiFetch(`${API}/assets`);
   return json_or_throw<AssetsData>(resp);
 }
 
 /** Rewrite one asset's declared labels in the workspace assets.yaml. */
 export async function setAssetLabels(path: string, labels: string[]): Promise<void> {
-  const resp = await fetch(`${API}/assets/labels`, {
+  const resp = await apiFetch(`${API}/assets/labels`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path, labels }),
@@ -150,7 +163,7 @@ export async function setAssetLabels(path: string, labels: string[]): Promise<vo
 
 /** Delete an asset (the operator's ✗ or the card ⋯ menu). */
 export async function deleteAsset(path: string): Promise<void> {
-  const resp = await fetch(`${API}/asset`, {
+  const resp = await apiFetch(`${API}/asset`, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ path }),
@@ -185,12 +198,12 @@ export interface StudioView {
 }
 
 export async function fetchStudio(): Promise<StudioView> {
-  const resp = await fetch(`${API}/studio`);
+  const resp = await apiFetch(`${API}/studio`);
   return json_or_throw(resp);
 }
 
 async function postStudio(path: string, body: object): Promise<StudioView> {
-  const resp = await fetch(`${API}/studio${path}`, {
+  const resp = await apiFetch(`${API}/studio${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -215,7 +228,7 @@ export function newScene(title: string, imp?: ImportSpec): Promise<StudioView> {
 
 /** Copy character/location pools from another scene into the current one. */
 export async function importAssets(spec: ImportSpec): Promise<void> {
-  const resp = await fetch(`${API}/studio/import`, {
+  const resp = await apiFetch(`${API}/studio/import`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(spec),
@@ -228,21 +241,21 @@ export async function importAssets(spec: ImportSpec): Promise<void> {
 export async function uploadFile(file: File, dir: string): Promise<string> {
   const form = new FormData();
   form.append("file", file);
-  const resp = await fetch(`${API}/upload?dir=${encodeURIComponent(dir)}`, {
+  const resp = await apiFetch(`${API}/upload?dir=${encodeURIComponent(dir)}`, {
     method: "POST",
     body: form,
-  });
+  }, 120_000);
   const body = await json_or_throw<{ path: string }>(resp);
   return `asset:${body.path}`;
 }
 
 /** Grab a reference track off the web (YouTube, …) into audio/. */
 export async function importAudioFromUrl(url: string, name?: string): Promise<void> {
-  const resp = await fetch(`${API}/audio/import`, {
+  const resp = await apiFetch(`${API}/audio/import`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url, ...(name ? { name } : {}) }),
-  });
+  }, 120_000);
   await json_or_throw(resp);
 }
 
@@ -257,13 +270,13 @@ export interface Provenance {
 }
 
 export async function getProvenance(path: string): Promise<Provenance> {
-  const resp = await fetch(`${API}/provenance?path=${encodeURIComponent(path)}`);
+  const resp = await apiFetch(`${API}/provenance?path=${encodeURIComponent(path)}`);
   return json_or_throw<Provenance>(resp);
 }
 
 /** Declare renders current — the whole reel or one scene (thumbnail ✓). */
 export async function adoptScene(sceneId?: string): Promise<void> {
-  const resp = await fetch(`${API}/manifest/adopt`, {
+  const resp = await apiFetch(`${API}/manifest/adopt`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(sceneId ? { scene_id: sceneId } : {}),
@@ -278,7 +291,7 @@ export async function* chatStream(
   selected?: { slug: string; path: string; group: string; labels: string[] }[] | null,
   attachSelection?: boolean,
 ): AsyncGenerator<ChatEvent> {
-  const resp = await fetch(`${API}/agent/chat`, {
+  const resp = await apiFetch(`${API}/agent/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
