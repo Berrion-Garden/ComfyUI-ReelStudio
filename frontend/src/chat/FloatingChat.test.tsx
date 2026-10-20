@@ -153,6 +153,56 @@ describe("FloatingChat", () => {
     expect(el.classList.contains("min")).toBe(false);
   });
 
+  it("persists the minimized state across reloads", () => {
+    render(<FloatingChat />);
+    fireEvent.click(screen.getByLabelText("minimize chat"));
+    expect(localStorage.getItem("reelstudio.chat.minimized.v1")).toBe("true");
+    fireEvent.click(screen.getByLabelText("restore chat"));
+    expect(localStorage.getItem("reelstudio.chat.minimized.v1")).toBe("false");
+    // a saved minimized load comes back as the bar
+    saved({ x: 100, y: 200, w: 500, h: 500 });
+    localStorage.setItem("reelstudio.chat.minimized.v1", "true");
+    const fresh = render(<FloatingChat />);
+    expect(fresh.container.querySelector(".chat-float")).toBeTruthy();
+    const el2 = (fresh.container.querySelector(".chat-float") as HTMLElement);
+    expect(el2.classList.contains("min")).toBe(true);
+    expect(el2.style.height).toBe("36px");
+    expect(el2.style.top).toBe("200px");
+  });
+
+  it("lets the minimized bar park anywhere, even where the full window would not fit", () => {
+    saved({ x: 100, y: 200, w: 500, h: 500 });
+    localStorage.setItem("reelstudio.chat.minimized.v1", "true");
+    render(<FloatingChat />);
+    const el = winEl();
+    // drag up past the top edge: the bar stops at 0 — the full window's
+    // clamp would push the bar off-screen above to keep the body in view
+    fireEvent.pointerDown(bar(), { clientX: 250, clientY: 218, button: 0 });
+    fireEvent.pointerMove(window, { clientX: 250, clientY: -400 });
+    expect(el.style.top).toBe("0px");
+    fireEvent.pointerUp(window);
+    // drag down to the bottom edge: the bar parks flush at vh − title
+    // height on release (the restored 500px window would not fit there)
+    fireEvent.pointerDown(bar(), { clientX: 250, clientY: 18, button: 0 });
+    fireEvent.pointerMove(window, { clientX: 250, clientY: 800 });
+    expect(el.style.top).toBe(`${VH - 36}px`);
+    fireEvent.pointerUp(window);
+    expect(el.style.top).toBe(`${VH - 36}px`);
+    // restoring keeps the parked spot: title bar visible, body below
+    fireEvent.click(screen.getByLabelText("restore chat"));
+    expect(el.style.height).toBe("500px");
+    expect(el.style.top).toBe(`${VH - 36}px`);
+  });
+
+  it("re-fits the bar fully into view when minimizing", () => {
+    saved({ x: 100, y: -20, w: 500, h: 500 });
+    render(<FloatingChat />);
+    // the expanded window sits partly above the screen (title bar visible)
+    expect(winEl().style.top).toBe("-20px");
+    fireEvent.click(screen.getByLabelText("minimize chat"));
+    expect(winEl().style.top).toBe("0px");
+  });
+
   it("adds a session tab via + and can close all but the last", () => {
     render(<FloatingChat />);
     expect(tabs()).toHaveLength(1);

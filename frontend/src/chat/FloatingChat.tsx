@@ -43,6 +43,7 @@ interface Props {
 }
 
 const GEOMETRY_KEY = "reelstudio.chat.geometry.v1";
+const MINIMIZED_KEY = "reelstudio.chat.minimized.v1";
 const MIN_W = 280;
 const MIN_H = 200;
 const TITLE_H = 36;
@@ -50,12 +51,15 @@ const SNAP = 12;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
 
-/** Keep the window grabbable: ≥60px of the title bar and the whole bar in view. */
-const fitToViewport = (g: Geometry, vw: number, vh: number): Geometry => {
+/** Keep the window grabbable: ≥60px of the title bar and the whole bar in view.
+ *  `fitH` is the height that must stay in view — the full window normally,
+ *  the title bar alone while minimized, so the bar can park anywhere even
+ *  where the restored window would not fit. */
+const fitToViewport = (g: Geometry, vw: number, vh: number, fitH = g.h): Geometry => {
   const w = clamp(g.w, MIN_W, vw);
   const h = clamp(g.h, MIN_H, vh);
   const x = clamp(g.x, -w + 60, vw - 60);
-  const y = clamp(g.y, -h + TITLE_H, vh - TITLE_H);
+  const y = clamp(g.y, -Math.min(fitH, h) + TITLE_H, vh - TITLE_H);
   return { x, y, w, h };
 };
 
@@ -66,7 +70,7 @@ const defaultGeometry = (vw: number, vh: number): Geometry =>
 const num = (n: unknown) =>
   typeof n === "number" && Number.isFinite(n) ? n : null;
 
-const loadGeometry = (vw: number, vh: number): Geometry => {
+const loadGeometry = (vw: number, vh: number, minimized: boolean): Geometry => {
   try {
     const raw = localStorage.getItem(GEOMETRY_KEY);
     if (!raw) return defaultGeometry(vw, vh);
@@ -75,17 +79,23 @@ const loadGeometry = (vw: number, vh: number): Geometry => {
     if (x === null || y === null || w === null || h === null) {
       return defaultGeometry(vw, vh);
     }
-    return fitToViewport({ x, y, w, h }, vw, vh);
+    return fitToViewport({ x, y, w, h }, vw, vh, minimized ? TITLE_H : h);
   } catch {
     return defaultGeometry(vw, vh);
   }
 };
 
-/** Magnetic edges: release near a viewport edge and the window parks flush. */
-const snapToEdges = (g: Geometry, vw: number, vh: number): Geometry => ({
+const loadMinimized = (): boolean => {
+  try { return localStorage.getItem(MINIMIZED_KEY) === "true"; }
+  catch { return false; }
+};
+
+/** Magnetic edges: release near a viewport edge and the window (or just the
+ *  bar while minimized) parks flush. */
+const snapToEdges = (g: Geometry, vw: number, vh: number, fitH = g.h): Geometry => ({
   ...g,
   x: g.x < SNAP ? 0 : g.x + g.w > vw - SNAP ? vw - g.w : g.x,
-  y: g.y < SNAP ? 0 : g.y + g.h > vh - SNAP ? vh - g.h : g.y,
+  y: g.y < SNAP ? 0 : g.y + fitH > vh - SNAP ? vh - fitH : g.y,
 });
 
 /** Resize release: a right/bottom edge near the viewport edge stretches flush;
@@ -113,11 +123,13 @@ export function FloatingChat({ onProjectChanged, selected }: Props) {
   selectedRef.current = selected;
   const [tabs, setTabs] = useState<Tab[]>([newTab(1)]);
   const [activeId, setActiveId] = useState(1);
-  const [minimized, setMinimized] = useState(false);
+  const [minimized, setMinimized] = useState(loadMinimized);
   const [g, setG] = useState<Geometry>(() =>
-    loadGeometry(window.innerWidth, window.innerHeight));
+    loadGeometry(window.innerWidth, window.innerHeight, minimized));
   const gRef = useRef(g);
   gRef.current = g;
+  const minimizedRef = useRef(minimized);
+  minimizedRef.current = minimized;
   const activeIdRef = useRef(activeId);
   activeIdRef.current = activeId;
   const fileInput = useRef<HTMLInputElement | null>(null);
@@ -158,11 +170,25 @@ export function FloatingChat({ onProjectChanged, selected }: Props) {
   }, [g]);
 
   useEffect(() => {
+    try { localStorage.setItem(MINIMIZED_KEY, JSON.stringify(minimized)); } catch { /* private mode */ }
+  }, [minimized]);
+
+  useEffect(() => {
     const onResize = () =>
-      setG((s) => fitToViewport(s, window.innerWidth, window.innerHeight));
+      setG((s) => fitToViewport(s, window.innerWidth, window.innerHeight,
+        minimizedRef.current ? TITLE_H : s.h));
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+
+  /** Minimize re-fits so the bar is fully in view — it is then the only UI.
+   *  Restoring needs no re-fit: a bar position always satisfies the
+   *  full-window clamp. */
+  const toggleMinimized = () => {
+    const next = !minimized;
+    setMinimized(next);
+    if (next) setG((s) => fitToViewport(s, window.innerWidth, window.innerHeight, TITLE_H));
+  };
 
   /** The shared scroller shows the active tab; land at its bottom. */
   const scrollBottom = () => {
@@ -262,17 +288,20 @@ export function FloatingChat({ onProjectChanged, selected }: Props) {
     if (e.button !== 0 || (e.target as HTMLElement).closest("button")) return;
     e.preventDefault();
     const g0 = { ...gRef.current };
+    // while minimized only the bar has to stay in view — the invisible body
+    // of the restored window must not push it around
+    const fitH = minimized ? TITLE_H : g0.h;
     const sx = e.clientX, sy = e.clientY;
     const move = (ev: PointerEvent) => {
       setG(fitToViewport(
         { ...g0, x: g0.x + ev.clientX - sx, y: g0.y + ev.clientY - sy },
-        window.innerWidth, window.innerHeight));
+        window.innerWidth, window.innerHeight, fitH));
     };
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);
-      setG((cur) => snapToEdges(cur, window.innerWidth, window.innerHeight));
+      setG((cur) => snapToEdges(cur, window.innerWidth, window.innerHeight, fitH));
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -328,7 +357,8 @@ export function FloatingChat({ onProjectChanged, selected }: Props) {
     e.preventDefault();
     setG((cur) => fitToViewport(
       { ...cur, x: cur.x + dx, y: cur.y + dy },
-      window.innerWidth, window.innerHeight));
+      window.innerWidth, window.innerHeight,
+      minimized ? TITLE_H : cur.h));
   };
 
   return (
@@ -355,7 +385,7 @@ export function FloatingChat({ onProjectChanged, selected }: Props) {
         </span>
         <button type="button" className="chat-float-min"
           aria-label={minimized ? "restore chat" : "minimize chat"}
-          onClick={() => setMinimized((m) => !m)}>{minimized ? "+" : "–"}</button>
+          onClick={toggleMinimized}>{minimized ? "+" : "–"}</button>
       </div>
       <div className="chat-tabs" role="tablist" aria-label="chat sessions">
         {tabs.map((t) => (
