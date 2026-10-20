@@ -303,6 +303,13 @@ def set_labels(workspace: str | Path, still_dir: str | Path, path: str,
     if f.exists():
         declared = doc.load(f) or {}
     labels_map = declared.setdefault("labels", {})
+    # `ref` is single-owner per domain (the plate and the character identity
+    # each resolve to exactly one `ref`-tagged file) and is owned by the
+    # render pipeline, not the UI: an approval payload that omits it must
+    # not silently release the pick — re-pointing it is a deliberate
+    # pipeline action
+    if labels and "ref" in labels_map.get(rel, []) and "ref" not in labels:
+        labels = ["ref"] + labels
     if labels:
         labels_map[rel] = [str(x) for x in labels]
     else:
