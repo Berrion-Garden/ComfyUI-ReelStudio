@@ -19,6 +19,7 @@ from pathlib import Path
 from aiohttp import web
 
 from . import manifest as manifest_mod
+from . import narrative as narrative_mod
 from . import assets as assets_mod
 from . import generate, jobs as jobs_mod, studio as studio_mod, timeline
 from . import audio as audio_mod
@@ -632,6 +633,26 @@ async def post_studio_scenes(request: web.Request) -> web.Response:
     return web.json_response(_studio_view(state))
 
 
+async def get_narrative(request: web.Request) -> web.Response:
+    state = _state(request)
+    root = studio_mod.resolve(state.config.workspace).root
+    return web.json_response(narrative_mod.view(root))
+
+
+async def put_narrative(request: web.Request) -> web.Response:
+    state = _state(request)
+    body = await request.json()
+    text = body.get("text")
+    if not isinstance(text, str):
+        return web.json_response({"error": "body must be {text: yaml}"}, status=400)
+    root = studio_mod.resolve(state.config.workspace).root
+    try:
+        narrative_mod.save(root, text)
+    except ValidationError as e:
+        return _json_error(e)
+    return web.json_response({"saved": True})
+
+
 async def post_studio_import(request: web.Request) -> web.Response:
     """Copy character/location pools from another scene into the current
     one; the optional `as` renames a single imported pool."""
@@ -764,6 +785,8 @@ def create_app(config: Config) -> web.Application:
     app.router.add_delete(f"{API}/sfx/board", delete_sfx_event)
     app.router.add_post(f"{API}/manifest/adopt", post_manifest_adopt)
     app.router.add_get(f"{API}/studio", get_studio)
+    app.router.add_get(f"{API}/narrative", get_narrative)
+    app.router.add_put(f"{API}/narrative", put_narrative)
     app.router.add_post(f"{API}/studio/save", post_studio_save)
     app.router.add_post(f"{API}/studio/open", post_studio_open)
     app.router.add_post(f"{API}/studio/scenes", post_studio_scenes)

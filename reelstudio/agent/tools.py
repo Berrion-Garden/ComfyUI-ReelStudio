@@ -1,8 +1,9 @@
 """Agent tools — the exact operations a human has, executed server-side.
 
 get_project / get_assets / get_yaml / update_yaml / generate /
-currently_selected / view_image / get_studio / update_asset_labels /
-anchor_still / adopt_renders / get_provenance / get_skill / get_status.
+currently_selected / view_image / get_studio / get_narrative /
+update_narrative / import_assets / update_asset_labels / anchor_still /
+adopt_renders / get_provenance / get_skill / get_status.
 update_yaml validates before saving and generate validates before queueing —
 the agent cannot save a broken chain or queue a bogus job, and every
 rejection teaches what would be valid.
@@ -13,6 +14,7 @@ from pathlib import Path
 
 from .. import generate
 from .. import jobs as jobs_mod
+from .. import narrative as narrative_mod
 from .. import readmodel
 from .. import studio as studio_mod
 from ..errors import ReelStudioError
@@ -133,6 +135,30 @@ TOOLS = [
                        "Read before cross-scene work (imports, references, "
                        "comparisons).",
         "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {
+        "name": "get_narrative",
+        "description": "The production narrative (storyboard.yaml at the "
+                       "studio root): style, ordered acts (each with its "
+                       "music/sync notes) and their checkpoints — the "
+                       "checkpoint-by-checkpoint story the whole production "
+                       "derives from. Read it before and after every edit.",
+        "parameters": {"type": "object", "properties": {}, "required": []}}},
+    {"type": "function", "function": {
+        "name": "update_narrative",
+        "description": "Replace the whole narrative with new text (raw YAML "
+                       "of {style, acts}). Validated first; the whole update "
+                       "is rejected on any structural error. Schema: `style` "
+                       "(str) + `acts`, each a mapping {title, music? "
+                       "(sync note), checkpoints}, each checkpoint {title, "
+                       "text, characters? (slugs), locations? (slugs)}. Read "
+                       "get_narrative first, edit, then submit the complete "
+                       "document. When the operator pastes a prompt or an "
+                       "image, work the new material into the narrative here "
+                       "— and draft the matching character/location YAML "
+                       "with update_yaml.",
+        "parameters": {"type": "object",
+                       "properties": {"text": {"type": "string"}},
+                       "required": ["text"]}}},
     {"type": "function", "function": {
         "name": "import_assets",
         "description": "Copy a character or location pool from another "
@@ -266,6 +292,18 @@ class ToolBox:
     async def _get_studio(self, _):
         return json.dumps(
             studio_mod.view_of(self.state.config.workspace), ensure_ascii=False)
+
+    async def _get_narrative(self, _):
+        root = studio_mod.resolve(self.state.config.workspace).root
+        return json.dumps(narrative_mod.view(root), ensure_ascii=False)
+
+    async def _update_narrative(self, args):
+        text = args.get("text")
+        if not isinstance(text, str):
+            return json.dumps({"error": "text required"})
+        root = studio_mod.resolve(self.state.config.workspace).root
+        narrative_mod.save(root, text)
+        return json.dumps({"saved": True, "path": str(narrative_mod.path(root))})
 
     async def _import_assets(self, args):
         out = studio_mod.import_assets(
