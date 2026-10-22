@@ -94,6 +94,10 @@ def project_view(state, api: str = "/reelstudio/api") -> dict:
                   if style else None),
         "styles": list(project.styles),
         "locations": list(project.locations),
+        # the digested YAML blocks the Storyboard view renders; the agent's
+        # update_yaml writes them, this read model only reflects them
+        "characters": project.raw.get("characters") or {},
+        "location_blocks": project.raw.get("locations") or {},
         "scenes": scenes,
         "music": music,
         "overlays": overlays,

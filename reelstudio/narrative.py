@@ -103,11 +103,11 @@ def validate(doc: dict) -> list[str]:
 
 
 def view(root: Path) -> dict:
-    """What GET /narrative and the agent's get_narrative return."""
+    """What GET /narrative and the agent's get_narrative return: the whole
+    document (unknown keys ride along — editing round-trips losslessly)
+    plus where it lives."""
     root = Path(root)
-    doc = load(root)
-    return {"path": str(path(root)), "style": doc.get("style"),
-            "acts": doc.get("acts", [])}
+    return {"path": str(path(root)), "doc": load(root)}
 
 
 def save(root: Path, text: str) -> None:

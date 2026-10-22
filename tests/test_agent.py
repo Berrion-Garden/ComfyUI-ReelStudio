@@ -43,11 +43,11 @@ async def test_toolbox_narrative_tools(config):
     state = ReelStudio(config)
     box = ToolBox(state)
     empty = json.loads(await box.call("get_narrative", {}))
-    assert empty["acts"] == []
+    assert empty["doc"]["acts"] == []
     result = json.loads(await box.call("update_narrative", {"text": NARRATIVE}))
     assert result["saved"] is True
     saved = json.loads(await box.call("get_narrative", {}))
-    assert saved["acts"][0]["checkpoints"][0]["characters"] == ["amunrekh"]
+    assert saved["doc"]["acts"][0]["checkpoints"][0]["characters"] == ["amunrekh"]
     rejected = json.loads(
         await box.call("update_narrative", {"text": "style: no acts here"}))
     assert rejected["error"]
