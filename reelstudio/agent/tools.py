@@ -12,6 +12,8 @@ rejection teaches what would be valid.
 import json
 from pathlib import Path
 
+import yaml
+
 from .. import generate
 from .. import jobs as jobs_mod
 from .. import narrative as narrative_mod
@@ -149,13 +151,14 @@ TOOLS = [
                        "of {style, acts}). Validated first; the whole update "
                        "is rejected on any structural error. Schema: `style` "
                        "(str) + `acts`, each a mapping {title, music? "
-                       "(sync note), checkpoints}, each checkpoint {title, "
-                       "text, characters? (slugs), locations? (slugs)}. Read "
-                       "get_narrative first, edit, then submit the complete "
-                       "document. When the operator pastes a prompt or an "
-                       "image, work the new material into the narrative here "
-                       "— and draft the matching character/location YAML "
-                       "with update_yaml.",
+                       "(sync note), checkpoints} where each checkpoint is a "
+                       "SCENE {title, characters? (slugs), locations? "
+                       "(slugs), shots} and each shot {title, text} is one "
+                       "of the script's Prompt N.M beats. Read get_narrative "
+                       "first, edit, then submit the complete document. When "
+                       "the operator pastes a prompt or an image, work the "
+                       "new material into the narrative here — and draft the "
+                       "matching character/location YAML with update_yaml.",
         "parameters": {"type": "object",
                        "properties": {"text": {"type": "string"}},
                        "required": ["text"]}}},
@@ -301,8 +304,14 @@ class ToolBox:
         text = args.get("text")
         if not isinstance(text, str):
             return json.dumps({"error": "text required"})
+        try:
+            doc = yaml.safe_load(text)
+        except yaml.YAMLError as e:
+            return json.dumps({"error": f"yaml error: {e}"})
+        if not isinstance(doc, dict):
+            return json.dumps({"error": "narrative must be a mapping"})
         root = studio_mod.resolve(self.state.config.workspace).root
-        narrative_mod.save(root, text)
+        narrative_mod.save(root, doc)
         return json.dumps({"saved": True, "path": str(narrative_mod.path(root))})
 
     async def _import_assets(self, args):

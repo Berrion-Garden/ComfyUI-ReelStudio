@@ -22,9 +22,12 @@ const NARRATIVE: NarrativeView = {
       music: "guitar riff",
       checkpoints: [{
         title: "Scene 1 — The Antique Shop",
-        text: "Establishing shot of the shop at dawn.",
         characters: ["amunrekh"],
         locations: ["antique_shop"],
+        shots: [{
+          title: "1.1 Establishing Shot",
+          text: "Establishing shot of the shop at dawn.",
+        }],
       }],
     }],
   },
@@ -68,14 +71,15 @@ describe("Storyboard", () => {
     render(<Storyboard project={project()} refreshTick={0} />);
     await screen.findByText("Scene 1 — The Antique Shop");
 
-    fireEvent.click(screen.getByLabelText("edit Scene 1 — The Antique Shop"));
+    fireEvent.click(screen.getByLabelText("edit 1.1 Establishing Shot"));
     const area = screen.getByLabelText("Text");
     fireEvent.change(area, { target: { value: "Establishing shot, revised." } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(saveNarrative).toHaveBeenCalled());
     const doc = vi.mocked(saveNarrative).mock.calls[0][0];
-    expect(doc.acts[0].checkpoints[0].text).toBe("Establishing shot, revised.");
+    expect(doc.acts[0].checkpoints[0].shots[0].text)
+      .toBe("Establishing shot, revised.");
   });
 
   it("a character chip navigates to the Characters section, focused", async () => {

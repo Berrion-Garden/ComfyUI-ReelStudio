@@ -173,21 +173,27 @@ export async function deleteAsset(path: string): Promise<void> {
 
 // --------------------------------------------------------- narrative ----
 
-export interface Checkpoint {
+export interface Shot {
   title: string;
   text: string;
-  characters?: string[];
-  locations?: string[];
+}
+
+/** A scene beat of the script — its shot prompts derive from it. */
+export interface Checkpoint {
+  title: string;
+  characters: string[];
+  locations: string[];
+  shots: Shot[];
 }
 
 export interface Act {
   title: string;
-  music?: string;
+  music: string;
   checkpoints: Checkpoint[];
 }
 
 export interface NarrativeDoc {
-  style?: string;
+  style: string;
   acts: Act[];
 }
 

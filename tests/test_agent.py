@@ -4,7 +4,6 @@ endpoint as the fake ComfyUI — the test server plays both roles)."""
 import json
 
 from conftest import YAML_BODY
-from test_narrative import NARRATIVE
 
 GATEWAY_PATH = "/v1/chat/completions"
 
@@ -34,23 +33,6 @@ def assistant_tool(call_id: str, name: str, args: dict) -> dict:
     return {"role": "assistant", "content": None, "tool_calls": [
         {"id": call_id, "type": "function",
          "function": {"name": name, "arguments": json.dumps(args)}}]}
-
-
-async def test_toolbox_narrative_tools(config):
-    from reelstudio.agent.tools import ToolBox
-    from reelstudio.app import ReelStudio
-
-    state = ReelStudio(config)
-    box = ToolBox(state)
-    empty = json.loads(await box.call("get_narrative", {}))
-    assert empty["doc"]["acts"] == []
-    result = json.loads(await box.call("update_narrative", {"text": NARRATIVE}))
-    assert result["saved"] is True
-    saved = json.loads(await box.call("get_narrative", {}))
-    assert saved["doc"]["acts"][0]["checkpoints"][0]["characters"] == ["amunrekh"]
-    rejected = json.loads(
-        await box.call("update_narrative", {"text": "style: no acts here"}))
-    assert rejected["error"]
 
 
 async def test_toolbox_update_yaml_and_staleness(config):

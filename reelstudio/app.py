@@ -14,7 +14,6 @@ import subprocess
 import urllib.parse
 import uuid
 import time
-import yaml
 from pathlib import Path
 
 from aiohttp import web
@@ -644,19 +643,12 @@ async def put_narrative(request: web.Request) -> web.Response:
     state = _state(request)
     body = await request.json()
     doc = body.get("doc")
-    if isinstance(doc, dict):
-        # the UI edits the parsed document; the server owns the YAML dump
-        text = yaml.safe_dump(doc, sort_keys=False, allow_unicode=True,
-                              width=76)
-    else:
-        text = body.get("text")
-    if not isinstance(text, str):
-        return web.json_response(
-            {"error": "body must be {doc: {style, acts}} or {text: yaml}"},
-            status=400)
+    if not isinstance(doc, dict):
+        return web.json_response({"error": "body must be {doc: {style, acts}}"},
+                                 status=400)
     root = studio_mod.resolve(state.config.workspace).root
     try:
-        narrative_mod.save(root, text)
+        narrative_mod.save(root, doc)
     except ValidationError as e:
         return _json_error(e)
     return web.json_response({"saved": True})

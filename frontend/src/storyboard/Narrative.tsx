@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Act, Checkpoint, NarrativeDoc } from "../api";
+import type { Checkpoint, NarrativeDoc } from "../api";
 
 export type Section = "narrative" | "characters" | "locations" | "scenes";
 
@@ -9,42 +9,55 @@ interface Props {
   saving: boolean;
   /** mutate the draft — the parent owns the doc and the save */
   onChange: (doc: NarrativeDoc) => void;
-  /** write a doc to storyboard.yaml (the pen's Save passes the draft) */
+  /** write a doc to storyboard.yaml (a pen's Save passes the draft) */
   onSave: (doc: NarrativeDoc) => void;
   onNavigate: (section: Section, slug: string) => void;
 }
 
 /**
- * The production narrative, top down: style, then every act with its
- * sync/music note and its checkpoint cards. Each checkpoint is its own
- * block with a pen icon top right — inline edit, or the agent edits it
- * through chat. `characters`/`locations` slug lists render as links into
- * the digested YAML sections.
+ * The production narrative, top down: style, then every act (with its
+ * sync/music note) of scene checkpoints, each holding its shot prompts —
+ * the original script's exact shape. Every scene card and shot has a pen
+ * icon top right for inline editing; the agent edits through chat
+ * equally. `characters`/`locations` slugs render as links into the
+ * digested YAML sections.
  */
 export function Narrative({ doc, dirty, saving, onChange, onSave, onNavigate }: Props) {
-  const [editing, setEditing] = useState<string | null>(null); // "act:cp"
+  const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ title: string; text: string }>(
     { title: "", text: "" });
 
-  const startEdit = (act: Act, i: number, j: number) => {
-    const cp = act.checkpoints[j];
-    setEditing(`${i}:${j}`);
-    setDraft({ title: cp.title, text: cp.text });
+  const startEdit = (key: string, title: string, text: string) => {
+    setEditing(key);
+    setDraft({ title, text });
   };
 
+  /** apply the draft to the one node `key` addresses (a scene or a shot) */
   const commit = () => {
     if (editing === null) return null;
-    const [i, j] = editing.split(":").map(Number);
-    const acts = doc.acts.map((a, ai) => ai !== i ? a : {
-      ...a,
-      checkpoints: a.checkpoints.map((cp, ci) => ci !== j ? cp : {
-        ...cp, ...draft,
-      }),
+    const [ai, ci, si] = editing.split(":").map(Number);
+    const acts = doc.acts.map((act, i) => {
+      if (i !== ai) return act;
+      const checkpoints = act.checkpoints.map((cp, j) => {
+        if (j !== ci) return cp;
+        if (Number.isNaN(si)) return { ...cp, title: draft.title };
+        return {
+          ...cp,
+          shots: cp.shots.map((shot, k) => k !== si ? shot
+            : { ...shot, ...draft }),
+        };
+      });
+      return { ...act, checkpoints };
     });
     const next = { ...doc, acts };
     onChange(next);
     setEditing(null);
     return next;
+  };
+
+  const saveOrCommit = () => {
+    const next = commit();
+    if (next) onSave(next);
   };
 
   return (
@@ -54,31 +67,12 @@ export function Narrative({ doc, dirty, saving, onChange, onSave, onNavigate }: 
         <section key={i} className="narrative-act">
           <h3>{act.title}</h3>
           {act.music && <p className="narrative-music">🎵 {act.music}</p>}
-          {act.checkpoints.map((cp, j) => {
-            const key = `${i}:${j}`;
-            return editing === key ? (
-              <div key={key} className="checkpoint editing">
-                <label>Title
-                  <input value={draft.title}
-                    onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
-                </label>
-                <label>Text
-                  <textarea rows={6} value={draft.text}
-                    onChange={(e) => setDraft({ ...draft, text: e.target.value })} />
-                </label>
-                <div className="row-actions">
-                  <button type="button"
-                    onClick={() => { const next = commit(); if (next) onSave(next); }}
-                    disabled={!draft.title || !draft.text}>Save</button>
-                  <button type="button" onClick={() => setEditing(null)}>
-                    Cancel</button>
-                </div>
-              </div>
-            ) : (
-              <CheckpointCard key={key} cp={cp} onEdit={() => startEdit(act, i, j)}
-                onNavigate={onNavigate} />
-            );
-          })}
+          {act.checkpoints.map((cp, j) => (
+            <SceneCard key={j} cp={cp} editing={editing} draft={draft}
+              setDraft={setDraft} startEdit={startEdit} cancelEdit={() => setEditing(null)}
+              commit={commit} saveOrCommit={saveOrCommit}
+              sceneKey={`${i}:${j}`} onNavigate={onNavigate} />
+          ))}
         </section>
       ))}
       {doc.acts.length === 0 &&
@@ -94,30 +88,82 @@ export function Narrative({ doc, dirty, saving, onChange, onSave, onNavigate }: 
   );
 }
 
-function CheckpointCard({ cp, onEdit, onNavigate }: {
+interface SceneProps {
   cp: Checkpoint;
-  onEdit: () => void;
+  editing: string | null;
+  draft: { title: string; text: string };
+  setDraft: (d: { title: string; text: string }) => void;
+  startEdit: (key: string, title: string, text: string) => void;
+  cancelEdit: () => void;
+  commit: () => void;
+  saveOrCommit: () => void;
+  sceneKey: string;
   onNavigate: Props["onNavigate"];
-}) {
+}
+
+function SceneCard({ cp, editing, draft, setDraft,
+                     startEdit, cancelEdit, commit, saveOrCommit,
+                     sceneKey, onNavigate }: SceneProps) {
   return (
-    <article className="checkpoint">
-      <button type="button" className="pen" title="edit this checkpoint"
-        aria-label={`edit ${cp.title}`} onClick={onEdit}>✎</button>
+    <article className="checkpoint scene">
+      <button type="button" className="pen"
+        title="edit this scene's title" aria-label={`edit scene ${cp.title}`}
+        onClick={() => startEdit(sceneKey, cp.title, "")}>✎</button>
       <h4>{cp.title}</h4>
-      <p className="checkpoint-text">{cp.text}</p>
-      {(cp.characters?.length || cp.locations?.length) &&
+      {(cp.characters.length > 0 || cp.locations.length > 0) &&
         <div className="ref-chips">
-          {cp.characters?.map((slug) => (
+          {cp.characters.map((slug) => (
             <button key={slug} type="button" className="chip"
               onClick={() => onNavigate("characters", slug)}
               title={`open character ${slug}`}>{slug}</button>
           ))}
-          {cp.locations?.map((slug) => (
+          {cp.locations.map((slug) => (
             <button key={slug} type="button" className="chip loc"
               onClick={() => onNavigate("locations", slug)}
               title={`open location ${slug}`}>{slug}</button>
           ))}
         </div>}
+      {cp.shots.map((shot, k) => {
+        const key = `${sceneKey}:${k}`;
+        return editing === key ? (
+          <div key={key} className="shot editing">
+            <label>Title
+              <input value={draft.title}
+                onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
+            </label>
+            <label>Text
+              <textarea rows={6} value={draft.text}
+                onChange={(e) => setDraft({ ...draft, text: e.target.value })} />
+            </label>
+            <div className="row-actions">
+              <button type="button" onClick={saveOrCommit}
+                disabled={!draft.text}>Save</button>
+              <button type="button" onClick={cancelEdit}>Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <div key={key} className="shot">
+            <button type="button" className="pen"
+              title="edit this shot" aria-label={`edit ${shot.title || cp.title}`}
+              onClick={() => startEdit(key, shot.title, shot.text)}>✎</button>
+            {shot.title && <h5>{shot.title}</h5>}
+            <p className="checkpoint-text">{shot.text}</p>
+          </div>
+        );
+      })}
+      {editing === sceneKey && (
+        <div className="shot editing">
+          <label>Title
+            <input value={draft.title}
+              onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
+          </label>
+          <div className="row-actions">
+            <button type="button" onClick={commit}
+              disabled={!draft.title}>Save</button>
+            <button type="button" onClick={cancelEdit}>Cancel</button>
+          </div>
+        </div>
+      )}
     </article>
   );
 }
