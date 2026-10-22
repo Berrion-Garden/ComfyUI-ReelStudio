@@ -396,10 +396,11 @@ def validate(project: Project) -> list[str]:
         if not shot.get("description"):
             problems.append(f"shots.{slug}: description is required — the "
                             f"action the render composes")
-        if not shot.get("characters"):
+        chars = shot.get("characters")
+        if chars is None:
             problems.append(f"shots.{slug}: characters is required")
         else:
-            for i, c in enumerate(shot["characters"]):
+            for i, c in enumerate(chars):
                 if not isinstance(c, dict) or not c.get("slug"):
                     problems.append(
                         f"shots.{slug}.characters[{i}]: must be a mapping "
@@ -423,8 +424,11 @@ def validate(project: Project) -> list[str]:
         video = s.get("video", {})
         if video.get("mode") not in VALID_VIDEO_MODES:
             problems.append(f"{sid}: video.mode must be one of {VALID_VIDEO_MODES}")
-        if not video.get("description"):
-            problems.append(f"{sid}: video.description is required")
+        if not video.get("description") and not s.get("beat"):
+            # a `beat:`-wired scene derives its prompt from storyboard.yaml
+            # at load — restating the movement here would be a second copy
+            problems.append(f"{sid}: video.description is required "
+                            f"(or wire `beat:` to storyboard.yaml)")
 
         frames = s.get("frames", meta.get("frames"))
         if frames is None:
@@ -442,7 +446,7 @@ def validate(project: Project) -> list[str]:
         elif s["location"] not in locations:
             problems.append(f"{sid}: unknown location {s['location']!r} "
                             f"(known: {sorted(locations)})")
-        if not (video.get("description") or "").strip():
+        if not (video.get("description") or "").strip() and not s.get("beat"):
             problems.append(f"{sid}: video.description is required — the "
                             f"action between the anchors")
 
@@ -484,8 +488,10 @@ def validate(project: Project) -> list[str]:
                             f"(known: {list(project.locations)})")
 
         post = s.get("post", {}).get("freeze")
-        if post and "at_s" not in post:
-            problems.append(f"{sid}: post.freeze needs at_s")
+        if post and not ({"at_s", "motion_s"} & set(post)):
+            # reel.py's freeze_post consumes motion_s/flash_s; at_s is the
+            # legacy spelling — either declares the freeze point
+            problems.append(f"{sid}: post.freeze needs at_s (or motion_s)")
 
     # chain agreement: list order == next order
     for i, s in enumerate(scenes[:-1]):
