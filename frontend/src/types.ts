@@ -57,6 +57,20 @@ export interface JobView {
   result: string | null;
 }
 
+/** One character's digested YAML block from the current scene's reel.yaml —
+ * identity anchors (attributes) → named edits (layers) → pose leaves. */
+export interface CharacterBlock {
+  attributes?: Record<string, string | string[]>;
+  layers?: Record<string, Record<string, string>>;
+  variants?: Record<string, unknown>[];
+  [key: string]: unknown;
+}
+
+export interface LocationBlock {
+  pro?: string;
+  con?: string;
+}
+
 export interface ProjectView {
   yaml_path: string;
   fps: number;
@@ -71,6 +85,9 @@ export interface ProjectView {
   overlays: OverlayView[];
   final_url: string | null;
   jobs: JobView[];
+  /** the digested YAML blocks the Storyboard view renders (readmodel) */
+  characters: Record<string, CharacterBlock>;
+  location_blocks: Record<string, LocationBlock>;
 }
 
 export interface ChatEvent {

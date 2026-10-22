@@ -617,3 +617,62 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 }
 
 .mini-render.adopt { color: var(--ok); border-color: var(--ok); }
+
+/* ---- Storyboard stage view ------------------------------------------- */
+.storyboard {
+  flex: 1; display: flex; flex-direction: column;
+  min-height: 0; min-width: 0;
+}
+.storyboard-tabs { display: flex; gap: 6px; padding-bottom: 6px; }
+.storyboard-tabs .tab.on { border-color: var(--accent); color: var(--accent); }
+.storyboard-scroll {
+  flex: 1; overflow-y: auto; min-height: 0;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.narrative-style { color: var(--dim); font-style: italic; margin: 0; }
+.narrative-act { border-top: 1px solid var(--edge); padding-top: 8px; }
+.narrative-act h3 { margin: 0 0 4px; font-size: 14px; color: var(--accent); }
+.narrative-music { color: var(--dim); font-size: 12px; margin: 0 0 8px; }
+.checkpoint {
+  position: relative; background: var(--panel);
+  border: 1px solid var(--edge); border-radius: 6px;
+  padding: 8px 12px; display: flex; flex-direction: column; gap: 6px;
+}
+.checkpoint h4 { margin: 0; font-size: 13px; }
+.checkpoint .pen {
+  position: absolute; top: 6px; right: 6px;
+  font-size: 12px; padding: 2px 7px; line-height: 1;
+}
+.checkpoint.editing { border-color: var(--accent); }
+.checkpoint.editing label { display: flex; flex-direction: column; gap: 3px;
+  font-size: 11px; color: var(--dim); }
+.checkpoint.editing textarea { font: inherit; resize: vertical; }
+.row-actions { display: flex; gap: 6px; }
+.checkpoint-text { margin: 0; font-size: 12px; white-space: pre-wrap; }
+.ref-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip {
+  font-size: 11px; padding: 1px 8px; border-radius: 10px;
+  border: 1px solid var(--edge); color: var(--text); cursor: pointer;
+}
+.chip.loc { color: var(--warn); }
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+.narrative-savebar { padding: 4px 0 12px; }
+.entity-card {
+  position: relative; background: var(--panel);
+  border: 1px solid var(--edge); border-radius: 6px;
+  padding: 8px 12px; display: flex; flex-direction: column; gap: 6px;
+}
+.entity-card.focused { border-color: var(--accent); }
+.entity-card h4 { margin: 0; font-size: 13px;
+  display: flex; justify-content: space-between; gap: 8px; }
+.entity-card h5 { margin: 4px 0 0; font-size: 11px; color: var(--dim); }
+.scene-meta { font-size: 11px; color: var(--dim); font-weight: normal; }
+.stale-badge { color: var(--warn); }
+.kv { margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.kv-row { display: flex; gap: 8px; font-size: 12px; }
+.kv-row dt { color: var(--dim); min-width: 90px; }
+.kv-row dd { margin: 0; }
+.con { color: var(--xxx); font-size: 11px; margin: 0; }
+.variant { margin: 0; font-size: 12px; }
+.layer { border-top: 1px dashed var(--edge); padding-top: 4px; }
+.empty-hint { color: var(--dim); font-style: italic; font-size: 12px; }

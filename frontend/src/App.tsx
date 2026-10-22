@@ -6,6 +6,7 @@ import { Timeline } from "./timeline/Timeline";
 import { FloatingChat } from "./chat/FloatingChat";
 import { AssetsPane } from "./assets/AssetsPane";
 import { FileMenu } from "./studio/FileMenu";
+import { Storyboard } from "./storyboard/Storyboard";
 import { fetchStudio, type StudioView } from "./api";
 import type { ProjectView } from "./types";
 
@@ -19,7 +20,8 @@ export function App() {
   const [assets, setAssets] = useState<AssetsData | null>(null);
   const [seekRequest, setSeekRequest] = useState<{ s: number; n: number } | null>(null);
   const [sfxBoard, setSfxBoard] = useState<SfxScene[]>([]);
-  const [stageView, setStageView] = useState<"player" | "images">("player");
+  const [stageView, setStageView] = useState<"player" | "images" | "storyboard">("player");
+  const [refreshTick, setRefreshTick] = useState(0);
   const stageRef = useRef<HTMLElement | null>(null);
 
   const refresh = useCallback(async () => {
@@ -43,6 +45,8 @@ export function App() {
       setError(null);
     } catch (e) {
       setError(String(e));
+    } finally {
+      setRefreshTick((t) => t + 1);
     }
   }, []);
 
@@ -152,6 +156,8 @@ export function App() {
                 onClick={() => setStageView("player")}>▶ Player</button>
               <button type="button" className={stageView === "images" ? "tab on" : "tab"}
                 onClick={() => setStageView("images")}>🖼 Images</button>
+              <button type="button" className={stageView === "storyboard" ? "tab on" : "tab"}
+                onClick={() => setStageView("storyboard")}>🎞 Storyboard</button>
               <span className="stage-tabs-spacer" />
               <button type="button" onClick={toggleFullscreen}
                 title="fullscreen the player">⛶</button>
@@ -212,6 +218,9 @@ export function App() {
                 selectedList={selectedAssets}
                 onSelect={selectAsset} onPrimary={setPrimary}
                 onChanged={() => void refresh()} />
+            </div>
+            <div className={stageView === "storyboard" ? "stage-host" : "stage-host hidden"}>
+              <Storyboard project={project} refreshTick={refreshTick} />
             </div>
           </section>
           <AssetsPane assets={assets} studio={studio}

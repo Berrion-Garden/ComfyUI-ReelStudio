@@ -171,6 +171,46 @@ export async function deleteAsset(path: string): Promise<void> {
   await json_or_throw(resp);
 }
 
+// --------------------------------------------------------- narrative ----
+
+export interface Checkpoint {
+  title: string;
+  text: string;
+  characters?: string[];
+  locations?: string[];
+}
+
+export interface Act {
+  title: string;
+  music?: string;
+  checkpoints: Checkpoint[];
+}
+
+export interface NarrativeDoc {
+  style?: string;
+  acts: Act[];
+}
+
+export interface NarrativeView {
+  path: string;
+  doc: NarrativeDoc;
+}
+
+export async function fetchNarrative(): Promise<NarrativeView> {
+  const resp = await apiFetch(`${API}/narrative`);
+  return json_or_throw<NarrativeView>(resp);
+}
+
+/** The UI edits the parsed document; the server owns the YAML dump. */
+export async function saveNarrative(doc: NarrativeDoc): Promise<void> {
+  const resp = await apiFetch(`${API}/narrative`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ doc }),
+  });
+  await json_or_throw(resp);
+}
+
 // ------------------------------------------------------------- studio ----
 
 export interface StudioScene {
