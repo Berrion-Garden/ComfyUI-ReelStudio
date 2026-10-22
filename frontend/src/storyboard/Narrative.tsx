@@ -109,7 +109,7 @@ function SceneCard({ cp, editing, draft, setDraft,
       <button type="button" className="pen"
         title="edit this scene's title" aria-label={`edit scene ${cp.title}`}
         onClick={() => startEdit(sceneKey, cp.title, "")}>✎</button>
-      <h4>{cp.title}</h4>
+      <h4><b className="beat-id" title="the beat id reel.yaml wires to">{cp.id}</b>{cp.title}</h4>
       {(cp.characters.length > 0 || cp.locations.length > 0) &&
         <div className="ref-chips">
           {cp.characters.map((slug) => (

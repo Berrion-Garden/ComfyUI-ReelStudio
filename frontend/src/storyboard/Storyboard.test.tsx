@@ -21,14 +21,16 @@ const NARRATIVE: NarrativeView = {
       title: "Act 1 — Waking Up",
       music: "guitar riff",
       checkpoints: [{
-        title: "Scene 1 — The Antique Shop",
-        characters: ["amunrekh"],
-        locations: ["antique_shop"],
-        shots: [{
-          title: "1.1 Establishing Shot",
-          text: "Establishing shot of the shop at dawn.",
-        }],
+      id: "scene-1",
+      title: "Scene 1 — The Antique Shop",
+      characters: ["amunrekh"],
+      locations: ["antique_shop"],
+      shots: [{
+        id: "1.1",
+        title: "1.1 Establishing Shot",
+        text: "Establishing shot of the shop at dawn.",
       }],
+    }],
     }],
   },
 };
@@ -65,6 +67,8 @@ describe("Storyboard", () => {
     await screen.findByText("Act 1 — Waking Up");
     expect(screen.getByText("Scene 1 — The Antique Shop")).toBeTruthy();
     expect(screen.getByText(/Establishing shot/)).toBeTruthy();
+    // the derived beat id shows on the scene card — what reel.yaml wires to
+    expect(screen.getByText("scene-1")).toBeTruthy();
   });
 
   it("the pen opens an inline edit and Save PUTs the whole doc", async () => {

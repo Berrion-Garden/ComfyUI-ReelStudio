@@ -173,13 +173,16 @@ export async function deleteAsset(path: string): Promise<void> {
 
 // --------------------------------------------------------- narrative ----
 
+/** A scene beat of the script — its shot prompts derive from it. Ids are
+ * derived from the title numbering and are what reel.yaml wires to. */
 export interface Shot {
+  id: string;
   title: string;
   text: string;
 }
 
-/** A scene beat of the script — its shot prompts derive from it. */
 export interface Checkpoint {
+  id: string;
   title: string;
   characters: string[];
   locations: string[];

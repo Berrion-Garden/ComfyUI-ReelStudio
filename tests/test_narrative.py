@@ -39,15 +39,45 @@ async def test_put_get_roundtrip_normalized(client, workspace):
     assert cp["locations"] == ["antique_shop_dawn"]
     assert cp["shots"][0]["text"].startswith("A dimly lit")
 
-    # the display shape is total: every field present, everywhere
+    # the display shape is total: every field present, everywhere, ids derived
     v = await (await client.get("/reelstudio/api/narrative")).json()
     doc = v["doc"]
     assert doc["style"].startswith("Cinematic anime")
     act = doc["acts"][0]
     assert act["music"].startswith("Synched to")
-    bare = act["checkpoints"][1]
+    checkpoints = act["checkpoints"]
+    assert checkpoints[0]["id"] == "scene-1"
+    assert checkpoints[0]["shots"][0]["id"] == "1.1"
+    bare = checkpoints[1]
+    assert bare["id"] == "scene-2"
     assert bare["characters"] == [] and bare["locations"] == []
-    assert len(bare["shots"]) == 1
+    assert len(bare["shots"]) == 1 and bare["shots"][0]["id"] == "2.1"
+
+
+async def test_total_format_and_unique_ids(client, workspace):
+    (workspace / "storyboard.yaml").write_text(NARRATIVE)
+    for doc, problem in (
+            ({"acts": [{"title": "Act", "checkpoints": [{"title": "S", "shots":
+                [{"title": "1.1", "text": "x", "pose": "arms crossed"}]}]}]},
+             "unknown keys ['pose']"),
+            ({"acts": [{"title": "Act", "checkpoints": [
+                {"title": "Scene 1", "shots": [{"text": "x"}]},
+                {"title": "Scene 1", "shots": [{"text": "y"}]}]}]},
+             "duplicate checkpoint id 'scene-1'"),
+    ):
+        resp = await client.put("/reelstudio/api/narrative", json={"doc": doc})
+        assert resp.status == 400
+        body = await resp.json()
+        assert any(problem in p for p in body.get("problems", [body["error"]]))
+
+    # an explicit id overrides the derivation and stays unique-checked
+    resp = await client.put("/reelstudio/api/narrative", json={"doc": {
+        "acts": [{"title": "Act", "checkpoints": [
+            {"title": "Scene 1", "id": "the-shop",
+             "shots": [{"title": "1.1 x", "text": "x"}]}]}]}})
+    assert resp.status == 200
+    v = await (await client.get("/reelstudio/api/narrative")).json()
+    assert v["doc"]["acts"][0]["checkpoints"][0]["id"] == "the-shop"
 
 
 async def test_rejected_update_keeps_old(client, workspace):
