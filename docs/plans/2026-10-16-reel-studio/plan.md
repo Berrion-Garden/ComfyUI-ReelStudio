@@ -283,3 +283,34 @@ Milestones:
 
 - M17a — FE: FloatingChat (four-corner resize, tab state + strip UI),
   styles, tests, docs, dist rebuild — blocked on nothing
+
+## M18 addendum — Storyboard stage: the production narrative (2026-10-22)
+
+Requirements:
+
+- FR-37: `storyboard.yaml` at the studio root owns the production
+  narrative — `style:` + ordered `acts:` (each with its music/sync note)
+  of `checkpoints:` `{title, text, characters: [slugs], locations:
+  [slugs]}`. Explicit slug lists are the link seam; prose is never parsed.
+  The narrative sits ABOVE the scenes — it is production canon.
+- FR-38: GET/PUT /api/narrative + agent tools `get_narrative`/
+  `update_narrative`. `load` defaults to empty acts (a production starts
+  before the file exists); `save` validates first and rejects the whole
+  update. The PUT route accepts `{doc}` (UI; the server owns the YAML
+  dump) or `{text}`.
+- FR-39: Third stage toggle (Player/Images/Storyboard) with four sections:
+  Narrative (top-down acts → checkpoint cards, pen-icon top-right inline
+  editing), Characters/Locations (THIS project's reel.yaml blocks from the
+  read model), Scenes (the reel's scenes with digested descriptions). Slug
+  references render as links that switch section and highlight the target.
+- FR-40: Ingestion is the chat agent's job (skills/storyboard-workflow.md):
+  prompts/images → narrative checkpoints + character `attributes` /
+  location `pro` blocks via existing vision + update_yaml.
+- FR-41: `storyboard_doc.py` (the unwired breakdown CLI) and its test are
+  deleted — the agent + storyboard.yaml are the single story→YAML path.
+
+Milestones (delivered on feat/storyboard):
+
+- M18a — BE narrative module + routes + agent tools — done
+- M18b — FE Storyboard stage view — done
+- M18c — storyboard-workflow skill + storyboard_doc deletion — done
