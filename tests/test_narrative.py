@@ -24,7 +24,7 @@ async def test_default_when_absent(client, workspace):
     resp = await client.get("/reelstudio/api/narrative")
     assert resp.status == 200
     v = await resp.json()
-    assert v["acts"] == []  # a production starts before the file exists
+    assert v["doc"]["acts"] == []  # a production starts before the file exists
     assert v["path"].endswith("storyboard.yaml")
 
 
@@ -38,8 +38,8 @@ async def test_put_get_roundtrip(client, workspace):
     assert cp["locations"] == ["antique_shop"]
 
     v = await (await client.get("/reelstudio/api/narrative")).json()
-    assert v["style"].startswith("Cinematic anime")
-    assert len(v["acts"][0]["checkpoints"]) == 2
+    assert v["doc"]["style"].startswith("Cinematic anime")
+    assert len(v["doc"]["acts"][0]["checkpoints"]) == 2
 
 
 async def test_rejected_update_keeps_old(client, workspace):
