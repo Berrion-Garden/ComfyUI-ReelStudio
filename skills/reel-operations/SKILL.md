@@ -101,15 +101,17 @@ $PY "$REEL" campaign 10                 # or the whole wave when many leaves cha
 ## 6. Re-cut timing
 
 - Per-scene `frames:` (all 90 here = 17×5+5) — stay on the H3 grid 17n+5; off-grid works but the studio validator warns. Duration = frames/24.
-- Music act anchors: the `music: {name, caption, gain}` dict sits on the act-OPENING scene (s01, s07, s11, s20) and runs to the next anchor.
+- Music act anchors: the `music: {name, caption, gain}` dict sits on the act-OPENING scene and runs to the next anchor. RULING (operator, 2026-10-22): generated audio is NEVER mixed — the wired song track is the only bed, and `sfx_volume: 0` keeps H3 scene audio out. The Amun reel carries NO `music:` anchors; do not re-add them without instruction.
 - Title freeze post (s20): `at_s` (motion), `flash_s` (white hit), `grade` (saturation/contrast/brightness/vignette), `names` (drawtext credits — `x` is NUMERIC pixels; only the literal `right` slides from the right edge). Edit `post:` → `$PY "$REEL" post s20_title`, verify with `plan` + validator API-OK (§4).
 
 ## 7. Music + assemble
 
 ```bash
-$PY "$REEL" music                       # (re)generate the anchored music segments (MUSIC_BUDGET 300 s/segment)
+$PY "$REEL" music                       # no-op unless `music:` anchors exist — the Amun reel has NONE (see the ruling in §6)
 $PY "$REEL" assemble                    # bed + bells + sfx + concat + mix -> final mp4
 ```
+
+- The mix's ONLY bed is the wired song track (`audio:` in reel.yaml). Generated music and H3 scene audio are both mixed at zero gain (no `music:` anchors + `sfx_volume: 0`). Before claiming the mix is missing a layer, trace the LAST assemble's `overlay:` lines — the mix log is ground truth, not the storyboard's wish list.
 
 - `music`/`assemble` both skip music only under `flags.skip_music: true` in reel.yaml (NOT set for the Amun reel — they include music by default); `--with-music` forces past that flag.
 - Verify the cut (final = `meta.final`):
