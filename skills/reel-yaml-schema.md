@@ -36,8 +36,10 @@ single source of truth; code never holds a second copy.
   bandages, accessories, outfit), joined in yaml order into every prompt;
   edit ONE key to change one trait, never restate a trait in two places.
   `ref` — provenance only: which pool image the description was pulled
-  from; not a model input. `backdrop` — the blank studio background text;
-  reference stills are ALWAYS one character on a blank backdrop.
+  from; not a model input. Pose renders sit on the STANDARDIZED backdrop
+  (the pipeline constant `POSE_BACKDROP` in reel.py) — a character carries
+  canon (identity anchor language + required `clothing`), never a
+  backdrop.
   `variants` — one directive per still: a pose, a framing (full-body or
   close-up), or an attribute variance (hair, clothes, style). `negatives`
   (inside attributes) — BARE CONCEPT WORDS ONLY, the engine SUBTRACTS each

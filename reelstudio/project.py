@@ -388,17 +388,22 @@ def validate(project: Project) -> list[str]:
         if not isinstance(char, dict):
             continue
         attrs = char.get("attributes") or {}
-        for required in ("clothing", "backdrop"):
-            if not attrs.get(required):
-                problems.append(
-                    f"characters.{cname}.attributes.{required} is required "
-                    f"— the BASE canon every leaf inherits")
+        if not attrs.get("clothing"):
+            problems.append(
+                f"characters.{cname}.attributes.clothing is required "
+                f"— the BASE canon every leaf inherits")
     for slug, shot in (project.raw.get("shots") or {}).items():
         if not shot.get("description"):
             problems.append(f"shots.{slug}: description is required — the "
                             f"action the render composes")
         if not shot.get("characters"):
             problems.append(f"shots.{slug}: characters is required")
+        else:
+            for i, c in enumerate(shot["characters"]):
+                if not isinstance(c, dict) or not c.get("slug"):
+                    problems.append(
+                        f"shots.{slug}.characters[{i}]: must be a mapping "
+                        f"with a slug — string poses are retired")
         bg = shot.get("background")
         if not bg:
             problems.append(f"shots.{slug}: background is required — the "
