@@ -6,7 +6,7 @@ import { FloatingChat } from "./FloatingChat";
 vi.mock("../api", () => ({
   chatStream: vi.fn(),
   uploadFile: vi.fn(),
-  fetchValidate: vi.fn().mockResolvedValue({ report: { state: "idle" } }),
+  fetchValidate: vi.fn().mockResolvedValue({ reports: {} }),
   runValidate: vi.fn(),
 }));
 
@@ -290,10 +290,11 @@ describe("FloatingChat", () => {
     expect(await screen.findByText("Agent")).toBeTruthy();
   });
 
-  it("the ✓ tab hosts the narrative-vs-final-cut review", async () => {
+  it("the ✓ tab hosts the merged review panel", async () => {
     render(<FloatingChat onProjectChanged={() => {}} />);
     fireEvent.click(screen.getByLabelText("open validate tab"));
-    expect(await screen.findByRole("button", {
-      name: "Validate narrative vs final cut" })).toBeTruthy();
+    // the ticked kinds (prompts + entities by default) drive the run count
+    expect(await screen.findByRole("button", { name: "Run 2 reviews" }))
+      .toBeTruthy();
   });
 });

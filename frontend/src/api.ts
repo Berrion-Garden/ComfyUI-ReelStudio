@@ -234,24 +234,29 @@ export async function saveBlock(section: "characters" | "locations",
 
 // ----------------------------------------------------------- validate ----
 
-export interface ValidateReport {
-  report: {
-    state: string;
-    error?: string;
-    total?: number;
-    done?: number;
-    findings?: { segment: string; beat: string | null; verdict: string;
-                 note: string }[];
-  };
+export interface ReviewReport {
+  state: string;
+  kind?: string;
+  error?: string;
+  total?: number;
+  done?: number;
+  findings?: { item: string; beat?: string | null; verdict: string;
+               note: string }[];
 }
 
-export async function fetchValidate(): Promise<ValidateReport> {
+export async function fetchValidate(): Promise<{
+  reports: Record<string, ReviewReport>;
+}> {
   const resp = await apiFetch(`${API}/validate`);
-  return json_or_throw<ValidateReport>(resp);
+  return json_or_throw(resp);
 }
 
-export async function runValidate(): Promise<void> {
-  const resp = await apiFetch(`${API}/validate`, { method: "POST" });
+export async function runValidate(kinds: string[]): Promise<void> {
+  const resp = await apiFetch(`${API}/validate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ kinds }),
+  });
   await json_or_throw(resp);
 }
 

@@ -64,15 +64,15 @@ class ReelStudio:
         self.jobs: dict[str, RenderJob] = {}
         self._queue: asyncio.Queue[RenderJob] = asyncio.Queue()
         self._worker: asyncio.Task | None = None
-        self.validate_task: asyncio.Task | None = None
+        self.validate_tasks: dict[str, asyncio.Task] = {}
 
     # ------------------------------------------------------------ review --
-    def run_validate(self) -> asyncio.Task:
+    def run_validate(self, kind: str) -> asyncio.Task:
         from . import validate as validate_mod
 
         project = self.project()
         return asyncio.create_task(
-            validate_mod.run(self, project), name="reelstudio-validate")
+            validate_mod.run(self, project, kind), name=f"reelstudio-{kind}")
 
     # ------------------------------------------------------------ project --
     def project(self):
@@ -651,12 +651,14 @@ async def get_narrative(request: web.Request) -> web.Response:
 
 async def get_validate(request: web.Request) -> web.Response:
     state = _state(request)
-    return web.json_response({"report": validate_mod.load_report(state.config)})
+    return web.json_response({"reports": validate_mod.load_reports(state.config)})
 
 
 async def post_validate(request: web.Request) -> web.Response:
+    body = await request.json() if request.can_read_body else {}
     try:
-        started = await validate_mod.start(_state(request))
+        started = await validate_mod.start(_state(request),
+                                           body.get("kinds") or [])
     except ReelStudioError as e:
         return _json_error(e)
     return web.json_response(started)

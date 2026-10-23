@@ -755,3 +755,17 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .validate-findings .finding .finding-note { color: #bbb; }
 .validate-findings .finding.issue b { color: #e66; }
 .validate-findings .finding.ok b { color: #6a6; }
+
+.validate-kinds { display: flex; flex-direction: column; gap: 2px; }
+.validate-kind { display: flex; gap: 6px; align-items: center; }
+.validate-section h6 {
+  margin: 6px 0 2px; display: flex; gap: 6px; align-items: baseline;
+}
+.validate-state {
+  font-size: 9px; padding: 1px 5px; border-radius: 3px;
+  color: #ccc; background: #333;
+}
+.validate-state.done { color: #6a6; }
+.validate-state.running { color: var(--accent); }
+.validate-state.error { color: #e66; }
+.validate-ok { color: #6a6; margin: 0; }
