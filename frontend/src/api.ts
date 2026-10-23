@@ -232,6 +232,29 @@ export async function saveBlock(section: "characters" | "locations",
   await json_or_throw(resp);
 }
 
+// ----------------------------------------------------------- validate ----
+
+export interface ValidateReport {
+  report: {
+    state: string;
+    error?: string;
+    total?: number;
+    done?: number;
+    findings?: { segment: string; beat: string | null; verdict: string;
+                 note: string }[];
+  };
+}
+
+export async function fetchValidate(): Promise<ValidateReport> {
+  const resp = await apiFetch(`${API}/validate`);
+  return json_or_throw<ValidateReport>(resp);
+}
+
+export async function runValidate(): Promise<void> {
+  const resp = await apiFetch(`${API}/validate`, { method: "POST" });
+  await json_or_throw(resp);
+}
+
 // ------------------------------------------------------------- studio ----
 
 export interface StudioScene {

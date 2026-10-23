@@ -710,3 +710,48 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .prompt {
   white-space: pre-wrap; font-size: 12px; line-height: 1.5;
 }
+
+.act-head {
+  display: flex; align-items: center; gap: 8px;
+}
+.act-head h3 { margin: 0; }
+.card-actions {
+  position: absolute; top: 6px; right: 6px; display: flex; gap: 4px;
+}
+.card-actions .pen { position: static; }
+
+.validate-panel {
+  padding: 8px; overflow-y: auto; height: 100%;
+  display: flex; flex-direction: column; gap: 6px;
+  font-size: 12px;
+}
+.validate-bar { display: flex; gap: 8px; align-items: center; }
+.validate-progress { color: var(--accent); }
+.validate-error { color: #e66; margin: 0; }
+.validate-summary { color: #999; margin: 0; }
+.validate-findings { list-style: none; margin: 0; padding: 0; }
+.validate-findings .finding {
+  display: flex; gap: 6px; align-items: baseline;
+  padding: 4px 0; border-top: 1px solid #333;
+}
+.validate-findings .finding .finding-note { color: #bbb; }
+.validate-findings .finding.issue b { color: #e66; }
+.validate-findings .finding.ok b { color: #6a6; }
+
+.validate-panel {
+  padding: 8px; overflow-y: auto; height: 100%;
+  display: flex; flex-direction: column; gap: 6px;
+  font-size: 12px;
+}
+.validate-bar { display: flex; gap: 8px; align-items: center; }
+.validate-progress { color: var(--accent); }
+.validate-error { color: #e66; margin: 0; }
+.validate-summary { color: #999; margin: 0; }
+.validate-findings { list-style: none; margin: 0; padding: 0; }
+.validate-findings .finding {
+  display: flex; gap: 6px; align-items: baseline;
+  padding: 4px 0; border-top: 1px solid #333;
+}
+.validate-findings .finding .finding-note { color: #bbb; }
+.validate-findings .finding.issue b { color: #e66; }
+.validate-findings .finding.ok b { color: #6a6; }

@@ -54,6 +54,33 @@ export function Narrative({ doc, dirty, saving, onChange, onSave, onNavigate,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openShot]);
 
+  /** append an empty shot and open its editor — the id stays empty until
+   * save, when the server derives it from the title's numbering */
+  const addShot = (i: number, j: number) => {
+    const acts = doc.acts.map((act, ai) => ai !== i ? act : {
+      ...act,
+      checkpoints: act.checkpoints.map((cp, cj) => cj !== j ? cp : {
+        ...cp, shots: [...cp.shots, { id: "", title: "", text: "" }],
+      }),
+    });
+    onChange({ ...doc, acts });
+    startEdit(`${i}:${j}:${doc.acts[i].checkpoints[j].shots.length}`, "", "");
+  };
+
+  /** append an empty scene checkpoint (with a placeholder shot) and open
+   * its editor — breaking one beat into two is retitle + retype */
+  const addCheckpoint = (i: number) => {
+    const acts = doc.acts.map((act, ai) => ai !== i ? act : {
+      ...act,
+      checkpoints: [...act.checkpoints, {
+        id: "", title: "", characters: [], locations: [],
+        shots: [{ id: "", title: "", text: "" }],
+      }],
+    });
+    onChange({ ...doc, acts });
+    startEdit(`${i}:${doc.acts[i].checkpoints.length}:0`, "", "");
+  };
+
   /** apply the draft to the one node `key` addresses (a scene or a shot) */
   const commit = () => {
     if (editing === null) return null;
@@ -87,13 +114,19 @@ export function Narrative({ doc, dirty, saving, onChange, onSave, onNavigate,
       {doc.style && <p className="narrative-style">{doc.style}</p>}
       {doc.acts.map((act, i) => (
         <section key={i} className="narrative-act">
-          <h3>{act.title}</h3>
+          <div className="act-head">
+            <h3>{act.title}</h3>
+            <button type="button" className="pen add"
+              title="add a scene to this act" aria-label={`add scene to ${act.title}`}
+              onClick={() => addCheckpoint(i)}>+</button>
+          </div>
           {act.music && <p className="narrative-music">🎵 {act.music}</p>}
           {act.checkpoints.map((cp, j) => (
             <SceneCard key={j} cp={cp} editing={editing} draft={draft}
               setDraft={setDraft} startEdit={startEdit} cancelEdit={() => setEditing(null)}
               commit={commit} saveOrCommit={saveOrCommit}
-              sceneKey={`${i}:${j}`} onNavigate={onNavigate} />
+              sceneKey={`${i}:${j}`} onNavigate={onNavigate}
+              onAddShot={() => addShot(i, j)} />
           ))}
         </section>
       ))}
@@ -121,16 +154,22 @@ interface SceneProps {
   saveOrCommit: () => void;
   sceneKey: string;
   onNavigate: Props["onNavigate"];
+  onAddShot: () => void;
 }
 
 function SceneCard({ cp, editing, draft, setDraft,
                      startEdit, cancelEdit, commit, saveOrCommit,
-                     sceneKey, onNavigate }: SceneProps) {
+                     sceneKey, onNavigate, onAddShot }: SceneProps) {
   return (
     <article className="checkpoint scene" id={`narrative-${cp.id}`}>
-      <button type="button" className="pen"
-        title="edit this scene's title" aria-label={`edit scene ${cp.title}`}
-        onClick={() => startEdit(sceneKey, cp.title, "")}>✎</button>
+      <div className="card-actions">
+        <button type="button" className="pen"
+          title="add a shot to this scene" aria-label={`add shot to ${cp.title}`}
+          onClick={onAddShot}>+</button>
+        <button type="button" className="pen"
+          title="edit this scene's title" aria-label={`edit scene ${cp.title}`}
+          onClick={() => startEdit(sceneKey, cp.title, "")}>✎</button>
+      </div>
       <h4><b className="beat-id" title="the beat id reel.yaml wires to">{cp.id}</b>{cp.title}</h4>
       {(cp.characters.length > 0 || cp.locations.length > 0) &&
         <div className="ref-chips">

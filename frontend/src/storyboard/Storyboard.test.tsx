@@ -149,4 +149,43 @@ describe("Storyboard", () => {
       expect((block as { attributes: Record<string, string> })
         .attributes.bandages).toBe("papyrus linen, aged");
     });
+
+  it("the scene's + appends a shot and opens its editor", async () => {
+    render(<Storyboard project={project()} refreshTick={0}
+      onChanged={() => {}} />);
+    await screen.findByText("Scene 1 — The Antique Shop");
+    fireEvent.click(screen.getByRole("button",
+      { name: "add shot to Scene 1 — The Antique Shop" }));
+
+    // the editor is open on a fresh shot; typing text and saving the
+    // narrative PUTs a doc with two shots, the new one empty-id (derived)
+    const area = screen.getByLabelText("Text");
+    fireEvent.change(area, { target: { value: "the lid creaks shut" } });
+    vi.mocked(saveNarrative).mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(saveNarrative).toHaveBeenCalled());
+    const shots = vi.mocked(saveNarrative).mock.calls[0][0]
+      .acts[0].checkpoints[0].shots;
+    expect(shots).toHaveLength(2);
+    expect(shots[1]).toEqual({ id: "", title: "", text: "the lid creaks shut" });
+  });
+
+  it("the act's + appends a scene checkpoint with a placeholder shot",
+    async () => {
+      render(<Storyboard project={project()} refreshTick={0}
+        onChanged={() => {}} />);
+      await screen.findByText("Scene 1 — The Antique Shop");
+      fireEvent.click(screen.getByRole("button",
+        { name: "add scene to Act 1 — Waking Up" }));
+
+      expect(screen.getByLabelText("Text")).toBeTruthy(); // editor opened
+      vi.mocked(saveNarrative).mockClear();
+      // the placeholder's text is empty, so the row's Save is disabled —
+      // the savebar is the flow the operator uses before typing
+      fireEvent.click(screen.getByRole("button", { name: "Save narrative" }));
+      await waitFor(() => expect(saveNarrative).toHaveBeenCalled());
+      const doc = vi.mocked(saveNarrative).mock.calls[0][0];
+      expect(doc.acts[0].checkpoints).toHaveLength(2);
+      expect(doc.acts[0].checkpoints[1].shots).toHaveLength(1);
+    });
 });

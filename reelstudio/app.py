@@ -20,6 +20,7 @@ from aiohttp import web
 
 from . import manifest as manifest_mod
 from . import narrative as narrative_mod
+from . import validate as validate_mod
 from . import assets as assets_mod
 from . import generate, jobs as jobs_mod, studio as studio_mod, timeline
 from . import audio as audio_mod
@@ -63,6 +64,15 @@ class ReelStudio:
         self.jobs: dict[str, RenderJob] = {}
         self._queue: asyncio.Queue[RenderJob] = asyncio.Queue()
         self._worker: asyncio.Task | None = None
+        self.validate_task: asyncio.Task | None = None
+
+    # ------------------------------------------------------------ review --
+    def run_validate(self) -> asyncio.Task:
+        from . import validate as validate_mod
+
+        project = self.project()
+        return asyncio.create_task(
+            validate_mod.run(self, project), name="reelstudio-validate")
 
     # ------------------------------------------------------------ project --
     def project(self):
@@ -639,6 +649,19 @@ async def get_narrative(request: web.Request) -> web.Response:
     return web.json_response(narrative_mod.view(root))
 
 
+async def get_validate(request: web.Request) -> web.Response:
+    state = _state(request)
+    return web.json_response({"report": validate_mod.load_report(state.config)})
+
+
+async def post_validate(request: web.Request) -> web.Response:
+    try:
+        started = await validate_mod.start(_state(request))
+    except ReelStudioError as e:
+        return _json_error(e)
+    return web.json_response(started)
+
+
 async def put_block(request: web.Request) -> web.Response:
     """Replace ONE digested block of reel.yaml (characters/locations) with
     the parsed object the UI edited — the pen-edit write path. The block
@@ -816,6 +839,8 @@ def create_app(config: Config) -> web.Application:
     app.router.add_get(f"{API}/narrative", get_narrative)
     app.router.add_put(f"{API}/narrative", put_narrative)
     app.router.add_put(f"{API}/block", put_block)
+    app.router.add_get(f"{API}/validate", get_validate)
+    app.router.add_post(f"{API}/validate", post_validate)
     app.router.add_post(f"{API}/studio/save", post_studio_save)
     app.router.add_post(f"{API}/studio/open", post_studio_open)
     app.router.add_post(f"{API}/studio/scenes", post_studio_scenes)

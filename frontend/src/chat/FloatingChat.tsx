@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { chatStream, uploadFile } from "../api";
 import type { ChatEvent } from "../types";
+import { ValidatePanel } from "./ValidatePanel";
 
 interface Entry {
   role: "user" | "agent" | "tool";
@@ -23,9 +24,11 @@ interface Geometry {
 type HistoryEntry = { role: string; content: string };
 
 /** One tab = one independent agent context: its own history, entries,
- *  attachments, and draft. */
+ *  attachments, and draft. A tab with kind "validate" is not an agent
+ *  context — it hosts the narrative-vs-final-cut review panel. */
 interface Tab {
   id: number;
+  kind?: "agent" | "validate";
   /** auto-set from the first message sent in this context */
   title: string | null;
   entries: Entry[];
@@ -115,6 +118,11 @@ const newTab = (id: number): Tab => ({
   input: "", busy: false, sendSelection: false,
 });
 
+const VALIDATE_ID = -1;
+const newValidateTab = (): Tab => ({
+  ...newTab(VALIDATE_ID), kind: "validate", title: "Validate",
+});
+
 type Corner = "nw" | "ne" | "sw" | "se";
 const CORNERS: Corner[] = ["nw", "ne", "sw", "se"];
 
@@ -163,6 +171,16 @@ export function FloatingChat({ onProjectChanged, selected }: Props) {
     setTabs(rest);
     histories.current.delete(id);
     if (activeId === id) setActiveId(rest[Math.max(0, idx - 1)].id);
+  };
+
+  /** open (or focus) the narrative-vs-final-cut review tab */
+  const openValidate = () => {
+    if (tabs.some((t) => t.kind === "validate")) {
+      setActiveId(VALIDATE_ID);
+      return;
+    }
+    setTabs([...tabs, newValidateTab()]);
+    setActiveId(VALIDATE_ID);
   };
 
   useEffect(() => {
@@ -402,10 +420,14 @@ export function FloatingChat({ onProjectChanged, selected }: Props) {
             )}
           </div>
         ))}
+        <button type="button" className="chat-tab-add validate-add"
+          title="validate the narrative against the final cut"
+          aria-label="open validate tab" onClick={openValidate}>✓</button>
         <button type="button" className="chat-tab-add"
           title="new session — a fresh context for the agent"
           aria-label="new chat session" onClick={addTab}>+</button>
       </div>
+      {active.kind === "validate" ? <ValidatePanel /> : <>
       <div className="chat-log" ref={scroller} aria-live="polite">
         {active.entries.map((entry, i) => (
           <div key={i} className={`chat-entry role-${entry.role}`}>
@@ -459,6 +481,7 @@ export function FloatingChat({ onProjectChanged, selected }: Props) {
             disabled={active.busy}>Send</button>
         </div>
       </div>
+      </>}
       <input ref={fileInput} type="file" multiple hidden
         onChange={(e) => {
           if (e.target.files?.length) void attach(active.id, e.target.files);

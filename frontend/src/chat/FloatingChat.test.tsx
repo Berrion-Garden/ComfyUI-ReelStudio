@@ -3,7 +3,12 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { chatStream } from "../api";
 import { FloatingChat } from "./FloatingChat";
 
-vi.mock("../api", () => ({ chatStream: vi.fn(), uploadFile: vi.fn() }));
+vi.mock("../api", () => ({
+  chatStream: vi.fn(),
+  uploadFile: vi.fn(),
+  fetchValidate: vi.fn().mockResolvedValue({ report: { state: "idle" } }),
+  runValidate: vi.fn(),
+}));
 
 // jsdom defaults the viewport to 1024×768
 const VW = 1024;
@@ -24,9 +29,9 @@ describe("FloatingChat", () => {
     expect(el.style.top).toBe(`${VH - 320}px`);
     expect(el.style.width).toBe(`${VW}px`);
     expect(el.style.height).toBe("320px");
-    // empty state: minimize + new session + sel + paperclip + Send,
+    // empty state: minimize + validate + new session + sel + paperclip + Send,
     // one session tab, no starter hints
-    expect(screen.queryAllByRole("button")).toHaveLength(5);
+    expect(screen.queryAllByRole("button")).toHaveLength(6);
     expect(tabs()).toHaveLength(1);
     expect(screen.getByLabelText("attach files")).toBeTruthy();
     expect(screen.getByLabelText("send selection image")).toBeTruthy();
@@ -283,5 +288,12 @@ describe("FloatingChat", () => {
     expect((await screen.findAllByText("make scene 2 shorter")).length).toBe(2);
     expect(await screen.findByText("done — scene 2 is shorter now")).toBeTruthy();
     expect(await screen.findByText("Agent")).toBeTruthy();
+  });
+
+  it("the ✓ tab hosts the narrative-vs-final-cut review", async () => {
+    render(<FloatingChat onProjectChanged={() => {}} />);
+    fireEvent.click(screen.getByLabelText("open validate tab"));
+    expect(await screen.findByRole("button", {
+      name: "Validate narrative vs final cut" })).toBeTruthy();
   });
 });

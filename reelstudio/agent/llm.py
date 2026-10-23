@@ -35,13 +35,12 @@ suggest."""
 
 
 async def chat(config: Config, messages: list[dict], tools: list[dict]) -> dict:
-    """One completion call. Returns the assistant message dict."""
-    body = {
-        "model": config.agent_model,
-        "messages": messages,
-        "tools": tools,
-        "tool_choice": "auto",
-    }
+    """One completion call. Returns the assistant message dict. Callers
+    without tools (the reviewer) pass [] — no tool_choice is sent then."""
+    body: dict = {"model": config.agent_model, "messages": messages}
+    if tools:
+        body["tools"] = tools
+        body["tool_choice"] = "auto"
     async with aiohttp.ClientSession() as session:
         async with session.post(
                 f"{config.agent_base_url}/chat/completions", json=body,
