@@ -162,6 +162,47 @@ async def test_view_image_delivers_picture_on_next_turn(config, workspace):
                for p in image_turn["content"])
 
 
+async def test_view_frames_extracts_and_delivers(config, workspace):
+    """The agent's eyes on video: view_frames ffmpeg-extracts frames from a
+    rendered deliverable and queues them for the user-turn delivery — the
+    loop can judge the motion and the joints, not just the stills."""
+    import subprocess
+
+    from conftest import FFMPEG, make_still
+
+    from reelstudio.agent import vision
+    from reelstudio.agent.tools import ToolBox
+    from reelstudio.app import ReelStudio
+
+    reel_dir = workspace / "output" / "reel"
+    reel_dir.mkdir(parents=True, exist_ok=True)
+    video = reel_dir / "s1_ramen_00001_.mp4"
+    subprocess.run([FFMPEG, "-y", "-v", "error", "-f", "lavfi",
+                    "-i", "testsrc=s=64x64:r=8:d=2",
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p", str(video)],
+                   check=True)
+
+    box = ToolBox(ReelStudio(config))
+    result = json.loads(await box.call(
+        "view_frames", {"path": str(video), "at": [0.2, 1.0, 1.8]}))
+    assert len(result["viewing"]) == 3
+    assert len(box.image_requests) == 3
+    for p in box.image_requests:
+        label, url = vision.data_url(p, [workspace])
+        assert url.startswith("data:image/png;base64,")
+
+    # default spread: six evenly spaced frames, no `at` needed
+    box2 = ToolBox(ReelStudio(config))
+    result2 = json.loads(await box2.call("view_frames", {"path": str(video)}))
+    assert len(result2["viewing"]) == 6
+
+    # stills are refused with the viewable list taught
+    make_still(workspace / "stills" / "opening_.png", "red")
+    result3 = json.loads(await box2.call(
+        "view_frames", {"path": str(workspace / "stills" / "opening_.png")}))
+    assert "error" in result3 and ".mp4" in result3["viewable"]
+
+
 async def test_currently_selected_delivers_pictures(config, workspace):
     """Referencing the selection IS looking at it: the picked images are
     queued for delivery (primary first), nothing else auto-attaches."""

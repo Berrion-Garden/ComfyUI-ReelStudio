@@ -15,6 +15,15 @@ def test_all_skills_load_with_frontmatter():
         assert len(s["body"]) > 200, f"{s['name']} body too thin"
 
 
+def test_subdirectory_skill_packages_load():
+    """skills/<name>/SKILL.md (the dir-per-skill layout) loads alongside the
+    flat files — a shell-side ops manual must be reachable by get_skill."""
+    from reelstudio.agent.skills import load_skills
+
+    names = {s["name"] for s in load_skills()}
+    assert "reel-operations" in names
+
+
 def test_system_prompt_keeps_the_spine_and_indexes_the_rest():
     """Always-on skills are injected whole; deep vocabulary is an index line
     the agent pulls with get_skill — lean context, full reach."""

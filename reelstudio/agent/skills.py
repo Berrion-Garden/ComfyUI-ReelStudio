@@ -31,7 +31,10 @@ def load_skills(dir_path: Path | None = None) -> list[dict]:
     if not d.is_dir():
         return []
     out = []
-    for path in sorted(d.glob("*.md")):
+    # top-level skills plus one-dir-per-skill packages (skills/<name>/SKILL.md,
+    # the open Agent Skills layout)
+    paths = sorted([*d.glob("*.md"), *d.glob("*/SKILL.md")])
+    for path in paths:
         text = path.read_text()
         meta: dict = {}
         body = text

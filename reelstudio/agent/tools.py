@@ -1,7 +1,7 @@
 """Agent tools — the exact operations a human has, executed server-side.
 
 get_project / get_assets / get_yaml / update_yaml / generate /
-currently_selected / view_image / get_studio / get_narrative /
+currently_selected / view_image / view_frames / get_studio / get_narrative /
 update_narrative / import_assets / update_asset_labels / anchor_still /
 adopt_renders / get_provenance / get_skill / get_status.
 update_yaml validates before saving and generate validates before queueing —
@@ -19,8 +19,11 @@ from .. import jobs as jobs_mod
 from .. import narrative as narrative_mod
 from .. import readmodel
 from .. import studio as studio_mod
+from ..assets import asset_file
 from ..errors import ReelStudioError
 from .skills import load_skills
+
+VIDEO_EXTS = {".mp4", ".webm", ".mov", ".mkv"}
 
 TOOLS = [
     {"type": "function", "function": {
@@ -129,6 +132,23 @@ TOOLS = [
                        "reference the operator uploaded. One image per call.",
         "parameters": {"type": "object",
                        "properties": {"path": {"type": "string"}},
+                       "required": ["path"]}}},
+    {"type": "function", "function": {
+        "name": "view_frames",
+        "description": "LOOK at frames of a rendered video — you are visual. "
+                       "Extracts frames at the given seconds (default: six "
+                       "evenly spaced) and delivers them as pictures on the "
+                       "next turn. Use it to judge motion and flow: how a "
+                       "segment opens against its first anchor, how it lands "
+                       "on its last, whether a chain of segments reads "
+                       "continuously or jumps. One video per call, max 8 "
+                       "frames.",
+        "parameters": {"type": "object",
+                       "properties": {"path": {"type": "string"},
+                                      "at": {"type": "array",
+                                             "items": {"type": "number"},
+                                             "description": "seconds into "
+                                                            "the video"}},
                        "required": ["path"]}}},
     {"type": "function", "function": {
         "name": "get_studio",
@@ -345,6 +365,44 @@ class ToolBox:
         return json.dumps({"viewing": label,
                            "note": "the image is delivered with the next "
                                    "message — describe what you actually see"})
+
+    async def _view_frames(self, args):
+        """The agent's eyes on rendered video: ffmpeg-extract frames into
+        the reel dir and deliver them through the same user-turn path as
+        view_image — the loop can finally judge the motion it produced."""
+        import subprocess
+
+        path = str(args.get("path", ""))
+        if path.startswith("asset:"):
+            path = path[len("asset:"):]
+        project = self.state.project()
+        roots = [self.state.config.workspace,
+                 project.meta["still_dir"], project.meta["reel_dir"]]
+        p = asset_file(path, roots)
+        if p.suffix.lower() not in VIDEO_EXTS:
+            return json.dumps({"error": f"{p.name} is not a viewable video",
+                               "viewable": sorted(VIDEO_EXTS)})
+        times = [float(t) for t in (args.get("at") or [])][:8]
+        if not times:
+            dur = float(subprocess.run(
+                ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                 "-of", "csv=p=0", str(p)],
+                check=True, capture_output=True, text=True).stdout.strip())
+            times = [round(dur * (i + 0.5) / 6, 2) for i in range(6)]
+        outdir = Path(project.meta["reel_dir"]) / "_frames"
+        outdir.mkdir(parents=True, exist_ok=True)
+        frames = []
+        for t in times:
+            out = outdir / f"{p.stem}_t{t:07.2f}.png"
+            subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", str(t),
+                            "-i", str(p), "-frames:v", "1", str(out)],
+                           check=True)
+            self.image_requests.append(str(out))
+            frames.append(out.name)
+        return json.dumps({"viewing": frames,
+                           "note": f"{len(frames)} frame(s) delivered with "
+                                   "the next message — judge the motion and "
+                                   "the joints, not just the stills"})
 
     async def _update_asset_labels(self, args):
         """Add/remove declared labels on one asset — the same write the
