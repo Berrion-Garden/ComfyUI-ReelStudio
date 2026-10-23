@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Checkpoint, NarrativeDoc } from "../api";
 
 export type Section = "narrative" | "characters" | "locations" | "scenes";
@@ -12,6 +12,10 @@ interface Props {
   /** write a doc to storyboard.yaml (a pen's Save passes the draft) */
   onSave: (doc: NarrativeDoc) => void;
   onNavigate: (section: Section, slug: string) => void;
+  /** a scene card's pen navigated here: open this beat's shot editor */
+  openShot?: string | null;
+  /** called once the openShot request has been taken */
+  onOpenHandled?: () => void;
 }
 
 /**
@@ -22,7 +26,8 @@ interface Props {
  * equally. `characters`/`locations` slugs render as links into the
  * digested YAML sections.
  */
-export function Narrative({ doc, dirty, saving, onChange, onSave, onNavigate }: Props) {
+export function Narrative({ doc, dirty, saving, onChange, onSave, onNavigate,
+                            openShot, onOpenHandled }: Props) {
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ title: string; text: string }>(
     { title: "", text: "" });
@@ -31,6 +36,23 @@ export function Narrative({ doc, dirty, saving, onChange, onSave, onNavigate }: 
     setEditing(key);
     setDraft({ title, text });
   };
+
+  // a Scenes-card pen landed here: open the addressed shot's editor once
+  useEffect(() => {
+    if (!openShot) return;
+    const loc = doc.acts.flatMap((act, i) =>
+      act.checkpoints.flatMap((cp, j) =>
+        cp.shots.map((shot, k) =>
+          shot.id === openShot ? `${i}:${j}:${k}` : null)));
+    const key = loc.find((x) => x !== null);
+    if (key) {
+      const [i, j, k] = key.split(":").map(Number);
+      const shot = doc.acts[i].checkpoints[j].shots[k];
+      startEdit(key, shot.title, shot.text);
+    }
+    onOpenHandled?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openShot]);
 
   /** apply the draft to the one node `key` addresses (a scene or a shot) */
   const commit = () => {
@@ -105,7 +127,7 @@ function SceneCard({ cp, editing, draft, setDraft,
                      startEdit, cancelEdit, commit, saveOrCommit,
                      sceneKey, onNavigate }: SceneProps) {
   return (
-    <article className="checkpoint scene">
+    <article className="checkpoint scene" id={`narrative-${cp.id}`}>
       <button type="button" className="pen"
         title="edit this scene's title" aria-label={`edit scene ${cp.title}`}
         onClick={() => startEdit(sceneKey, cp.title, "")}>✎</button>
@@ -142,7 +164,7 @@ function SceneCard({ cp, editing, draft, setDraft,
             </div>
           </div>
         ) : (
-          <div key={key} className="shot">
+          <div key={key} className="shot" id={`narrative-${shot.id}`}>
             <button type="button" className="pen"
               title="edit this shot" aria-label={`edit ${shot.title || cp.title}`}
               onClick={() => startEdit(key, shot.title, shot.text)}>✎</button>

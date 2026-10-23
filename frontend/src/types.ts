@@ -14,6 +14,11 @@ export interface SceneView {
   first: Anchor;
   last: Anchor;
   description: string;
+  /** the beat id this segment is wired to (the action text's owner) */
+  beat?: string | null;
+  /** the composed end prompt (beat text + anchors) — null while the
+   * workspace's reel.py cannot collapse */
+  prompt?: string | null;
   has_freeze: boolean;
   has_bell: boolean;
   bell_at: number | null;

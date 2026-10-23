@@ -1,6 +1,6 @@
 import type { ChatEvent, ProjectView } from "./types";
 
-const API = "/reelstudio/api";
+export const API = "/reelstudio/api";
 
 /** Every API call gets a hard timeout: a hung request must surface as an
  * error, never leave the UI silently waiting (the asset grid would freeze).
@@ -216,6 +216,18 @@ export async function saveNarrative(doc: NarrativeDoc): Promise<void> {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ doc }),
+  });
+  await json_or_throw(resp);
+}
+
+/** Replace ONE characters/locations block of reel.yaml with the parsed
+ * object the UI edited — the pen-edit write path. */
+export async function saveBlock(section: "characters" | "locations",
+                                slug: string, block: unknown): Promise<void> {
+  const resp = await apiFetch(`${API}/block`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ section, slug, block }),
   });
   await json_or_throw(resp);
 }

@@ -25,6 +25,9 @@ def project_view(state, api: str = "/reelstudio/api") -> dict:
     stale = set(timeline.stale_scenes(project, manifest, reel_dir,
                                       collapse=collapse_mod.current(project)))
     starts = timeline.scene_starts(project)
+    # the composed end prompt per scene (beat text + anchors, as generated
+    # against) — None while the workspace's reel.py cannot collapse
+    composed = collapse_mod.current(project) or {}
 
     scenes = []
     for i, s in enumerate(project.scenes):
@@ -41,6 +44,8 @@ def project_view(state, api: str = "/reelstudio/api") -> dict:
         view["adoptable"] = on_disk and not (
             bool(video_file) and entry.get("generation"))
         view["start_s"] = starts[i]
+        prompt = (composed.get(s["id"]) or {}).get("prompt")
+        view["prompt"] = prompt
         scenes.append(view)
 
     music = []

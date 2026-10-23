@@ -9,6 +9,8 @@ interface Props {
   /** bumps every time the app refreshes — the agent may have edited the
    * narrative through chat, so the view follows unless a draft is open */
   refreshTick: number;
+  /** bump the app refresh after a pen save — the read model changed */
+  onChanged: () => void;
 }
 
 /**
@@ -17,13 +19,14 @@ interface Props {
  * and this project's characters / locations / scenes YAML blocks. Every
  * slug reference renders as a link into its section.
  */
-export function Storyboard({ project, refreshTick }: Props) {
+export function Storyboard({ project, refreshTick, onChanged }: Props) {
   const [section, setSection] = useState<Section>("narrative");
   const [focus, setFocus] = useState<string | null>(null);
   const [narrative, setNarrative] = useState<NarrativeView | null>(null);
   const [doc, setDoc] = useState<NarrativeDoc | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editBeat, setEditBeat] = useState<string | null>(null);
   const dirty = doc !== null && narrative !== null && doc !== narrative.doc;
 
   const load = useCallback(async () => {
@@ -83,12 +86,20 @@ export function Storyboard({ project, refreshTick }: Props) {
         {error} (click to dismiss)</div>}
       {doc && section === "narrative" &&
         <Narrative doc={doc} dirty={dirty} saving={saving}
-          onChange={setDoc} onSave={save} onNavigate={navigate} />}
+          onChange={setDoc} onSave={save} onNavigate={navigate}
+          openShot={editBeat} onOpenHandled={() => setEditBeat(null)} />}
       {section === "characters" &&
-        <CharactersSection project={project} focus={focus} />}
+        <CharactersSection project={project} focus={focus} onChanged={onChanged} />}
       {section === "locations" &&
-        <LocationsSection project={project} focus={focus} />}
-      {section === "scenes" && <ScenesSection project={project} focus={focus} />}
+        <LocationsSection project={project} focus={focus} onChanged={onChanged} />}
+      {section === "scenes" &&
+        <ScenesSection project={project} focus={focus}
+          onChanged={onChanged}
+          onEditBeat={(beat) => {
+            setEditBeat(beat);
+            setSection("narrative");
+            setFocus(beat);
+          }} />}
     </div>
   );
 }

@@ -639,6 +639,33 @@ async def get_narrative(request: web.Request) -> web.Response:
     return web.json_response(narrative_mod.view(root))
 
 
+async def put_block(request: web.Request) -> web.Response:
+    """Replace ONE digested block of reel.yaml (characters/locations) with
+    the parsed object the UI edited — the pen-edit write path. The block
+    arrives as a dict; the server owns the validated, atomic dump."""
+    state = _state(request)
+    body = await request.json()
+    section, slug, block = (body.get("section"), body.get("slug"),
+                            body.get("block"))
+    if section not in ("characters", "locations"):
+        return web.json_response(
+            {"error": "section must be 'characters' or 'locations'"},
+            status=400)
+    if not isinstance(slug, str) or not isinstance(block, dict):
+        return web.json_response(
+            {"error": "body must be {section, slug, block}"}, status=400)
+    project = state.project()
+    blocks = project.raw.get(section)
+    if not isinstance(blocks, dict) or slug not in blocks:
+        raise NotFoundError(f"no {section} block {slug!r}")
+    blocks[slug] = block
+    try:
+        warnings = project.save()
+    except ReelStudioError as e:
+        return _json_error(e)
+    return web.json_response({"saved": True, "warnings": warnings})
+
+
 async def put_narrative(request: web.Request) -> web.Response:
     state = _state(request)
     body = await request.json()
@@ -788,6 +815,7 @@ def create_app(config: Config) -> web.Application:
     app.router.add_get(f"{API}/studio", get_studio)
     app.router.add_get(f"{API}/narrative", get_narrative)
     app.router.add_put(f"{API}/narrative", put_narrative)
+    app.router.add_put(f"{API}/block", put_block)
     app.router.add_post(f"{API}/studio/save", post_studio_save)
     app.router.add_post(f"{API}/studio/open", post_studio_open)
     app.router.add_post(f"{API}/studio/scenes", post_studio_scenes)

@@ -156,6 +156,7 @@ def scene_view(project: Project, scene_id: str) -> dict:
         "first": resolve_anchor(project, scene["video"].get("first")),
         "last": resolve_anchor(project, scene["video"].get("last")),
         "description": scene["video"].get("description", ""),
+        "beat": scene.get("beat"),
         "location": scene.get("location"),
         "has_freeze": bool(scene.get("post", {}).get("freeze")),
         "has_bell": bool(scene.get("sound_effects", {}).get("bell")),

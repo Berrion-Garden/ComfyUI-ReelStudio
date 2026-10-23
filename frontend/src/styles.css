@@ -687,3 +687,26 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   color: var(--accent); font-size: 10px; margin-right: 6px;
   vertical-align: middle;
 }
+
+.anchor-stills {
+  display: flex; gap: 8px; margin: 6px 0;
+}
+.anchor-thumb {
+  margin: 0; max-width: 160px;
+}
+.anchor-thumb img {
+  width: 160px; height: 90px; object-fit: cover;
+  border-radius: 4px; border: 1px solid #333; display: block;
+}
+.anchor-thumb figcaption {
+  font-size: 10px; color: var(--accent); margin-top: 2px;
+}
+.anchor-thumb.empty {
+  font-size: 10px; color: #777; align-self: center;
+}
+.pen.prompt-pen {
+  display: inline-block; margin: 4px 0; width: auto; padding: 2px 8px;
+}
+.prompt {
+  white-space: pre-wrap; font-size: 12px; line-height: 1.5;
+}

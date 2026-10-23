@@ -220,7 +220,8 @@ export function App() {
                 onChanged={() => void refresh()} />
             </div>
             <div className={stageView === "storyboard" ? "stage-host" : "stage-host hidden"}>
-              <Storyboard project={project} refreshTick={refreshTick} />
+              <Storyboard project={project} refreshTick={refreshTick}
+                onChanged={() => void refresh()} />
             </div>
           </section>
           <AssetsPane assets={assets} studio={studio}
