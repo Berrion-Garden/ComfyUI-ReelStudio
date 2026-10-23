@@ -137,6 +137,33 @@ until curl -sf http://localhost:8188/system_stats >/dev/null; do sleep 2; done
 
 - H3 can never pin weights (42.4 GB > device limit) — video takes dynamic mode; image without the pinned flags weight-streams at 24-36 s/graph and blows every budget. Mechanics: `comfyui-serving` skill.
 
+## 8b. Re-attaching external renders to the studio UI
+
+After restructuring scene ids, or after any render done outside the studio's own generate flow, the Player shows "No renders yet" and the timeline shows X on anchor slots. The app tracks renders in `<reel_dir>/.reelstudio_manifest.json` (keyed by CURRENT scene ids — a manifest entry under an old id does not match), and resolves `still:<name>` anchors to a literal `<name>_.png` in `still_dir` (it cannot disambiguate the draft/final label sharing in assets.yaml — ambiguous labels resolve to nothing). Fix both:
+
+```bash
+# 1. anchor thumbs: materialize the judged finals under the app's convention
+#    (run from the scene dir; uses reel.py's own resolver, which prefers the `final` copy)
+$PY - <<'EOF'
+import sys, os, shutil; sys.path.insert(0, '<repo>/anime_reel')
+import reel
+names = {s['video'][side].removeprefix('still:') for s in reel.CFG['scenes'] for side in ('first','last')}
+for n in names:
+    src = reel.resolve_path(f'still:{n}', None)
+    dst = os.path.join(reel.M['still_dir'], f'{n}_.png')
+    if src and not os.path.exists(dst): shutil.copy2(src, dst)
+EOF
+
+# 2. player: adopt the on-disk mp4s for the current ids
+curl -s -X POST http://127.0.0.1:8188/reelstudio/api/manifest/adopt -d '{}' -H 'Content-Type: application/json'
+
+# 3. verify
+curl -s http://localhost:8188/reelstudio/api/project -o /dev/null -w '%{http_code}\n'   # 200
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8188/reelstudio/api/scene/<sid>/artifact/video
+```
+
+Adoption caches the current config collapse as the staleness baseline — adopt only when the renders really match the current reel.yaml.
+
 ## 9. Guardrails
 
 - A wedge (HTTP dead, GPU 0%): restart, wait `/system_stats` 200, re-warm (`$PY "$REEL" warmup`, 300 s budget), retry — inside a campaign this is automatic; never hand-recover mid-wave.
